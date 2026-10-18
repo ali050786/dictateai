@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DictateAI for Mac</title>
+<meta name="description" content="Voice dictation for macOS that runs on your Mac. Hold a key, speak, and clean text appears in any app. Free, open source, private by default.">
+<meta property="og:title" content="DictateAI — speak, and it types. On your Mac.">
+<meta property="og:description" content="Private voice dictation for Apple Silicon Macs. Local speech recognition and local AI cleanup. Free and open source.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f7f6f3;
+  --bg-2: #efede8;
+  --surface: #ffffff;
+  --ink: #16151a;
+  --ink-2: #4a4852;
+  --ink-3: #7c7a85;
+  --line: #e2dfd8;
+  --accent: #5b47e0;
+  --accent-ink: #ffffff;
+  --accent-soft: #ece9fd;
+  --good: #1f8a5b;
+  --bad: #b4433a;
+  --pill: #121116;
+  --pill-ink: #f4f3f7;
+  --shadow: 0 1px 2px rgba(20,18,30,.05), 0 12px 40px -12px rgba(20,18,30,.18);
+  --radius: 18px;
+  --max: 1120px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d0c11; --bg-2: #14131a; --surface: #18171f;
+    --ink: #f2f1f6; --ink-2: #b9b7c4; --ink-3: #85839a;
+    --line: #2a2833; --accent: #8b7bff; --accent-ink: #0d0c11; --accent-soft: #221d44;
+    --good: #4cc28c; --bad: #ec7a70; --pill: #000000; --pill-ink: #f4f3f7;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 20px 50px -16px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d0c11; --bg-2: #14131a; --surface: #18171f;
+  --ink: #f2f1f6; --ink-2: #b9b7c4; --ink-3: #85839a;
+  --line: #2a2833; --accent: #8b7bff; --accent-ink: #0d0c11; --accent-soft: #221d44;
+  --good: #4cc28c; --bad: #ec7a70; --pill: #000000; --pill-ink: #f4f3f7;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 20px 50px -16px rgba(0,0,0,.7);
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 16px/1.6 Inter, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased; overflow-x: hidden;
+}
+a { color: inherit; }
+img, svg { display: block; }
+.wrap { max-width: var(--max); margin: 0 auto; padding: 0 24px; }
+@media (max-width: 600px) { .wrap { padding: 0 16px; } }
+.serif { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; letter-spacing: -.01em; }
+.mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+.eyebrow { font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin: 0 0 12px; }
+h1, h2, h3 { margin: 0; line-height: 1.1; }
+h2 { font-size: clamp(34px, 5vw, 52px); }
+.lede { color: var(--ink-2); font-size: 18px; max-width: 620px; }
+section { padding: 96px 0; }
+@media (max-width: 700px) { section { padding: 64px 0; } }
+
+/* Nav */
+.nav { position: sticky; top: 0; z-index: 20; backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px); background: color-mix(in srgb, var(--bg) 78%, transparent); border-bottom: 1px solid transparent; transition: border-color .2s; }
+.nav.scrolled { border-bottom-color: var(--line); }
+.nav .wrap { display: flex; align-items: center; height: 64px; gap: 28px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; font-size: 17px; }
+.logo { width: 30px; height: 30px; border-radius: 9px; background: var(--ink); color: var(--bg); display: grid; place-items: center; }
+.nav-links { display: flex; gap: 22px; margin-left: auto; font-size: 14px; color: var(--ink-2); }
+.nav-links a { text-decoration: none; }
+.nav-links a:hover { color: var(--ink); }
+.theme-btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); width: 36px; height: 36px; border-radius: 10px; cursor: pointer; display: grid; place-items: center; }
+@media (max-width: 860px) { .nav-links { display: none; } .nav .wrap > .btn { margin-left: auto; } }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; gap: 10px; border-radius: 12px; padding: 12px 20px; font-weight: 600; font-size: 15px; text-decoration: none; border: 1px solid transparent; cursor: pointer; transition: transform .15s, box-shadow .15s, background .15s; white-space: nowrap; }
+.btn:active { transform: translateY(1px); }
+.btn-primary { background: var(--ink); color: var(--bg); box-shadow: var(--shadow); }
+.btn-primary:hover { transform: translateY(-1px); }
+.btn-ghost { border-color: var(--line); background: var(--surface); color: var(--ink); }
+.btn-sm { padding: 8px 14px; font-size: 14px; border-radius: 10px; }
+.btn-lg { padding: 16px 26px; font-size: 16px; border-radius: 14px; }
+.btn small { font-weight: 500; opacity: .65; font-size: 12px; }
+
+/* Hero */
+.hero { padding: 72px 0 40px; position: relative; }
+.hero::before { content: ""; position: absolute; inset: -200px 0 auto; height: 700px; background: radial-gradient(600px 300px at 70% 30%, var(--accent-soft), transparent 70%); z-index: -1; pointer-events: none; }
+.hero-grid { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; }
+@media (max-width: 960px) { .hero-grid { grid-template-columns: 1fr; gap: 40px; } }
+.badge { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 12px 5px 6px; margin-bottom: 24px; }
+.badge b { background: var(--accent); color: var(--accent-ink); border-radius: 999px; padding: 2px 8px; font-size: 11px; letter-spacing: .04em; }
+.hero h1 { font-size: clamp(48px, 7.4vw, 88px); line-height: .98; letter-spacing: -.02em; }
+.hero h1 em { color: var(--accent); }
+.hero .lede { margin: 22px 0 32px; font-size: 19px; }
+.cta-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 18px; font-size: 13px; color: var(--ink-3); }
+.meta span { display: inline-flex; align-items: center; gap: 6px; }
+.meta svg { width: 14px; height: 14px; }
+
+/* Demo window */
+.demo { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; box-shadow: var(--shadow); overflow: hidden; position: relative; }
+.demo-bar { display: flex; align-items: center; gap: 7px; padding: 12px 14px; border-bottom: 1px solid var(--line); background: var(--bg-2); }
+.demo-bar i { width: 11px; height: 11px; border-radius: 50%; background: var(--line); }
+.demo-bar span { margin-left: 10px; font-size: 12px; color: var(--ink-3); }
+.demo-body { padding: 22px 22px 96px; min-height: 330px; position: relative; }
+.mail-row { display: flex; gap: 10px; font-size: 13px; color: var(--ink-3); border-bottom: 1px solid var(--line); padding: 8px 0; }
+.mail-row b { color: var(--ink-2); font-weight: 500; }
+.field { margin-top: 16px; font-size: 16px; min-height: 120px; color: var(--ink); }
+.field .raw { color: var(--ink-3); }
+.caret { display: inline-block; width: 2px; height: 1.15em; background: var(--accent); vertical-align: -3px; margin-left: 1px; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.pill { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%) translateY(8px); background: var(--pill); color: var(--pill-ink); border-radius: 999px; height: 40px; padding: 0 16px; display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 500; opacity: 0; transition: opacity .25s, transform .25s, width .25s; box-shadow: 0 10px 30px -8px rgba(0,0,0,.5); }
+.pill.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+.wave { display: flex; gap: 2.5px; align-items: center; height: 18px; }
+.wave i { width: 3px; border-radius: 2px; background: currentColor; height: 4px; }
+.pill.listening .wave i { animation: wave 0.9s ease-in-out infinite; }
+.wave i:nth-child(2){animation-delay:.1s}.wave i:nth-child(3){animation-delay:.2s}.wave i:nth-child(4){animation-delay:.3s}.wave i:nth-child(5){animation-delay:.15s}.wave i:nth-child(6){animation-delay:.25s}.wave i:nth-child(7){animation-delay:.05s}
+@keyframes wave { 0%,100% { height: 4px; } 50% { height: 17px; } }
+.spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.25); border-top-color: currentColor; border-radius: 50%; animation: spin .8s linear infinite; display: none; }
+.pill.working .spinner { display: block; } .pill.working .wave { display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.key-hint { position: absolute; right: 18px; top: 10px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-3); }
+.kbd { font: 500 12px "JetBrains Mono", monospace; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 7px; padding: 3px 8px; background: var(--bg-2); color: var(--ink-2); transition: all .1s; }
+.kbd.down { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); transform: translateY(1px); }
+@media (max-width: 520px) { .key-hint { display: none; } }
+
+/* Logos/strip */
+.strip { padding: 28px 0 8px; }
+.strip p { text-align: center; font-size: 13px; color: var(--ink-3); margin: 0 0 14px; }
+.apps { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.apps span { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 14px; font-size: 14px; color: var(--ink-2); }
+
+/* Gestures */
+.gestures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 48px; }
+@media (max-width: 820px) { .gestures { grid-template-columns: 1fr; } }
+.gesture { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; }
+.taps { display: flex; gap: 6px; margin-bottom: 22px; height: 44px; align-items: center; }
+.tap { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); border-bottom-width: 3px; background: var(--bg-2); display: grid; place-items: center; font: 500 13px "JetBrains Mono", monospace; color: var(--ink-2); }
+.tap.hold { width: 120px; background: linear-gradient(90deg, var(--accent-soft) 0 var(--p, 0%), var(--bg-2) var(--p, 0%)); animation: hold 2.4s ease-in-out infinite; }
+@keyframes hold { 0% { --p: 0%; } 70%,100% { --p: 100%; } }
+@property --p { syntax: "<percentage>"; inherits: false; initial-value: 0%; }
+.tap.pulse { animation: pulse 2.4s infinite; }
+.tap.pulse:nth-child(2) { animation-delay: .22s; } .tap.pulse:nth-child(3) { animation-delay: .44s; }
+@keyframes pulse { 0%, 30%, 100% { background: var(--bg-2); color: var(--ink-2); } 10% { background: var(--accent); color: var(--accent-ink); } }
+.gesture h3 { font-size: 20px; margin-bottom: 6px; }
+.gesture p { margin: 0; color: var(--ink-2); font-size: 15px; }
+
+/* Before/after */
+.ba { display: grid; grid-template-columns: 1fr auto 1fr; gap: 20px; align-items: stretch; margin-top: 48px; }
+@media (max-width: 820px) { .ba { grid-template-columns: 1fr; } .ba .arrow { transform: rotate(90deg); justify-self: center; } }
+.ba-card { border-radius: var(--radius); padding: 26px; border: 1px solid var(--line); }
+.ba-card.raw { background: var(--bg-2); color: var(--ink-3); }
+.ba-card.clean { background: var(--surface); box-shadow: var(--shadow); }
+.ba-card .tag { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 12px; color: var(--ink-3); }
+.ba-card.clean .tag { color: var(--accent); }
+.ba-card p { margin: 0; font-size: 17px; }
+.ba-card s { text-decoration-color: var(--bad); color: var(--bad); opacity: .8; }
+.arrow { align-self: center; color: var(--ink-3); }
+.ba-tabs { display: flex; gap: 8px; margin-top: 32px; flex-wrap: wrap; }
+.ba-tabs button { border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); border-radius: 999px; padding: 7px 14px; font: 500 14px Inter, sans-serif; cursor: pointer; }
+.ba-tabs button[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+/* Features */
+.feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 48px; }
+@media (max-width: 960px) { .feat-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 620px) { .feat-grid { grid-template-columns: 1fr; } }
+.feat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; transition: transform .2s, box-shadow .2s; }
+.feat:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.feat .ic { width: 40px; height: 40px; border-radius: 11px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; margin-bottom: 16px; }
+.feat .ic svg { width: 20px; height: 20px; }
+.feat h3 { font-size: 17px; margin-bottom: 6px; }
+.feat p { margin: 0; color: var(--ink-2); font-size: 15px; }
+.feat.big { grid-column: span 2; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: center; }
+@media (max-width: 620px) { .feat.big { grid-column: span 1; grid-template-columns: 1fr; } }
+.langs { display: flex; flex-wrap: wrap; gap: 6px; }
+.langs span { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: var(--bg-2); color: var(--ink-2); border: 1px solid var(--line); }
+
+/* Privacy */
+.privacy { background: var(--ink); color: var(--bg); border-radius: 28px; padding: 64px; display: grid; grid-template-columns: 1fr 1fr; gap: 48px; }
+.privacy .lede, .privacy p { color: color-mix(in srgb, var(--bg) 72%, var(--ink)); }
+.privacy .eyebrow { color: color-mix(in srgb, var(--accent) 70%, var(--bg)); }
+@media (max-width: 860px) { .privacy { grid-template-columns: 1fr; padding: 36px 24px; border-radius: 22px; } }
+.flow { display: flex; flex-direction: column; gap: 12px; }
+.flow-step { display: flex; gap: 14px; align-items: flex-start; padding: 16px 18px; border-radius: 14px; background: color-mix(in srgb, var(--bg) 8%, var(--ink)); border: 1px solid color-mix(in srgb, var(--bg) 14%, var(--ink)); }
+.flow-step .n { flex: none; width: 26px; height: 26px; border-radius: 8px; background: color-mix(in srgb, var(--bg) 16%, var(--ink)); display: grid; place-items: center; font: 500 12px "JetBrains Mono", monospace; }
+.flow-step h4 { margin: 0 0 2px; font-size: 15px; }
+.flow-step p { margin: 0; font-size: 14px; }
+.check-list { list-style: none; padding: 0; margin: 28px 0 0; display: grid; gap: 10px; }
+.check-list li { display: flex; gap: 10px; font-size: 15px; }
+.check-list svg { flex: none; width: 18px; height: 18px; margin-top: 3px; color: var(--good); }
+
+/* Availability */
+.avail { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 48px; }
+@media (max-width: 860px) { .avail { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 460px) { .avail { grid-template-columns: 1fr; } }
+.plat { border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; background: var(--surface); }
+.plat.yes { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.plat h3 { font-size: 17px; margin: 14px 0 4px; }
+.plat p { margin: 0; font-size: 14px; color: var(--ink-2); }
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 3px 10px; }
+.status.ok { background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--good); }
+.status.no { background: var(--bg-2); color: var(--ink-3); }
+.status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+/* Install */
+.install { display: grid; grid-template-columns: 340px 1fr; gap: 56px; margin-top: 8px; }
+@media (max-width: 900px) { .install { grid-template-columns: 1fr; gap: 24px; } }
+.steps { counter-reset: s; display: grid; gap: 14px; }
+.step { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 22px 22px 70px; }
+.step::before { counter-increment: s; content: counter(s); position: absolute; left: 22px; top: 22px; width: 30px; height: 30px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); font-weight: 700; display: grid; place-items: center; font-size: 14px; }
+.step h3 { font-size: 17px; margin-bottom: 4px; }
+.step p { margin: 0; color: var(--ink-2); font-size: 15px; }
+.code { margin-top: 12px; display: flex; align-items: center; gap: 10px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 10px 10px 14px; font: 13.5px "JetBrains Mono", monospace; overflow-x: auto; }
+.code code { flex: 1; white-space: nowrap; }
+.code code::before { content: "$ "; color: var(--ink-3); }
+.copy { flex: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); border-radius: 7px; padding: 4px 10px; font: 500 12px Inter, sans-serif; cursor: pointer; }
+.note { margin-top: 12px; font-size: 14px; color: var(--ink-2); background: var(--accent-soft); border-radius: 10px; padding: 10px 14px; }
+
+/* Requirements table */
+.req { margin-top: 28px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+.req div { display: flex; justify-content: space-between; gap: 16px; padding: 13px 18px; border-bottom: 1px solid var(--line); font-size: 14px; }
+.req div:last-child { border-bottom: 0; }
+.req dt { color: var(--ink-3); }
+.req dd { margin: 0; text-align: right; font-weight: 500; }
+
+/* FAQ */
+.faq { margin-top: 40px; display: grid; gap: 10px; max-width: 820px; }
+details { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 0 22px; }
+summary { cursor: pointer; list-style: none; padding: 18px 0; font-weight: 600; display: flex; justify-content: space-between; gap: 16px; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: "+"; font-weight: 400; font-size: 22px; line-height: 1; color: var(--ink-3); transition: transform .2s; }
+details[open] summary::after { transform: rotate(45deg); }
+details p { margin: 0 0 18px; color: var(--ink-2); }
+
+/* Final CTA */
+.final { text-align: center; padding: 112px 0; }
+.final h2 { font-size: clamp(40px, 6vw, 72px); }
+.final .lede { margin: 18px auto 32px; }
+.final .cta-row { justify-content: center; }
+footer { border-top: 1px solid var(--line); padding: 32px 0 48px; font-size: 14px; color: var(--ink-3); }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; }
+footer a { text-decoration: none; color: var(--ink-2); }
+
+.reveal { opacity: 0; transform: translateY(14px); transition: opacity .6s, transform .6s; }
+.reveal.in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .reveal { opacity: 1; transform: none; }
+}
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/></symbol>
+  <symbol id="i-apple" viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9s-2-.9-3.4-.9c-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.5 1.3-.1 1.8-.8 3.3-.8s2 .8 3.4.8c1.4 0 2.3-1.3 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9 0 0-2.7-1-2.7-4zM13.9 4.9c.7-.9 1.2-2 1-3.2-1 0-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.1 1.2.1 2.3-.6 3.1-1.5z"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M6 11l6 6 6-6M5 20h14"/></symbol>
+  <symbol id="i-gh" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5a11.5 11.5 0 0 0-3.6 22.4c.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.2 1.2a11 11 0 0 1 5.8 0c2.2-1.5 3.2-1.2 3.2-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.9 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A11.5 11.5 0 0 0 12 .5z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-chip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol>
+  <symbol id="i-free" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3 6.5 7 .8-5.2 4.8 1.4 7-6.2-3.6-6.2 3.6 1.4-7L2 9.3l7-.8z"/></symbol>
+</svg>
+
+<header class="nav" id="nav">
+  <div class="wrap">
+    <a href="#" class="brand" aria-label="DictateAI home"><span class="logo"><svg width="16" height="16"><use href="#i-mic"/></svg></span>DictateAI</a>
+    <nav class="nav-links" aria-label="Sections">
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#availability">Availability</a>
+      <a href="#install">Install</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <button class="theme-btn" id="themeBtn" aria-label="Switch light or dark theme" title="Theme">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    </button>
+    <a class="btn btn-primary btn-sm js-download" href="#install"><svg width="15" height="15"><use href="#i-down"/></svg>Download</a>
+  </div>
+</header>
+
+<main>
+  <!-- Hero -->
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <span class="badge"><b>NEW</b> Version 0.2.0: nothing else to install</span>
+        <h1 class="serif">Speak.<br>It types. <em>On&nbsp;your&nbsp;Mac.</em></h1>
+        <p class="lede">Hold a key, say what you mean, and clean, punctuated text appears in whatever app you're typing in. Speech recognition and AI cleanup run on your Mac, so your words stay there. No word limits, no subscription.</p>
+        <div class="cta-row">
+          <a class="btn btn-primary btn-lg js-download" href="#install"><svg width="20" height="20"><use href="#i-apple"/></svg>Download for Mac <small>Apple Silicon</small></a>
+          <a class="btn btn-ghost btn-lg" href="https://github.com/ali050786/dictateai"><svg width="18" height="18"><use href="#i-gh"/></svg>View source</a>
+        </div>
+        <div class="meta">
+          <span><svg><use href="#i-chip"/></svg>M1, M2, M3, M4 and later</span>
+          <span><svg><use href="#i-lock"/></svg>Private by default</span>
+          <span><svg><use href="#i-free"/></svg>Free and open source (MIT)</span>
+        </div>
+      </div>
+
+      <div class="demo" aria-label="Animated example of dictating into an email">
+        <div class="demo-bar" style="position:relative"><i></i><i></i><i></i><span>New Message</span></div>
+        <div class="demo-body">
+          <div class="mail-row"><b>To:</b> priya@studio.co</div>
+          <div class="mail-row"><b>Subject:</b> Landing page</div>
+          <div class="field" id="field" aria-live="polite"><span id="fieldText"></span><span class="caret"></span></div>
+          <div class="key-hint"><span class="kbd" id="kbd">Right ⌥</span><span id="hintText">hold to talk</span></div>
+          <div class="pill" id="pill"><span class="wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="spinner"></span><span id="pillLabel">Listening</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrap strip">
+      <p>Works anywhere you can type</p>
+      <div class="apps"><span>Mail</span><span>Slack</span><span>Notes</span><span>Chrome</span><span>Safari</span><span>VS Code</span><span>Notion</span><span>Messages</span><span>Figma</span><span>Claude</span><span>Google Docs</span></div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section id="how">
+    <div class="wrap">
+      <p class="eyebrow">How it works</p>
+      <h2 class="serif reveal">One key. Three moves.</h2>
+      <p class="lede reveal">DictateAI sits in your menu bar. There's no window to switch to and nothing to paste. The default key is Right ⌥ Option, and you can change it to any key you like.</p>
+      <div class="gestures">
+        <div class="gesture reveal">
+          <div class="taps"><span class="tap hold">hold</span></div>
+          <h3>Hold to talk</h3>
+          <p>Hold the key and speak. Let go, and the text appears where your cursor is.</p>
+        </div>
+        <div class="gesture reveal">
+          <div class="taps"><span class="tap pulse">⌥</span><span class="tap pulse">⌥</span></div>
+          <h3>Double-tap for hands-free</h3>
+          <p>Tap twice to keep listening without holding anything. Tap once more to stop.</p>
+        </div>
+        <div class="gesture reveal">
+          <div class="taps"><span class="tap pulse">⌥</span><span class="tap pulse">⌥</span><span class="tap pulse">⌥</span></div>
+          <h3>Triple-tap to undo</h3>
+          <p>Didn't come out right? Triple-tap and your last dictation is removed.</p>
+        </div>
+      </div>
+
+      <div class="ba-tabs" role="tablist" aria-label="Cleanup examples">
+        <button role="tab" aria-selected="true" data-ex="0">Filler words</button>
+        <button role="tab" aria-selected="false" data-ex="1">Changed your mind</button>
+        <button role="tab" aria-selected="false" data-ex="2">Punctuation</button>
+        <button role="tab" aria-selected="false" data-ex="3">Hindi</button>
+      </div>
+      <div class="ba">
+        <div class="ba-card raw"><div class="tag">What you said</div><p id="exRaw"></p></div>
+        <svg class="arrow" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        <div class="ba-card clean"><div class="tag">What gets typed</div><p id="exClean"></p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section id="features" style="background:var(--bg-2)">
+    <div class="wrap">
+      <p class="eyebrow">Features</p>
+      <h2 class="serif reveal">Everything you need to stop typing.</h2>
+      <p class="lede reveal">Built for people who write all day: emails, messages, prompts, docs and code comments.</p>
+
+      <div class="feat-grid">
+        <div class="feat reveal">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h10M4 17h7"/><path d="M17 15l2 2 3-4"/></svg></div>
+          <h3>Types into any app</h3>
+          <p>Text goes in at your cursor in native apps, browsers and Electron apps. If an app won't accept typed text, it pastes and then puts your clipboard back, images included.</p>
+        </div>
+        <div class="feat reveal">
+          <div class="ic"><svg><use href="#i-chip"/></svg></div>
+          <h3>AI cleanup on your Mac</h3>
+          <p>A local model (Qwen 2.5 on Apple's MLX) removes filler words, fixes punctuation and handles "no wait, I mean…". It takes about half a second for English.</p>
+        </div>
+        <div class="feat reveal">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19V5M4 19h16"/><path d="M8 15l3-4 3 2 5-6"/></svg></div>
+          <h3>No word limits</h3>
+          <p>Everything runs on your hardware, so there's no monthly cap and no usage meter. Dictate as much as you like.</p>
+        </div>
+
+        <div class="feat big reveal">
+          <div>
+            <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></div>
+            <h3>26 languages and auto-detect</h3>
+            <p>Speech recognition with Whisper (via WhisperKit). Pick a language or let it detect yours. Hindi stays in Devanagari, Urdu in its own script: cleanup never switches your writing system.</p>
+          </div>
+          <div class="langs" id="langs"></div>
+        </div>
+
+        <div class="feat reveal">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M9 8h6"/></svg></div>
+          <h3>A dictionary that learns</h3>
+          <p>Add names, product terms and jargon yourself, or let DictateAI learn when you fix the same word twice.</p>
+        </div>
+        <div class="feat reveal">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+          <h3>History</h3>
+          <p>Your last 100 dictations are kept on your Mac. Each is tagged Local or Cloud so you know where it was cleaned. Clear them anytime.</p>
+        </div>
+        <div class="feat reveal">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg></div>
+          <h3>Your shortcut</h3>
+          <p>Right ⌥ Option by default. Change the dictation key in Settings to whatever fits your hands.</p>
+        </div>
+        <div class="feat reveal">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="14" rx="2"/><rect x="9" y="14" width="6" height="2" rx="1" fill="currentColor"/></svg></div>
+          <h3>A small, quiet pill</h3>
+          <p>A slim indicator shows when it's listening and transcribing. Put it in any of six spots along the top or bottom of your screen.</p>
+        </div>
+        <div class="feat reveal">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M22 9l-6 6M16 9l6 6"/></svg></div>
+          <h3>Mutes while you speak</h3>
+          <p>Optionally mutes your Mac's audio while you dictate, then restores it. If you'd already muted it, it stays muted.</p>
+        </div>
+        <div class="feat reveal">
+          <div class="ic"><svg><use href="#i-mic"/></svg></div>
+          <h3>Pick your microphone</h3>
+          <p>Use the built-in mic, AirPods or a USB mic. Short one- or two-word replies are picked up too.</p>
+        </div>
+        <div class="feat reveal">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17.5 19a4.5 4.5 0 1 0-1.4-8.8A6 6 0 0 0 4.5 12 3.5 3.5 0 0 0 6 19z"/></svg></div>
+          <h3>Optional cloud, your key</h3>
+          <p>Prefer a bigger model? Add your own OpenRouter key and pick any model. The key is encrypted in your macOS Keychain, and if the cloud is busy, your Mac takes over.</p>
+        </div>
+        <div class="feat reveal">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6z"/></svg></div>
+          <h3>Open source</h3>
+          <p>Every line is on GitHub under the MIT licence. Read it, build it yourself or improve it.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Privacy -->
+  <section id="privacy">
+    <div class="wrap">
+      <div class="privacy reveal">
+        <div>
+          <p class="eyebrow">Privacy</p>
+          <h2 class="serif">Your voice never leaves your Mac.</h2>
+          <p class="lede" style="margin-top:18px">Most dictation apps send your audio to a server. DictateAI does it all locally, unless you add your own cloud key.</p>
+          <ul class="check-list">
+            <li><svg><use href="#i-check"/></svg><span>No account, sign-up or tracking</span></li>
+            <li><svg><use href="#i-check"/></svg><span>History, dictionary and settings are stored in <span class="mono">~/.dictateai</span>, readable only by you</span></li>
+            <li><svg><use href="#i-check"/></svg><span>Logs record how long a dictation was, not what you said</span></li>
+            <li><svg><use href="#i-check"/></svg><span>Dictated text is hidden from clipboard managers</span></li>
+            <li><svg><use href="#i-check"/></svg><span>Cloud cleanup is off until you add your own key</span></li>
+          </ul>
+        </div>
+        <div class="flow" aria-label="What happens when you dictate">
+          <div class="flow-step"><span class="n">1</span><div><h4>You speak</h4><p>Audio from your microphone is captured while the key is held.</p></div></div>
+          <div class="flow-step"><span class="n">2</span><div><h4>Whisper transcribes, on your Mac</h4><p>WhisperKit turns speech into text with Apple's Core ML.</p></div></div>
+          <div class="flow-step"><span class="n">3</span><div><h4>AI cleans it up, on your Mac</h4><p>A local Qwen model fixes punctuation, removes fillers and applies your dictionary.</p></div></div>
+          <div class="flow-step"><span class="n">4</span><div><h4>Text appears at your cursor</h4><p>Only the text is kept, in your local history.</p></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Availability -->
+  <section id="availability" style="padding-top:0">
+    <div class="wrap">
+      <p class="eyebrow">Where it's available</p>
+      <h2 class="serif reveal">Made for Apple Silicon Macs.</h2>
+      <p class="lede reveal">DictateAI uses Apple's Core ML and MLX frameworks to run speech and language models quickly on your Mac. That's why it needs an M-series chip.</p>
+      <div class="avail">
+        <div class="plat yes reveal"><span class="status ok">Available now</span><h3>Mac with Apple Silicon</h3><p>M1, M2, M3, M4 and later. MacBook Air, MacBook Pro, iMac, Mac mini, Mac Studio and Mac Pro.</p></div>
+        <div class="plat reveal"><span class="status no">Not supported</span><h3>Intel Mac</h3><p>The local models need Apple Silicon. Intel builds aren't planned.</p></div>
+        <div class="plat reveal"><span class="status no">Not available</span><h3>Windows</h3><p>DictateAI is Mac-only for now.</p></div>
+        <div class="plat reveal"><span class="status no">Not available</span><h3>iPhone, iPad and Linux</h3><p>Not available. Star the repo on GitHub to follow along.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Install -->
+  <section id="install" style="background:var(--bg-2)">
+    <div class="wrap install">
+      <div>
+        <p class="eyebrow">Install</p>
+        <h2 class="serif">Drag, drop, dictate.</h2>
+        <p class="lede" style="margin:16px 0 28px">No Terminal, no extra tools. The first run downloads the AI models once, with progress shown in Settings.</p>
+        <a class="btn btn-primary btn-lg js-download" id="dl" href="https://github.com/ali050786/dictateai/releases/latest/download/DictateAI-0.2.0-arm64.dmg"><svg width="20" height="20"><use href="#i-down"/></svg>Download DictateAI <small>.dmg · 274 MB</small></a>
+        <p style="font-size:13px;color:var(--ink-3);margin:12px 0 0">Version 0.2.0 · Apple Silicon · <a href="https://github.com/ali050786/dictateai/releases">All releases</a></p>
+        <dl class="req">
+          <div><dt>Chip</dt><dd>Apple M1 or later</dd></div>
+          <div><dt>App download</dt><dd>274 MB</dd></div>
+          <div><dt>Speech model</dt><dd>about 500 MB</dd></div>
+          <div><dt>Cleanup model</dt><dd>1.8 GB English · 4.3 GB other languages</dd></div>
+          <div><dt>Most accurate model</dt><dd>needs 32 GB of memory</dd></div>
+          <div><dt>Price</dt><dd>Free</dd></div>
+        </dl>
+      </div>
+
+      <div class="steps">
+        <div class="step reveal">
+          <h3>Download and drag to Applications</h3>
+          <p>Open the .dmg and drag DictateAI into your Applications folder. That's the whole install: the speech and AI engines are built in, so there's nothing to set up in Terminal.</p>
+        </div>
+        <div class="step reveal">
+          <h3>Open it the first time with right-click</h3>
+          <p>In Applications, right-click DictateAI and choose <b>Open</b>, then <b>Open</b> again. You only need to do this once.</p>
+          <div class="note">Why? DictateAI is free and isn't notarized by Apple yet, so macOS asks you to confirm the first time. You can read every line of the code on GitHub.</div>
+        </div>
+        <div class="step reveal">
+          <h3>Allow Accessibility</h3>
+          <p>When macOS asks, go to System Settings → Privacy &amp; Security → Accessibility and switch on DictateAI. This lets it hear your dictation key and type into other apps. The key starts working right away.</p>
+        </div>
+        <div class="step reveal">
+          <h3>Allow the microphone and start talking</h3>
+          <p>Hold Right ⌥ Option and speak. On first launch DictateAI downloads its models (progress shows in Settings). After that it works offline. DictateAI lives in the menu bar 🎙, not the Dock.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq">
+    <div class="wrap">
+      <p class="eyebrow">FAQ</p>
+      <h2 class="serif reveal">Questions, answered.</h2>
+      <div class="faq">
+        <details><summary>Is DictateAI really free?</summary><p>Yes. It's open source under the MIT licence, with no subscription, trial or word limit. The only possible cost is the optional cloud cleanup, which you pay to OpenRouter directly with your own key.</p></details>
+        <details><summary>Does it need the internet?</summary><p>Only once, to download the speech and cleanup models. After that, dictation and cleanup work offline.</p></details>
+        <details><summary>How is this different from macOS Dictation?</summary><p>DictateAI adds an AI cleanup step: it removes "um" and "uh", fixes punctuation, handles corrections like "no wait, Thursday", and applies your personal dictionary. It works with a single push-to-talk key in any app and has no time limit.</p></details>
+        <details><summary>Why does macOS warn me when I open it?</summary><p>The app isn't notarized by Apple yet, which needs a paid developer account. Right-click → Open the first time and macOS will remember your choice.</p></details>
+        <details><summary>Why does it need Accessibility access?</summary><p>To notice when you press the dictation key while another app is in front, and to place text at your cursor. It doesn't read your screen, and it doesn't record anything unless you're holding the key or in hands-free mode.</p></details>
+        <details><summary>Which languages work?</summary><p>26, including English, Hindi, Urdu, Arabic, Spanish, French, German, Japanese, Chinese and more, plus auto-detect. English uses a faster 3B cleanup model and other languages a 7B model. You can choose a faster or more accurate model in Settings.</p></details>
+        <details><summary>Will it work on my Intel Mac?</summary><p>No. The local models rely on Apple Silicon (M1 or later).</p></details>
+        <details><summary>What happens if I use the cloud option?</summary><p>Only the transcribed text, never your audio, is sent to the OpenRouter model you choose, using your own key. If the cloud is rate-limited or fails, your Mac cleans the text instead, and you'll get a quiet notice.</p></details>
+        <details><summary>How do I uninstall it?</summary><p>Quit it from the menu bar, delete DictateAI from Applications, and delete the <span class="mono">~/.dictateai</span> folder to remove your history, dictionary and speech model. The cleanup models are in <span class="mono">~/.cache/huggingface</span>.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <section class="final">
+    <div class="wrap">
+      <h2 class="serif reveal">Talk is faster than typing.</h2>
+      <p class="lede reveal">Free, private and open source. Download DictateAI and write your next email out loud.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary btn-lg js-download" href="#install"><svg width="20" height="20"><use href="#i-apple"/></svg>Download for Mac <small>Apple Silicon</small></a>
+        <a class="btn btn-ghost btn-lg" href="https://github.com/ali050786/dictateai"><svg width="18" height="18"><use href="#i-gh"/></svg>Star on GitHub</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 DictateAI · MIT licence · Made by Sikandar Ali</span>
+    <span><a href="https://github.com/ali050786/dictateai">GitHub</a> · <a href="https://github.com/ali050786/dictateai/releases">Releases</a> · <a href="https://github.com/ali050786/dictateai/issues">Report an issue</a></span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  // Theme toggle (per-viewer convenience only)
+  var root = document.documentElement;
+  try { var t = localStorage.getItem("theme"); if (t) root.dataset.theme = t; } catch (e) {}
+  document.getElementById("themeBtn").addEventListener("click", function () {
+    var dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    root.dataset.theme = dark ? "light" : "dark";
+    try { localStorage.setItem("theme", root.dataset.theme); } catch (e) {}
+  });
+
+  // Nav border on scroll
+  var nav = document.getElementById("nav");
+  addEventListener("scroll", function () { nav.classList.toggle("scrolled", scrollY > 8); }, { passive: true });
+
+  // Reveal on scroll
+  var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }); }, { threshold: .12 });
+  document.querySelectorAll(".reveal").forEach(function (el) { io.observe(el); });
+
+  // Languages
+  var langs = ["Auto-detect","English","हिन्दी","اردو","العربية","Español","Français","Deutsch","Português","Italiano","日本語","한국어","中文","Русский","Türkçe","Nederlands","Polski","Svenska","Bahasa","ไทย","Tiếng Việt","Українська","বাংলা","தமிழ்","తెలుగు","मराठी"];
+  document.getElementById("langs").innerHTML = langs.map(function (l) { return "<span>" + l + "</span>"; }).join("");
+
+  // Copy buttons
+  document.querySelectorAll(".copy").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var txt = b.previousElementSibling.textContent;
+      (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(function () {
+        b.textContent = "Copied"; setTimeout(function () { b.textContent = "Copy"; }, 1400);
+      }).catch(function () { b.textContent = "Select"; });
+    });
+  });
+
+  // Before / after examples
+  var ex = [
+    ["um so i think we should uh probably ship the landing page tomorrow you know", "I think we should ship the landing page tomorrow."],
+    ["let's meet on tuesday at three no wait thursday at three", "Let's meet on Thursday at three."],
+    ["can you send me the file by monday also is the meeting still on", "Can you send me the file by Monday? Also, is the meeting still on?"],
+    ["तो मैं सोच रहा था कि हम कल मीटिंग करें मतलब शाम को", "मैं सोच रहा था कि हम कल शाम को मीटिंग करें।"]
+  ];
+  var tabs = document.querySelectorAll(".ba-tabs button");
+  function showEx(i) {
+    document.getElementById("exRaw").textContent = ex[i][0];
+    document.getElementById("exClean").innerHTML = ex[i][1];
+    tabs.forEach(function (t, j) { t.setAttribute("aria-selected", String(i === j)); });
+  }
+  tabs.forEach(function (t) { t.addEventListener("click", function () { showEx(+t.dataset.ex); }); });
+  showEx(0);
+
+  // Hero demo loop
+  var field = document.getElementById("fieldText"), pill = document.getElementById("pill"), label = document.getElementById("pillLabel"), kbd = document.getElementById("kbd"), hint = document.getElementById("hintText");
+  var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var lines = [
+    { raw: "hi priya um so i finished the uh landing page draft can you take a look before friday thanks", clean: "Hi Priya,<br><br>I finished the landing page draft. Can you take a look before Friday?<br><br>Thanks" },
+    { raw: "hey quick update the build is ready no wait it's ready tomorrow morning", clean: "Hey, quick update: the build will be ready tomorrow morning." }
+  ];
+  if (reduce) { field.innerHTML = lines[0].clean; return; }
+  var n = 0;
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  async function run() {
+    var L = lines[n++ % lines.length];
+    field.innerHTML = ""; await wait(900);
+    kbd.classList.add("down"); hint.textContent = "holding…";
+    pill.className = "pill on listening"; label.textContent = "Listening";
+    var words = L.raw.split(" "), s = "";
+    for (var i = 0; i < words.length; i++) { s += (i ? " " : "") + words[i]; field.innerHTML = '<span class="raw">' + s + "</span>"; await wait(150); }
+    kbd.classList.remove("down"); hint.textContent = "released";
+    pill.className = "pill on working"; label.textContent = "Cleaning up";
+    await wait(900);
+    field.innerHTML = L.clean;
+    pill.className = "pill"; hint.textContent = "hold to talk";
+    await wait(3600);
+    run();
+  }
+  run();
+})();
+</script>
+</body>
+</html>
