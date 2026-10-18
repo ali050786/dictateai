@@ -4,7 +4,29 @@
 #import <Carbon/Carbon.h>
 #include <thread>
 
-// Strategy 1: AXUIElement — set the value attribute of the focused text field
+// Moves the insertion point to `pos` (UTF-16 offset) with nothing selected.
+static bool SetCaret(AXUIElementRef element, CFIndex pos) {
+  CFRange range = CFRangeMake(pos, 0);
+  AXValueRef value = AXValueCreate((AXValueType)kAXValueCFRangeType, &range);
+  if (!value) return false;
+  AXError err = AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute, value);
+  CFRelease(value);
+  return err == kAXErrorSuccess;
+}
+
+static NSUInteger CopyValueLength(AXUIElementRef element) {
+  CFTypeRef value = nullptr;
+  if (AXUIElementCopyAttributeValue(element, kAXValueAttribute, &value) != kAXErrorSuccess || !value) return 0;
+  NSUInteger length = CFGetTypeID(value) == CFStringGetTypeID() ? [(__bridge NSString*)value length] : 0;
+  CFRelease(value);
+  return length;
+}
+
+// Strategy 1: AXUIElement. Replace the selection at the cursor, like typing,
+// so the app keeps its cursor (after the inserted text), formatting and undo.
+// Only reports success once the field's text has actually changed; callers
+// then fall back to paste. Never rewrites the whole value: apps reset the
+// cursor to the start when that happens.
 static bool InjectViaAccessibility(const std::string& text) {
   AXUIElementRef systemWide = AXUIElementCreateSystemWide();
   AXUIElementRef focusedElement = nullptr;
@@ -14,59 +36,48 @@ static bool InjectViaAccessibility(const std::string& text) {
 
   if (err != kAXErrorSuccess || !focusedElement) return false;
 
-  // Check if element accepts text input
-  CFTypeRef role = nullptr;
-  AXUIElementCopyAttributeValue(focusedElement, kAXRoleAttribute, &role);
-  bool isTextField = false;
-  if (role) {
-    isTextField = CFEqual(role, kAXTextFieldRole) ||
-                  CFEqual(role, kAXTextAreaRole) ||
-                  CFEqual(role, kAXComboBoxRole);
-    CFRelease(role);
+  Boolean settable = false;
+  AXUIElementIsAttributeSettable(focusedElement, kAXSelectedTextAttribute, &settable);
+  if (!settable) {
+    CFRelease(focusedElement);
+    return false;
   }
-
-  if (!isTextField) {
-    // Still try — some apps use custom roles
-  }
-
-  // Get current value and selection to append at cursor
-  CFTypeRef currentValue = nullptr;
-  AXUIElementCopyAttributeValue(focusedElement, kAXValueAttribute, &currentValue);
-
-  CFTypeRef selectedRange = nullptr;
-  AXUIElementCopyAttributeValue(focusedElement, kAXSelectedTextRangeAttribute, &selectedRange);
 
   NSString* nsText = [NSString stringWithUTF8String:text.c_str()];
-  NSString* current = currentValue ? (__bridge NSString*)currentValue : @"";
+  NSUInteger before = CopyValueLength(focusedElement);
 
-  NSString* newValue;
-  if (selectedRange) {
-    AXValueRef rangeValue = (AXValueRef)selectedRange;
+  NSUInteger selectionLength = 0;
+  CFIndex selectionStart = before;
+  CFTypeRef selectedRange = nullptr;
+  if (AXUIElementCopyAttributeValue(focusedElement, kAXSelectedTextRangeAttribute, &selectedRange) == kAXErrorSuccess && selectedRange) {
     CFRange range;
-    if (AXValueGetValue(rangeValue, (AXValueType)kAXValueCFRangeType, &range)) {
-      NSMutableString* mutable_ = [current mutableCopy];
-      NSRange nsRange = NSMakeRange(range.location, range.length);
-      if (nsRange.location + nsRange.length <= (NSUInteger)[mutable_ length]) {
-        [mutable_ replaceCharactersInRange:nsRange withString:nsText];
-        newValue = mutable_;
-      } else {
-        newValue = [current stringByAppendingString:nsText];
-      }
-    } else {
-      newValue = [current stringByAppendingString:nsText];
+    if (AXValueGetValue((AXValueRef)selectedRange, (AXValueType)kAXValueCFRangeType, &range) && range.location >= 0) {
+      selectionStart = range.location;
+      selectionLength = range.length;
     }
     CFRelease(selectedRange);
-  } else {
-    newValue = [current stringByAppendingString:nsText];
+  }
+  NSUInteger expected = before - selectionLength + [nsText length];
+
+  if (AXUIElementSetAttributeValue(focusedElement, kAXSelectedTextAttribute, (__bridge CFTypeRef)nsText) != kAXErrorSuccess) {
+    CFRelease(focusedElement);
+    return false;
   }
 
-  if (currentValue) CFRelease(currentValue);
+  // Chromium and Electron apps (Chrome, Slack, Claude, VS Code…) apply the
+  // edit asynchronously, so wait briefly for the new text to show up. Any
+  // change in length means the insert landed: falling back to paste then
+  // would type the text twice.
+  bool landed = false;
+  for (int waited = 0; waited <= 300; waited += 25) {
+    NSUInteger now = CopyValueLength(focusedElement);
+    if (now == expected || now != before) { landed = true; break; }
+    usleep(25 * 1000);
+  }
 
-  err = AXUIElementSetAttributeValue(
-      focusedElement, kAXValueAttribute, (__bridge CFTypeRef)newValue);
-
+  if (landed) SetCaret(focusedElement, selectionStart + [nsText length]);
   CFRelease(focusedElement);
-  return err == kAXErrorSuccess;
+  return landed;
 }
 
 // Strategy 2: CGEvent keystroke simulation — types each character
@@ -102,28 +113,42 @@ static bool InjectViaKeystrokes(const std::string& text) {
   return true;
 }
 
-// Strategy 3: Clipboard paste — Cmd+V
+// Strategy 3: Clipboard paste — Cmd+V. The user's clipboard (every item and
+// type: images, rich text, files) is saved first and put back afterwards.
+static NSArray<NSPasteboardItem*>* SnapshotPasteboard(NSPasteboard* pb) {
+  NSMutableArray<NSPasteboardItem*>* copies = [NSMutableArray array];
+  for (NSPasteboardItem* item in [pb pasteboardItems]) {
+    NSPasteboardItem* copy = [[NSPasteboardItem alloc] init];
+    for (NSPasteboardType type in [item types]) {
+      NSData* data = [item dataForType:type];
+      if (data) [copy setData:data forType:type];
+    }
+    [copies addObject:copy];
+  }
+  return copies;
+}
+
 static bool InjectViaClipboard(const std::string& text) {
   NSPasteboard* pb = [NSPasteboard generalPasteboard];
+  NSArray<NSPasteboardItem*>* saved = SnapshotPasteboard(pb);
 
-  // Save current clipboard
-  NSArray* oldTypes = [pb types];
-  NSData* oldData = nil;
-  if ([oldTypes containsObject:NSPasteboardTypeString]) {
-    oldData = [pb dataForType:NSPasteboardTypeString];
-  }
-
-  // Set our text
+  // Mark our text transient and concealed so clipboard managers skip it.
   [pb clearContents];
-  [pb setString:[NSString stringWithUTF8String:text.c_str()] forType:NSPasteboardTypeString];
+  NSPasteboardItem* item = [[NSPasteboardItem alloc] init];
+  [item setString:[NSString stringWithUTF8String:text.c_str()] forType:NSPasteboardTypeString];
+  [item setString:@"" forType:@"org.nspasteboard.TransientType"];
+  [item setString:@"" forType:@"org.nspasteboard.ConcealedType"];
+  [pb writeObjects:@[item]];
+  NSInteger ourChange = [pb changeCount];
 
-  // Simulate Cmd+V
   CGEventRef keyDown = CGEventCreateKeyboardEvent(nullptr, kVK_ANSI_V, true);
   CGEventRef keyUp = CGEventCreateKeyboardEvent(nullptr, kVK_ANSI_V, false);
 
   if (!keyDown || !keyUp) {
     if (keyDown) CFRelease(keyDown);
     if (keyUp) CFRelease(keyUp);
+    [pb clearContents];
+    if ([saved count]) [pb writeObjects:saved];
     return false;
   }
 
@@ -134,13 +159,13 @@ static bool InjectViaClipboard(const std::string& text) {
   CFRelease(keyDown);
   CFRelease(keyUp);
 
-  // Restore clipboard after a delay
+  // Restore once the target app has read the paste. Skip it if the user
+  // copied something new in the meantime, so we never overwrite that.
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 500 * NSEC_PER_MSEC),
                  dispatch_get_main_queue(), ^{
-    if (oldData) {
-      [pb clearContents];
-      [pb setData:oldData forType:NSPasteboardTypeString];
-    }
+    if ([pb changeCount] != ourChange) return;
+    [pb clearContents];
+    if ([saved count]) [pb writeObjects:saved];
   });
 
   return true;
@@ -267,7 +292,7 @@ static Napi::Value StartPushToTalk(const Napi::CallbackInfo& info) {
       CFRunLoopAddSource(CFRunLoopGetCurrent(), pttRunLoopSource, kCFRunLoopCommonModes);
       CGEventTapEnable(pttEventTap, true);
 
-      NSLog(@"[DictateAI] Push-to-talk monitor started (hold Right Option)");
+      NSLog(@"[DictateAI] Push-to-talk monitor started");
 
       while (pttRunning) {
         CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.25, false);
@@ -344,6 +369,112 @@ static bool SendUndo() {
   return true;
 }
 
+// Get the screen position of the text cursor (insertion point) via AX API
+static Napi::Value GetTextCursorPosition(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  Napi::Object result = Napi::Object::New(env);
+  result.Set("available", false);
+
+  AXUIElementRef systemWide = AXUIElementCreateSystemWide();
+  AXUIElementRef focusedElement = nullptr;
+  AXError err = AXUIElementCopyAttributeValue(
+      systemWide, kAXFocusedUIElementAttribute, (CFTypeRef*)&focusedElement);
+  CFRelease(systemWide);
+
+  if (err != kAXErrorSuccess || !focusedElement) {
+    NSLog(@"[DictateAI] GetTextCursorPosition: no focused element (err=%d)", (int)err);
+    return result;
+  }
+
+  // Log what element we found
+  CFTypeRef role = nullptr;
+  AXUIElementCopyAttributeValue(focusedElement, kAXRoleAttribute, &role);
+  pid_t pid = 0;
+  AXUIElementGetPid(focusedElement, &pid);
+  NSRunningApplication* app = [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
+  NSLog(@"[DictateAI] GetTextCursorPosition: focused=%@ app=%@ role=%@",
+        focusedElement, app.localizedName ?: @"unknown",
+        role ? (__bridge NSString*)role : @"unknown");
+  if (role) CFRelease(role);
+
+  // Strategy 1: Try kAXBoundsForRangeParameterizedAttribute with the character
+  // at or just before the cursor (a zero-length range often returns degenerate rects)
+  CFTypeRef selectedRange = nullptr;
+  err = AXUIElementCopyAttributeValue(focusedElement, kAXSelectedTextRangeAttribute, &selectedRange);
+  NSLog(@"[DictateAI] GetTextCursorPosition: selectedTextRange err=%d", (int)err);
+  if (err == kAXErrorSuccess && selectedRange) {
+    CFRange range;
+    if (AXValueGetValue((AXValueRef)selectedRange, (AXValueType)kAXValueCFRangeType, &range)) {
+      NSLog(@"[DictateAI] GetTextCursorPosition: cursor at location=%ld length=%ld", (long)range.location, (long)range.length);
+      // Try a 1-char range at cursor (or just before if at end)
+      CFRange charRange;
+      if (range.location > 0) {
+        charRange = CFRangeMake(range.location - 1, 1);
+      } else {
+        charRange = CFRangeMake(0, 1);
+      }
+
+      AXValueRef charRangeValue = AXValueCreate((AXValueType)kAXValueCFRangeType, &charRange);
+      CFTypeRef boundsValue = nullptr;
+      err = AXUIElementCopyParameterizedAttributeValue(
+          focusedElement, kAXBoundsForRangeParameterizedAttribute, charRangeValue, &boundsValue);
+      CFRelease(charRangeValue);
+
+      NSLog(@"[DictateAI] GetTextCursorPosition: boundsForRange err=%d", (int)err);
+      if (err == kAXErrorSuccess && boundsValue) {
+        CGRect bounds;
+        if (AXValueGetValue((AXValueRef)boundsValue, (AXValueType)kAXValueCGRectType, &bounds)) {
+          NSLog(@"[DictateAI] GetTextCursorPosition: bounds x=%.0f y=%.0f w=%.0f h=%.0f",
+                bounds.origin.x, bounds.origin.y, bounds.size.width, bounds.size.height);
+          if (bounds.size.width > 0 || bounds.size.height > 0) {
+            result.Set("available", true);
+            // If we used the char before cursor, position at its right edge
+            if (range.location > 0) {
+              result.Set("x", Napi::Number::New(env, bounds.origin.x + bounds.size.width));
+            } else {
+              result.Set("x", Napi::Number::New(env, bounds.origin.x));
+            }
+            result.Set("y", Napi::Number::New(env, bounds.origin.y));
+            result.Set("width", Napi::Number::New(env, bounds.size.width));
+            result.Set("height", Napi::Number::New(env, bounds.size.height));
+            CFRelease(boundsValue);
+            CFRelease(selectedRange);
+            CFRelease(focusedElement);
+            return result;
+          }
+        }
+        CFRelease(boundsValue);
+      }
+    }
+    CFRelease(selectedRange);
+  }
+
+  // Strategy 2: Fall back to the focused element's own position + size
+  CFTypeRef posValue = nullptr;
+  CFTypeRef sizeValue = nullptr;
+  err = AXUIElementCopyAttributeValue(focusedElement, kAXPositionAttribute, &posValue);
+  AXError err2 = AXUIElementCopyAttributeValue(focusedElement, kAXSizeAttribute, &sizeValue);
+
+  if (err == kAXErrorSuccess && err2 == kAXErrorSuccess && posValue && sizeValue) {
+    CGPoint pos;
+    CGSize size;
+    if (AXValueGetValue((AXValueRef)posValue, (AXValueType)kAXValueCGPointType, &pos) &&
+        AXValueGetValue((AXValueRef)sizeValue, (AXValueType)kAXValueCGSizeType, &size)) {
+      result.Set("available", true);
+      result.Set("x", Napi::Number::New(env, pos.x + size.width / 2));
+      result.Set("y", Napi::Number::New(env, pos.y + size.height));
+      result.Set("width", Napi::Number::New(env, size.width));
+      result.Set("height", Napi::Number::New(env, size.height));
+      result.Set("fallback", true);
+    }
+  }
+
+  if (posValue) CFRelease(posValue);
+  if (sizeValue) CFRelease(sizeValue);
+  CFRelease(focusedElement);
+  return result;
+}
+
 // --- N-API bindings ---
 
 static Napi::Value UndoLastInjection(const Napi::CallbackInfo& info) {
@@ -363,9 +494,11 @@ static Napi::Value InjectText(const Napi::CallbackInfo& info) {
   if (text.empty()) return Napi::String::New(env, "empty");
 
   // Try strategies in order
+  // Paste comes before keystrokes: it inserts at the cursor in one step and
+  // leaves the cursor after the text in every app.
   if (InjectViaAccessibility(text)) return Napi::String::New(env, "accessibility");
-  if (InjectViaKeystrokes(text)) return Napi::String::New(env, "keystrokes");
   if (InjectViaClipboard(text)) return Napi::String::New(env, "clipboard");
+  if (InjectViaKeystrokes(text)) return Napi::String::New(env, "keystrokes");
 
   return Napi::String::New(env, "failed");
 }
@@ -440,6 +573,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("startPushToTalk", Napi::Function::New(env, StartPushToTalk));
   exports.Set("stopPushToTalk", Napi::Function::New(env, StopPushToTalk));
   exports.Set("setPttKey", Napi::Function::New(env, SetPttKey));
+  exports.Set("getTextCursorPosition", Napi::Function::New(env, GetTextCursorPosition));
   return exports;
 }
 

@@ -278,6 +278,15 @@ body {
   font-size: 12px;
 }
 
+.dict-entry-learning {
+  margin-left: 8px;
+  font-size: 11px;
+  color: #999;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
 .dict-entry-actions {
   opacity: 0;
   transition: opacity 0.15s;
@@ -338,7 +347,18 @@ body {
 .history-app {
   font-size: 12px;
   color: #aaa;
-  margin-top: 4px;
+}
+
+.history-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.history-meta .badge {
+  font-size: 10px;
+  padding: 2px 6px;
 }
 
 /* --- Settings --- */
@@ -462,6 +482,45 @@ body {
   border-color: #1a1a1a;
 }
 
+.setting-model {
+  display: block;
+  font-size: 11px;
+  color: #aaa;
+  margin-top: 2px;
+}
+
+.link-button {
+  display: block;
+  margin-top: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: #007aff;
+  cursor: pointer;
+  text-align: left;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+.setting-input {
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #1a1a1a;
+  outline: none;
+  width: 220px;
+}
+
+.setting-input:focus {
+  border-color: #1a1a1a;
+}
+
 .badge {
   font-size: 11px;
   font-weight: 600;
@@ -527,6 +586,11 @@ body {
 .btn-sm {
   padding: 5px 12px;
   font-size: 13px;
+}
+
+.setting-actions {
+  display: flex;
+  gap: 8px;
 }
 
 /* --- Modal --- */
@@ -766,4 +830,71 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #ccc;
+}
+
+/* --- Pill Position: a miniature screen with the six spots --- */
+.pill-screen {
+  position: relative;
+  width: 136px;
+  height: 86px;
+  flex-shrink: 0;
+  border: 1.5px solid #d4d4d4;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.pill-screen-menubar {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 7px;
+  background: #ededed;
+}
+
+.pill-pos {
+  position: absolute;
+  width: 40px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.pill-pos[data-pos^="top"] { top: 9px; }
+.pill-pos[data-pos^="bottom"] { bottom: 3px; }
+.pill-pos[data-pos$="left"] { left: 3px; }
+.pill-pos[data-pos$="center"] { left: calc(50% - 20px); }
+.pill-pos[data-pos$="right"] { right: 3px; }
+
+.pill-pos:hover {
+  background: #f3f3f3;
+}
+
+.pill-pos:focus-visible {
+  outline: 2px solid #007aff;
+  outline-offset: -2px;
+}
+
+.pill-dot {
+  width: 20px;
+  height: 6px;
+  border-radius: 3px;
+  background: #d4d4d4;
+  transition: all 0.15s ease;
+}
+
+.pill-pos:hover .pill-dot {
+  background: #999;
+}
+
+.pill-pos.active .pill-dot {
+  width: 24px;
+  height: 7px;
+  background: #1a1a1a;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }

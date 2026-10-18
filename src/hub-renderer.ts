@@ -5,6 +5,7 @@ interface DictionaryEntry {
   to: string;
   count: number;
   lastUsed: string;
+  manual?: boolean;
 }
 
 interface ShortcutConfig {
@@ -25,21 +26,41 @@ interface HubAPI {
   config: {
     hasApiKey: () => Promise<boolean>;
     setApiKey: (key: string) => Promise<boolean>;
+    removeApiKey: () => Promise<boolean>;
     hasAccessibility: () => Promise<boolean>;
     getLanguage: () => Promise<string>;
     setLanguage: (lang: string) => Promise<boolean>;
     sttStatus: () => Promise<{ installed: boolean; running: boolean; engine: string; model: string }>;
     getLlmEnabled: () => Promise<boolean>;
     setLlmEnabled: (enabled: boolean) => Promise<boolean>;
+    getLlmProvider: () => Promise<'local' | 'cloud'>;
+    setLlmProvider: (provider: 'local' | 'cloud') => Promise<boolean>;
+    llmStatus: () => Promise<{
+      provider: 'local' | 'cloud';
+      mlxInstalled: boolean;
+      running: boolean;
+      starting: boolean;
+      model: string;
+      cloudModel: string;
+    }>;
+    setCloudModel: (model: string) => Promise<boolean>;
+    getLocalModelChoice: () => Promise<{ choice: string; options: { id: string; label: string; detail: string }[] }>;
+    setLocalModelChoice: (id: string) => Promise<boolean>;
     getShortcut: () => Promise<ShortcutConfig | null>;
     setShortcut: (shortcut: ShortcutConfig) => Promise<boolean>;
     getAudioDevice: () => Promise<string>;
     setAudioDevice: (deviceId: string) => Promise<boolean>;
+    getPillPosition: () => Promise<string>;
+    setPillPosition: (position: string) => Promise<boolean>;
+    getMuteWhileSpeaking: () => Promise<boolean>;
+    setMuteWhileSpeaking: (enabled: boolean) => Promise<boolean>;
   };
   history: {
-    list: () => Promise<{ text: string; app: string; time: string }[]>;
+    list: () => Promise<HistoryEntry[]>;
+    clear: () => Promise<boolean>;
   };
-  onDictationLog: (callback: (entry: { text: string; app: string; time: string }) => void) => () => void;
+  onDictationLog: (callback: (entry: HistoryEntry) => void) => () => void;
+  onLlmStatusChanged: (callback: () => void) => () => void;
   onSttRestarting: (callback: () => void) => () => void;
   onSttStatusChanged: (callback: () => void) => () => void;
   openExternal: (url: string) => void;
@@ -112,6 +133,7 @@ function renderDictionary(entries: DictionaryEntry[]): void {
         <span class="dict-entry-arrow">→</span>
         <span class="dict-entry-to">${escapeHtml(entry.to)}</span>
         ${entry.count > 1 ? `<span class="dict-entry-sparkle">✨</span>` : ''}
+        ${!entry.manual && entry.count < 2 ? `<span class="dict-entry-learning" title="Learned from one edit. Applies after you make the same fix again.">learning</span>` : ''}
       </div>
       <div class="dict-entry-actions">
         <button class="btn-icon" data-action="edit" title="Edit">
@@ -192,6 +214,7 @@ inputFrom.addEventListener('keydown', (e) => {
 const apiKeyStatus = document.getElementById('api-key-status')!;
 const accessibilityStatus = document.getElementById('accessibility-status')!;
 const btnChangeKey = document.getElementById('btn-change-key')!;
+const btnRemoveKey = document.getElementById('btn-remove-key')!;
 const apikeyModal = document.getElementById('apikey-modal')!;
 const btnCancelKey = document.getElementById('btn-cancel-key')!;
 const btnSaveKey = document.getElementById('btn-save-key')!;
@@ -200,13 +223,36 @@ const openrouterLink = document.getElementById('openrouter-link')!;
 
 const languageSelect = document.getElementById('language-select') as HTMLSelectElement;
 const llmToggle = document.getElementById('llm-toggle') as HTMLInputElement;
+const llmProviderSelect = document.getElementById('llm-provider-select') as HTMLSelectElement;
+const llmProviderDesc = document.getElementById('llm-provider-desc')!;
+const llmModelName = document.getElementById('llm-model-name')!;
+const apiKeyRow = document.getElementById('api-key-row')!;
+const cloudModelRow = document.getElementById('cloud-model-row')!;
+const btnChooseModel = document.getElementById('btn-choose-model')!;
+const localModelRow = document.getElementById('local-model-row')!;
+const localModelSelect = document.getElementById('local-model-select') as HTMLSelectElement;
+const localModelDesc = document.getElementById('local-model-desc')!;
+// The picker stays tucked away unless opened or a non-automatic model is set.
+let localModelPickerOpen = false;
+const cloudModelInput = document.getElementById('cloud-model-input') as HTMLInputElement;
 const micSelect = document.getElementById('mic-select') as HTMLSelectElement;
 const micStatus = document.getElementById('mic-status')!;
 
+// loadSettings runs again on every status change, so listeners are attached
+// once here, never inside it.
+const muteToggle = document.getElementById('mute-toggle') as HTMLInputElement;
+muteToggle.addEventListener('change', () => {
+  window.hub.config.setMuteWhileSpeaking(muteToggle.checked);
+});
+
 async function loadSettings(): Promise<void> {
   const hasKey = await window.hub.config.hasApiKey();
-  apiKeyStatus.textContent = hasKey ? 'Configured ✓' : 'Not set';
+  apiKeyStatus.textContent = hasKey
+    ? 'Saved on this Mac ✓'
+    : 'Not set. Until you add one, cleanup runs on your Mac.';
   apiKeyStatus.style.color = hasKey ? '#059669' : '#dc2626';
+  btnChangeKey.textContent = hasKey ? 'Change' : 'Add key';
+  btnRemoveKey.style.display = hasKey ? '' : 'none';
 
   const hasAccess = await window.hub.config.hasAccessibility();
   accessibilityStatus.textContent = hasAccess ? 'Granted ✓' : 'Not granted — check System Settings → Privacy → Accessibility';
@@ -215,10 +261,15 @@ async function loadSettings(): Promise<void> {
   const lang = await window.hub.config.getLanguage();
   languageSelect.value = lang;
 
+  showPillPosition(await window.hub.config.getPillPosition());
+
   loadMicDevices();
+
+  muteToggle.checked = await window.hub.config.getMuteWhileSpeaking();
 
   const llmOn = await window.hub.config.getLlmEnabled();
   llmToggle.checked = llmOn;
+  await loadLlmStatus();
 
   const stt = await window.hub.config.sttStatus();
   const sttStatus = document.getElementById('stt-status')!;
@@ -302,12 +353,102 @@ window.hub.onSttStatusChanged(() => {
 
 llmToggle.addEventListener('change', async () => {
   await window.hub.config.setLlmEnabled(llmToggle.checked);
+  loadLlmStatus();
 });
 
-btnChangeKey.addEventListener('click', () => {
+async function loadLlmStatus(): Promise<void> {
+  const status = await window.hub.config.llmStatus();
+  const isCloud = status.provider === 'cloud';
+  llmProviderSelect.value = status.provider;
+  apiKeyRow.style.display = isCloud ? '' : 'none';
+  cloudModelRow.style.display = isCloud ? '' : 'none';
+  await loadLocalModelChoice(isCloud);
+  llmProviderDesc.style.color = '';
+
+  if (isCloud) {
+    llmProviderDesc.textContent = 'Your OpenRouter key, your credits.';
+    llmModelName.textContent = status.cloudModel;
+    if (document.activeElement !== cloudModelInput) cloudModelInput.value = status.cloudModel;
+  } else if (!status.mlxInstalled) {
+    llmProviderDesc.textContent = 'mlx-lm not installed — run: uv tool install mlx-lm';
+    llmProviderDesc.style.color = '#dc2626';
+    llmModelName.textContent = '';
+  } else {
+    const state = status.running
+      ? 'ready'
+      : status.starting
+        ? 'loading (first run downloads the model)…'
+        : llmToggle.checked ? 'stopped' : 'off until AI Text Cleanup is on';
+    llmProviderDesc.textContent = `Private, unlimited — ${state}`;
+    llmProviderDesc.style.color = status.running ? '#059669' : '';
+    llmModelName.textContent = status.model;
+  }
+}
+
+llmProviderSelect.addEventListener('change', async () => {
+  if (llmProviderSelect.value === 'local') {
+    await window.hub.config.setLlmProvider('local');
+  } else {
+    await window.hub.config.setLlmProvider('cloud');
+    // Cloud only ever uses the user's own key; ask for it right away.
+    if (!(await window.hub.config.hasApiKey())) openKeyModal();
+  }
+  loadLlmStatus();
+});
+
+async function loadLocalModelChoice(isCloud: boolean): Promise<void> {
+  const { choice, options } = await window.hub.config.getLocalModelChoice();
+  if (choice !== 'auto') localModelPickerOpen = true;
+
+  localModelSelect.innerHTML = '';
+  for (const option of options) {
+    const el = document.createElement('option');
+    el.value = option.id;
+    el.textContent = option.label;
+    localModelSelect.appendChild(el);
+  }
+  localModelSelect.value = choice;
+  localModelDesc.textContent = options.find(o => o.id === choice)?.detail ?? '';
+
+  btnChooseModel.style.display = !isCloud && !localModelPickerOpen ? '' : 'none';
+  localModelRow.style.display = !isCloud && localModelPickerOpen ? '' : 'none';
+}
+
+btnChooseModel.addEventListener('click', () => {
+  localModelPickerOpen = true;
+  loadLlmStatus();
+});
+
+localModelSelect.addEventListener('change', async () => {
+  await window.hub.config.setLocalModelChoice(localModelSelect.value);
+  loadLlmStatus();
+});
+
+cloudModelInput.addEventListener('change', async () => {
+  await window.hub.config.setCloudModel(cloudModelInput.value);
+  loadLlmStatus();
+});
+
+cloudModelInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') cloudModelInput.blur();
+});
+
+window.hub.onLlmStatusChanged(() => {
+  loadLlmStatus();
+});
+
+function openKeyModal(): void {
   apiKeyInput.value = '';
   apikeyModal.classList.remove('hidden');
   apiKeyInput.focus();
+}
+
+btnChangeKey.addEventListener('click', openKeyModal);
+
+btnRemoveKey.addEventListener('click', async () => {
+  if (!confirm('Remove your OpenRouter key from this Mac? Cloud cleanup will stop until you add one again.')) return;
+  await window.hub.config.removeApiKey();
+  loadSettings();
 });
 
 btnCancelKey.addEventListener('click', () => {
@@ -336,15 +477,18 @@ openrouterLink.addEventListener('click', (e) => {
 });
 
 // --- Dictation History ---
+// location: where cleanup ran. Raw text counts as local; it never left the Mac.
+interface HistoryEntry { text: string; app: string; time: string; location?: 'local' | 'cloud' }
+
 const historyContainer = document.getElementById('dictation-history')!;
-const dictationLog: { text: string; app: string; time: string }[] = [];
+const dictationLog: HistoryEntry[] = [];
 
 async function loadHistory(): Promise<void> {
   const entries = await window.hub.history.list();
   renderHistory(entries);
 }
 
-function renderHistory(entries: { text: string; app: string; time: string }[]): void {
+function renderHistory(entries: HistoryEntry[]): void {
   const existing = historyContainer.querySelectorAll('.history-entry');
   existing.forEach(e => e.remove());
 
@@ -367,11 +511,21 @@ function renderHistory(entries: { text: string; app: string; time: string }[]): 
     el.innerHTML = `
       <div class="history-time">${timeStr}</div>
       <div class="history-text">${escapeHtml(entry.text)}</div>
-      ${entry.app ? `<div class="history-app">${escapeHtml(entry.app)}</div>` : ''}
+      <div class="history-meta">
+        <span class="badge ${entry.location === 'cloud' ? 'badge-blue' : 'badge-green'}">${entry.location === 'cloud' ? 'Cloud' : 'Local'}</span>
+        ${entry.app ? `<span class="history-app">${escapeHtml(entry.app)}</span>` : ''}
+      </div>
     `;
     historyContainer.appendChild(el);
   });
 }
+
+document.getElementById('btn-clear-history')!.addEventListener('click', async () => {
+  if (!confirm('Clear your dictation history from this Mac?')) return;
+  await window.hub.history.clear();
+  dictationLog.length = 0;
+  renderHistory([]);
+});
 
 window.hub.onDictationLog((entry) => {
   dictationLog.unshift(entry);
@@ -451,9 +605,14 @@ async function loadShortcuts(): Promise<void> {
   hfText.textContent = 'Active';
 
   const saved = await window.hub.config.getShortcut();
-  const display = saved?.display || DEFAULT_KEY;
+  showShortcut(saved?.display || DEFAULT_KEY);
+}
+
+// The shortcut appears on the Shortcuts page and in the Dictation hero.
+function showShortcut(display: string): void {
   document.getElementById('ptt-key-display')!.textContent = display;
   document.getElementById('handsfree-key-display')!.textContent = display;
+  document.getElementById('hero-key')!.textContent = display;
 }
 
 function keyEventToLabel(e: KeyboardEvent): string {
@@ -578,8 +737,7 @@ btnSaveShortcut.addEventListener('click', async () => {
 
   await window.hub.config.setShortcut(config);
 
-  document.getElementById('ptt-key-display')!.textContent = recordedKeyDisplay;
-  document.getElementById('handsfree-key-display')!.textContent = recordedKeyDisplay;
+  showShortcut(recordedKeyDisplay);
 
   shortcutModal.classList.add('hidden');
   editingShortcut = null;
@@ -587,8 +745,30 @@ btnSaveShortcut.addEventListener('click', async () => {
 
 document.getElementById('btn-reset-shortcuts')?.addEventListener('click', async () => {
   await window.hub.config.setShortcut(DEFAULT_SHORTCUT);
-  document.getElementById('ptt-key-display')!.textContent = DEFAULT_KEY;
-  document.getElementById('handsfree-key-display')!.textContent = DEFAULT_KEY;
+  showShortcut(DEFAULT_KEY);
+});
+
+// --- Pill Position ---
+function showPillPosition(pos: string): void {
+  const grid = document.getElementById('pill-position-grid')!;
+  let label = '';
+  grid.querySelectorAll<HTMLElement>('.pill-pos').forEach(btn => {
+    const active = btn.dataset.pos === pos;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-checked', String(active));
+    if (active) label = btn.getAttribute('aria-label') || '';
+  });
+  document.getElementById('pill-position-desc')!.textContent = label
+    ? `${label} of your screen`
+    : 'Where the recording pill appears on your screen';
+}
+
+document.getElementById('pill-position-grid')?.addEventListener('click', async (e) => {
+  const btn = (e.target as HTMLElement).closest('.pill-pos') as HTMLElement;
+  if (!btn || !btn.dataset.pos) return;
+
+  showPillPosition(btn.dataset.pos);
+  await window.hub.config.setPillPosition(btn.dataset.pos);
 });
 
 // --- Utilities ---
@@ -601,3 +781,5 @@ function escapeHtml(str: string): string {
 // --- Init ---
 loadSettings();
 loadDictionary();
+loadHistory();
+loadShortcuts();

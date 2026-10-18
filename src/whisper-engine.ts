@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as http from 'http';
+import { redact } from './log';
 
 const WHISPERKIT_PORT = 50060;
 const WHISPERKIT_HOST = 'localhost';
@@ -269,6 +270,6 @@ export async function transcribe(audioSamples: Float32Array): Promise<string> {
     req.end();
   });
 
-  console.log(`[DictateAI] WhisperKit transcript: "${result}"`);
+  console.log(`[DictateAI] WhisperKit transcript: ${redact(result)}`);
   return result;
 }

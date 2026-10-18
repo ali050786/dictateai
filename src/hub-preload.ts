@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer, shell } from 'electron';
 
+const ALLOWED_LINK_HOSTS = ['openrouter.ai'];
+
 contextBridge.exposeInMainWorld('hub', {
   dictionary: {
     list: () => ipcRenderer.invoke('dictionary:list'),
@@ -9,25 +11,42 @@ contextBridge.exposeInMainWorld('hub', {
   config: {
     hasApiKey: () => ipcRenderer.invoke('config:hasApiKey'),
     setApiKey: (key: string) => ipcRenderer.invoke('config:setApiKey', key),
+    removeApiKey: () => ipcRenderer.invoke('config:removeApiKey'),
     hasAccessibility: () => ipcRenderer.invoke('config:hasAccessibility'),
     getLanguage: () => ipcRenderer.invoke('config:getLanguage'),
     setLanguage: (lang: string) => ipcRenderer.invoke('config:setLanguage', lang),
     sttStatus: () => ipcRenderer.invoke('config:sttStatus'),
     getLlmEnabled: () => ipcRenderer.invoke('config:getLlmEnabled'),
     setLlmEnabled: (enabled: boolean) => ipcRenderer.invoke('config:setLlmEnabled', enabled),
+    getLlmProvider: () => ipcRenderer.invoke('config:getLlmProvider'),
+    setLlmProvider: (provider: string) => ipcRenderer.invoke('config:setLlmProvider', provider),
+    setCloudModel: (model: string) => ipcRenderer.invoke('config:setCloudModel', model),
+    getLocalModelChoice: () => ipcRenderer.invoke('config:getLocalModelChoice'),
+    setLocalModelChoice: (id: string) => ipcRenderer.invoke('config:setLocalModelChoice', id),
+    llmStatus: () => ipcRenderer.invoke('config:llmStatus'),
     getShortcut: () => ipcRenderer.invoke('config:getShortcut'),
     setShortcut: (shortcut: Record<string, unknown>) => ipcRenderer.invoke('config:setShortcut', shortcut),
     getAudioDevice: () => ipcRenderer.invoke('config:getAudioDevice'),
     setAudioDevice: (deviceId: string) => ipcRenderer.invoke('config:setAudioDevice', deviceId),
+    getPillPosition: () => ipcRenderer.invoke('config:getPillPosition'),
+    setPillPosition: (position: string) => ipcRenderer.invoke('config:setPillPosition', position),
+    getMuteWhileSpeaking: () => ipcRenderer.invoke('config:getMuteWhileSpeaking'),
+    setMuteWhileSpeaking: (enabled: boolean) => ipcRenderer.invoke('config:setMuteWhileSpeaking', enabled),
   },
   history: {
     list: () => ipcRenderer.invoke('history:list'),
+    clear: () => ipcRenderer.invoke('history:clear'),
   },
   onDictationLog: (callback: (entry: { text: string; app: string; time: string }) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, entry: { text: string; app: string; time: string }) =>
       callback(entry);
     ipcRenderer.on('dictation:log', handler);
     return () => ipcRenderer.removeListener('dictation:log', handler);
+  },
+  onLlmStatusChanged: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('llm:status-changed', handler);
+    return () => ipcRenderer.removeListener('llm:status-changed', handler);
   },
   onSttRestarting: (callback: () => void) => {
     const handler = () => callback();
@@ -39,5 +58,13 @@ contextBridge.exposeInMainWorld('hub', {
     ipcRenderer.on('stt:status-changed', handler);
     return () => ipcRenderer.removeListener('stt:status-changed', handler);
   },
-  openExternal: (url: string) => shell.openExternal(url),
+  // Only links the hub actually shows; anything else is ignored.
+  openExternal: (url: string) => {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'https:' && ALLOWED_LINK_HOSTS.includes(parsed.hostname)) {
+        shell.openExternal(parsed.toString());
+      }
+    } catch {}
+  },
 });

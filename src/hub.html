@@ -2,6 +2,7 @@
 <html>
   <head>
     <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' ws://localhost:*; base-uri 'none'; form-action 'none'; script-src 'self'" />
     <title>DictateAI</title>
   </head>
   <body>
@@ -69,10 +70,11 @@
           <div class="page-body">
             <div class="hero-card">
               <h2>Voice to text, anywhere.</h2>
-              <p>Hold <kbd>Right ⌥ Option</kbd> and speak. Your words appear in any text field, cleaned up by AI.</p>
+              <p>Hold <kbd id="hero-key">Right ⌥ Option</kbd> and speak. Your words appear in any text field, cleaned up by AI.</p>
             </div>
             <div class="section-header">
               <h3>Recent Dictations</h3>
+              <button type="button" class="link-button" id="btn-clear-history">Clear</button>
             </div>
             <div id="dictation-history" class="list-container">
               <div class="empty-state">
@@ -232,12 +234,37 @@
               </div>
               <div class="setting-row">
                 <div class="setting-info">
+                  <span class="setting-label">Pill position</span>
+                  <span class="setting-desc" id="pill-position-desc">Where the recording pill appears on your screen</span>
+                </div>
+                <div class="pill-screen" id="pill-position-grid" role="radiogroup" aria-label="Pill position">
+                  <span class="pill-screen-menubar"></span>
+                  <button class="pill-pos" data-pos="top-left" role="radio" aria-label="Top left" title="Top left"><span class="pill-dot"></span></button>
+                  <button class="pill-pos" data-pos="top-center" role="radio" aria-label="Top center" title="Top center"><span class="pill-dot"></span></button>
+                  <button class="pill-pos" data-pos="top-right" role="radio" aria-label="Top right" title="Top right"><span class="pill-dot"></span></button>
+                  <button class="pill-pos" data-pos="bottom-left" role="radio" aria-label="Bottom left" title="Bottom left"><span class="pill-dot"></span></button>
+                  <button class="pill-pos active" data-pos="bottom-center" role="radio" aria-label="Bottom center" title="Bottom center"><span class="pill-dot"></span></button>
+                  <button class="pill-pos" data-pos="bottom-right" role="radio" aria-label="Bottom right" title="Bottom right"><span class="pill-dot"></span></button>
+                </div>
+              </div>
+              <div class="setting-row">
+                <div class="setting-info">
                   <span class="setting-label">Microphone</span>
                   <span class="setting-desc" id="mic-status">Loading devices…</span>
                 </div>
                 <select id="mic-select" class="setting-select">
                   <option value="">System Default</option>
                 </select>
+              </div>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <span class="setting-label">Mute audio while speaking</span>
+                  <span class="setting-desc">Pause system audio during dictation</span>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="mute-toggle">
+                  <span class="toggle-slider"></span>
+                </label>
               </div>
             </div>
 
@@ -300,17 +327,39 @@
               </div>
               <div class="setting-row">
                 <div class="setting-info">
-                  <span class="setting-label">LLM Provider</span>
-                  <span class="setting-desc" id="llm-model-name">DeepSeek via OpenRouter</span>
+                  <span class="setting-label">Cleanup runs</span>
+                  <span class="setting-desc" id="llm-provider-desc">Loading...</span>
+                  <span class="setting-model" id="llm-model-name"></span>
+                  <button type="button" class="link-button" id="btn-choose-model">Advanced: choose model</button>
                 </div>
-                <span class="badge badge-blue">Cloud</span>
+                <select id="llm-provider-select" class="setting-select">
+                  <option value="local">On your Mac</option>
+                  <option value="cloud">Cloud</option>
+                </select>
               </div>
-              <div class="setting-row">
+              <div class="setting-row" id="local-model-row">
                 <div class="setting-info">
-                  <span class="setting-label">OpenRouter API Key</span>
+                  <span class="setting-label">Local model</span>
+                  <span class="setting-desc" id="local-model-desc"></span>
+                </div>
+                <select id="local-model-select" class="setting-select"></select>
+              </div>
+              <div class="setting-row" id="cloud-model-row">
+                <div class="setting-info">
+                  <span class="setting-label">Cloud model</span>
+                  <span class="setting-desc">Any OpenRouter model ID</span>
+                </div>
+                <input type="text" id="cloud-model-input" class="setting-input" spellcheck="false" />
+              </div>
+              <div class="setting-row" id="api-key-row">
+                <div class="setting-info">
+                  <span class="setting-label">Your OpenRouter API key</span>
                   <span class="setting-desc" id="api-key-status">Loading...</span>
                 </div>
-                <button id="btn-change-key" class="btn-secondary btn-sm">Change</button>
+                <div class="setting-actions">
+                  <button id="btn-remove-key" class="btn-secondary btn-sm">Remove</button>
+                  <button id="btn-change-key" class="btn-secondary btn-sm">Change</button>
+                </div>
               </div>
             </div>
 

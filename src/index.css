@@ -20,33 +20,33 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  border-radius: 28px;
+  gap: 6px;
+  border-radius: 20px;
   backdrop-filter: blur(40px) saturate(180%);
   -webkit-backdrop-filter: blur(40px) saturate(180%);
-  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 4px 20px rgba(0, 0, 0, 0.35),
     0 0 0 0.5px rgba(255, 255, 255, 0.08) inset;
 }
 
 /* Idle: hidden */
 .flow-bar.idle {
   opacity: 0;
-  transform: translateY(20px) scale(0.9);
+  transform: translateY(12px) scale(0.92);
   pointer-events: none;
-  width: 60px;
-  height: 44px;
+  width: 48px;
+  height: 36px;
   background: rgba(30, 30, 30, 0.85);
 }
 
-/* Recording: expanded dark pill with waveform */
+/* Recording: compact dark pill with waveform */
 .flow-bar.recording {
   opacity: 1;
   transform: translateY(0) scale(1);
-  width: 200px;
-  height: 48px;
-  padding: 0 20px;
+  width: 140px;
+  height: 36px;
+  padding: 0 14px;
   background: rgba(20, 20, 22, 0.92);
 }
 
@@ -54,9 +54,9 @@ body {
 .flow-bar.processing {
   opacity: 1;
   transform: translateY(0) scale(1);
-  width: 160px;
-  height: 44px;
-  padding: 0 18px;
+  width: 120px;
+  height: 34px;
+  padding: 0 14px;
   background: rgba(20, 20, 22, 0.92);
 }
 
@@ -64,9 +64,9 @@ body {
 .flow-bar.downloading {
   opacity: 1;
   transform: translateY(0) scale(1);
-  width: 220px;
-  height: 44px;
-  padding: 0 18px;
+  width: 160px;
+  height: 34px;
+  padding: 0 14px;
   background: rgba(20, 20, 22, 0.92);
 }
 
@@ -74,12 +74,12 @@ body {
 .flow-bar.error {
   opacity: 1;
   transform: translateY(0) scale(1);
-  width: 220px;
-  height: 44px;
-  padding: 0 18px;
+  width: 160px;
+  height: 34px;
+  padding: 0 14px;
   background: rgba(40, 16, 16, 0.92);
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 4px 20px rgba(0, 0, 0, 0.35),
     0 0 0 0.5px rgba(220, 38, 38, 0.25) inset;
 }
 
@@ -95,8 +95,8 @@ body {
 .waveform {
   display: flex;
   align-items: center;
-  gap: 3px;
-  height: 28px;
+  gap: 2px;
+  height: 20px;
 }
 
 .flow-bar.idle .waveform,
@@ -106,12 +106,12 @@ body {
 }
 
 .waveform .bar {
-  width: 3px;
-  border-radius: 2px;
+  width: 2.5px;
+  border-radius: 1.5px;
   background: #fff;
   transition: height 0.08s ease-out;
-  min-height: 4px;
-  height: 4px;
+  min-height: 3px;
+  height: 3px;
 }
 
 /* Idle animation for bars when recording but silent */
@@ -126,8 +126,8 @@ body {
 .flow-bar.recording .waveform .bar:nth-child(5) { animation-delay: 0.6s; }
 
 @keyframes idle-pulse {
-  0%, 100% { height: 4px; opacity: 0.5; }
-  50% { height: 10px; opacity: 0.8; }
+  0%, 100% { height: 3px; opacity: 0.5; }
+  50% { height: 8px; opacity: 0.8; }
 }
 
 /* When audio levels are being set via JS, disable the CSS animation */
@@ -137,11 +137,11 @@ body {
 
 /* --- Label --- */
 .label {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 500;
-  letter-spacing: -0.01em;
+  letter-spacing: 0.01em;
   white-space: nowrap;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .flow-bar.idle .label {
@@ -150,13 +150,13 @@ body {
 
 /* --- Preview text --- */
 .preview {
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.65);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 280px;
+  max-width: 200px;
   display: none;
 }
 
@@ -170,9 +170,9 @@ body {
 
 .flow-bar.recording.has-preview {
   width: auto;
-  min-width: 200px;
-  max-width: 420px;
-  padding: 0 18px;
+  min-width: 140px;
+  max-width: 320px;
+  padding: 0 14px;
 }
 
 /* --- Close button (hands-free only) --- */
@@ -180,17 +180,17 @@ body {
   display: none;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   border: none;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.12);
   color: rgba(255, 255, 255, 0.7);
-  font-size: 14px;
+  font-size: 11px;
   line-height: 1;
   cursor: pointer;
   padding: 0;
-  margin-left: 4px;
+  margin-left: 2px;
   flex-shrink: 0;
   transition: background 0.15s ease;
 }
@@ -209,11 +209,11 @@ body {
 .flow-bar.downloading .label::before {
   content: '';
   display: inline-block;
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.7);
-  margin-right: 8px;
+  margin-right: 6px;
   vertical-align: middle;
   animation: dot-pulse 1s ease-in-out infinite;
 }

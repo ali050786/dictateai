@@ -15,8 +15,11 @@
   "author": "Sikandar Ali <ali050786@gmail.com>",
   "main": ".webpack/main/index.cjs",
   "scripts": {
+    "build:native": "node-gyp rebuild --directory native/text-injection",
     "start": "electron-forge start",
+    "prepackage": "npm run build:native",
     "package": "electron-forge package",
+    "premake": "npm run build:native",
     "make": "electron-forge make",
     "release": "electron-forge release",
     "lint": "oxlint && oxfmt --check",
