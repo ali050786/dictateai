@@ -262,6 +262,14 @@ static Napi::Value StartPushToTalk(const Napi::CallbackInfo& info) {
     return env.Null();
   }
 
+  // A previous start whose event tap failed (no Accessibility yet) leaves a
+  // finished thread and its callback behind. Assigning over a joinable
+  // std::thread would terminate the process, so clean those up first.
+  if (pttThread.joinable()) {
+    pttThread.join();
+    pttCallback.Release();
+  }
+
   pttCallback = Napi::ThreadSafeFunction::New(
     env, info[0].As<Napi::Function>(), "ptt_callback", 0, 1
   );
@@ -503,6 +511,12 @@ static Napi::Value InjectText(const Napi::CallbackInfo& info) {
   return Napi::String::New(env, "failed");
 }
 
+// Same as CheckAccessibilityPermission but never shows the system prompt,
+// so it can be polled.
+static Napi::Value IsAccessibilityTrusted(const Napi::CallbackInfo& info) {
+  return Napi::Boolean::New(info.Env(), AXIsProcessTrusted());
+}
+
 static Napi::Value CheckAccessibilityPermission(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
 
@@ -569,6 +583,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("injectText", Napi::Function::New(env, InjectText));
   exports.Set("undoLastInjection", Napi::Function::New(env, UndoLastInjection));
   exports.Set("checkAccessibilityPermission", Napi::Function::New(env, CheckAccessibilityPermission));
+  exports.Set("isAccessibilityTrusted", Napi::Function::New(env, IsAccessibilityTrusted));
   exports.Set("getFocusedElementInfo", Napi::Function::New(env, GetFocusedElementInfo));
   exports.Set("startPushToTalk", Napi::Function::New(env, StartPushToTalk));
   exports.Set("stopPushToTalk", Napi::Function::New(env, StopPushToTalk));

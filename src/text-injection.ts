@@ -9,6 +9,7 @@ interface TextInjectionAddon {
   ): 'accessibility' | 'keystrokes' | 'clipboard' | 'failed' | 'empty';
   undoLastInjection(): boolean;
   checkAccessibilityPermission(): boolean;
+  isAccessibilityTrusted(): boolean;
   getFocusedElementInfo(): {
     available: boolean;
     role?: string;
@@ -59,6 +60,7 @@ function getAddon(): TextInjectionAddon {
       injectText: () => 'failed',
       undoLastInjection: () => false,
       checkAccessibilityPermission: () => false,
+      isAccessibilityTrusted: () => false,
       getFocusedElementInfo: () => ({ available: false }),
       startPushToTalk: () => false,
       stopPushToTalk: () => false,
@@ -82,8 +84,14 @@ export function undoLastInjection(): boolean {
   return result;
 }
 
+// Shows the macOS "allow Accessibility" prompt if not yet trusted.
 export function checkAccessibilityPermission(): boolean {
   return getAddon().checkAccessibilityPermission();
+}
+
+// Never prompts; safe to call repeatedly.
+export function isAccessibilityTrusted(): boolean {
+  return getAddon().isAccessibilityTrusted();
 }
 
 export function getFocusedElementInfo() {

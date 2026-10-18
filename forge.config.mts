@@ -1,6 +1,7 @@
 import type { ForgeConfig } from '@electron-forge/shared-types';
 import { MakerSquirrel } from '@electron-forge/maker-squirrel';
 import { MakerZIP } from '@electron-forge/maker-zip';
+import { MakerDMG } from '@electron-forge/maker-dmg';
 import { MakerDeb } from '@electron-forge/maker-deb';
 import { MakerRpm } from '@electron-forge/maker-rpm';
 import { AutoUnpackNativesPlugin } from '@electron-forge/plugin-auto-unpack-natives';
@@ -17,11 +18,22 @@ const config: ForgeConfig = {
     // The text-injection addon is loaded with a plain require at runtime, so
     // webpack never sees it. Copy it next to app.asar (Contents/Resources).
     extraResource: ['native/text-injection/build/Release/text_injection.node'],
+    // macOS keys Accessibility, Microphone and Keychain access to this ID.
+    appBundleId: 'io.github.ali050786.dictateai',
+    appCategoryType: 'public.app-category.productivity',
+    extendInfo: {
+      // Menu-bar app: no Dock icon, not even briefly at launch.
+      LSUIElement: true,
+      NSMicrophoneUsageDescription:
+        'DictateAI listens only while you hold your dictation key, and turns your speech into text on this Mac.',
+    },
   },
   rebuildConfig: {},
   makers: [
     new MakerSquirrel({}),
     new MakerZIP({}, ['darwin']),
+    // Drag-to-Applications installer: out/make/DictateAI-<version>-arm64.dmg
+    new MakerDMG({ format: 'ULFO' }, ['darwin']),
     new MakerRpm({}),
     new MakerDeb({}),
   ],

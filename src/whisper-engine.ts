@@ -9,6 +9,9 @@ const WHISPERKIT_PORT = 50060;
 const WHISPERKIT_HOST = 'localhost';
 const WHISPERKIT_URL = `http://${WHISPERKIT_HOST}:${WHISPERKIT_PORT}`;
 const DEFAULT_MODEL = 'small';
+// WhisperKit's default download folder is ~/Documents/huggingface, which
+// macOS blocks for apps without Documents access; keep models with our data.
+const MODEL_DIR = path.join(os.homedir(), '.dictateai', 'whisperkit');
 
 let serverProcess: ChildProcess | null = null;
 let currentLanguage = 'auto';
@@ -122,7 +125,10 @@ export async function startServer(): Promise<boolean> {
     '--model', currentModel,
     '--port', String(WHISPERKIT_PORT),
     '--host', WHISPERKIT_HOST,
+    '--download-model-path', MODEL_DIR,
+    '--download-tokenizer-path', MODEL_DIR,
   ];
+  fs.mkdirSync(MODEL_DIR, { recursive: true });
 
   if (currentLanguage !== 'auto') {
     args.push('--language', currentLanguage);
