@@ -1,0 +1,9 @@
+<!-- DictateAI mark: a "D" whose upright is a text cursor (I-beam) and whose bowl holds a
+     voice (dot) and the sound it makes (wave): you speak, it types.
+     24×24 grid in currentColor; the cursor uses --caret if set. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+  <path d="M5.6 3.2h4.4M5.6 20.8h4.4M7.8 3.2v17.6" style="stroke: var(--caret, currentColor)"/>
+  <path d="M10 3.2a8.8 8.8 0 0 1 0 17.6"/>
+  <path d="M12.96 8.48a4.6 4.6 0 0 1 0 7.04" opacity="0.75"/>
+  <circle cx="10.9" cy="12" r="1.35" fill="currentColor" stroke="none"/>
+</svg>

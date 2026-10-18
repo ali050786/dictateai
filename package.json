@@ -25,7 +25,8 @@
     "release": "electron-forge release",
     "lint": "oxlint && oxfmt --check",
     "lint:fix": "oxlint --fix && oxfmt --write",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:icons": "node scripts/build-icons.mjs"
   },
   "devDependencies": {
     "@electron-forge/cli": "^8.0.1",
@@ -38,6 +39,7 @@
     "@electron-forge/plugin-fuses": "^8.0.1",
     "@electron-forge/plugin-webpack": "^8.0.1",
     "@electron/fuses": "^2.1.3",
+    "@resvg/resvg-js": "^2.6.2",
     "@types/electron-squirrel-startup": "^1.0.2",
     "@vercel/webpack-asset-relocator-loader": "^1.7.3",
     "css-loader": "^6.11.0",

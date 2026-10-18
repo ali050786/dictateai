@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0.1" y1="0" x2="0.75" y2="1">
+      <stop offset="0" stop-color="#6a4bff"/>
+      <stop offset="0.5" stop-color="#3a22b8"/>
+      <stop offset="1" stop-color="#160d4a"/>
+    </linearGradient>
+    <radialGradient id="light" cx="0.28" cy="0.18" r="0.7">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="warm" cx="0.42" cy="0.5" r="0.32">
+      <stop offset="0" stop-color="#ffb35c" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#ffb35c" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="caret" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffd9a3"/>
+      <stop offset="1" stop-color="#ff9f43"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="0.35" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.15"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="145%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#0a0520" flood-opacity="0.45"/>
+    </filter>
+    <filter id="glyphShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="0.25" stdDeviation="0.35" flood-color="#0a0520" flood-opacity="0.45"/>
+    </filter>
+    <clipPath id="body"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
+  </defs>
+
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#shadow)"/>
+  <g clip-path="url(#body)">
+    <rect x="100" y="100" width="824" height="824" fill="url(#light)"/>
+    <rect x="100" y="100" width="824" height="824" fill="url(#warm)"/>
+  </g>
+  <rect x="102" y="102" width="820" height="820" rx="183" fill="none" stroke="url(#rim)" stroke-width="4"/>
+
+  <!-- the mark, 24-unit grid scaled ×25 around the centre (nudged left to balance the D) -->
+  <g transform="translate(497 512) scale(26) translate(-12 -12)" fill="none" stroke-linecap="round" filter="url(#glyphShadow)">
+    <path d="M10 3.2a8.8 8.8 0 0 1 0 17.6" stroke="#ffffff" stroke-width="2.2"/><path d="M12.96 8.48a4.6 4.6 0 0 1 0 7.04" stroke="#ffffff" stroke-opacity="0.8" stroke-width="2.2"/><circle cx="10.9" cy="12" r="1.35" fill="#ffffff" stroke="none"/><path d="M5.6 3.2h4.4M5.6 20.8h4.4M7.8 3.2v17.6" stroke="url(#caret)" stroke-width="2.2"/>
+  </g>
+</svg>

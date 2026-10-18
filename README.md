@@ -1,3 +1,5 @@
+<img src="assets/icon/DictateAI-1024.png" width="96" alt="DictateAI icon">
+
 # DictateAI
 
 Voice dictation for macOS that runs on your Mac. Hold a key, speak, and the text appears in whatever field you're typing in, cleaned up by a local AI model. No word limits, and nothing leaves your Mac unless you choose the optional cloud cleanup with your own OpenRouter key.

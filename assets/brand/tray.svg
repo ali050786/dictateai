@@ -1,0 +1,7 @@
+<!-- Menu-bar template: black on transparent; macOS tints it for light/dark menu bars. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round">
+  <g transform="translate(-0.4 0)">
+    <path d="M5.6 3.2h4.4M5.6 20.8h4.4M7.8 3.2v17.6"/><path d="M10 3.2a8.8 8.8 0 0 1 0 17.6"/><path d="M12.96 8.48a4.6 4.6 0 0 1 0 7.04"/>
+    <circle cx="10.9" cy="12" r="1.5" fill="#000" stroke="none"/>
+  </g>
+</svg>

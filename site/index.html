@@ -7,6 +7,13 @@
 <meta name="description" content="Voice dictation for macOS that runs on your Mac. Hold a key, speak, and clean text appears in any app. Free, open source, private by default.">
 <meta property="og:title" content="DictateAI — speak, and it types. On your Mac.">
 <meta property="og:description" content="Private voice dictation for Apple Silicon Macs. Local speech recognition and local AI cleanup. Free and open source.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta property="og:image" content="https://ali050786.github.io/dictateai/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -71,7 +78,7 @@ section { padding: 96px 0; }
 .nav.scrolled { border-bottom-color: var(--line); }
 .nav .wrap { display: flex; align-items: center; height: 64px; gap: 28px; }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; font-size: 17px; }
-.logo { width: 30px; height: 30px; border-radius: 9px; background: var(--ink); color: var(--bg); display: grid; place-items: center; }
+.logo { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(160deg, #6a4bff, #3a22b8 55%, #160d4a); display: grid; place-items: center; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
 .nav-links { display: flex; gap: 22px; margin-left: auto; font-size: 14px; color: var(--ink-2); }
 .nav-links a { text-decoration: none; }
 .nav-links a:hover { color: var(--ink); }
@@ -259,6 +266,12 @@ footer a { text-decoration: none; color: var(--ink-2); }
 <body>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-logo" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-width="2.4">
+    <path d="M10 3.2a8.8 8.8 0 0 1 0 17.6" stroke="#fff"/>
+    <path d="M12.96 8.48a4.6 4.6 0 0 1 0 7.04" stroke="#fff" stroke-opacity="0.8"/>
+    <circle cx="10.9" cy="12" r="1.4" fill="#fff"/>
+    <path d="M5.6 3.2h4.4M5.6 20.8h4.4M7.8 3.2v17.6" stroke="#ffb35c"/>
+  </symbol>
   <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/></symbol>
   <symbol id="i-apple" viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9s-2-.9-3.4-.9c-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.5 1.3-.1 1.8-.8 3.3-.8s2 .8 3.4.8c1.4 0 2.3-1.3 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9 0 0-2.7-1-2.7-4zM13.9 4.9c.7-.9 1.2-2 1-3.2-1 0-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.1 1.2.1 2.3-.6 3.1-1.5z"/></symbol>
   <symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M6 11l6 6 6-6M5 20h14"/></symbol>
@@ -271,7 +284,7 @@ footer a { text-decoration: none; color: var(--ink-2); }
 
 <header class="nav" id="nav">
   <div class="wrap">
-    <a href="#" class="brand" aria-label="DictateAI home"><span class="logo"><svg width="16" height="16"><use href="#i-mic"/></svg></span>DictateAI</a>
+    <a href="#" class="brand" aria-label="DictateAI home"><span class="logo"><svg width="20" height="20"><use href="#i-logo"/></svg></span>DictateAI</a>
     <nav class="nav-links" aria-label="Sections">
       <a href="#how">How it works</a>
       <a href="#features">Features</a>

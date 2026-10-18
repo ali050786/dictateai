@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3a22b8"/><stop offset="1" stop-color="#110a36"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.22" cy="0.5" r="0.45">
+      <stop offset="0" stop-color="#ffb35c" stop-opacity="0.22"/><stop offset="1" stop-color="#ffb35c" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="caret" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffd9a3"/><stop offset="1" stop-color="#ff9f43"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <g transform="translate(250 315) scale(13) translate(-12 -12)" fill="none" stroke-linecap="round" stroke-width="2.2">
+    <path d="M10 3.2a8.8 8.8 0 0 1 0 17.6" stroke="#ffffff" stroke-width="2.2"/><path d="M12.96 8.48a4.6 4.6 0 0 1 0 7.04" stroke="#ffffff" stroke-opacity="0.8" stroke-width="2.2"/><circle cx="10.9" cy="12" r="1.35" fill="#ffffff" stroke="none"/><path d="M5.6 3.2h4.4M5.6 20.8h4.4M7.8 3.2v17.6" stroke="url(#caret)" stroke-width="2.2"/>
+  </g>
+  <text x="470" y="270" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="84" font-weight="700" fill="#ffffff" letter-spacing="-2">DictateAI</text>
+  <text x="472" y="345" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="38" fill="#ffd9a3">Speak. It types. On your Mac.</text>
+  <text x="472" y="410" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="26" fill="#b9b0e6">Private · Works offline · Free and open source</text>
+</svg>
