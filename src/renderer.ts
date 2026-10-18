@@ -10,6 +10,7 @@ interface DictateAPI {
   onAudioDeviceChanged: (callback: (deviceId: string) => void) => () => void;
   stopRecording: () => void;
   setClickable: (clickable: boolean) => void;
+  onOrientation: (callback: (orientation: string) => void) => () => void;
 }
 
 declare global {
@@ -316,4 +317,8 @@ navigator.mediaDevices.addEventListener('devicechange', async () => {
       attemptAudioRecovery();
     }
   }
+});
+
+window.dictateAI.onOrientation((orientation) => {
+  document.body.classList.toggle('vertical', orientation === 'vertical');
 });

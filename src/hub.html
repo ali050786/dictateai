@@ -232,12 +232,57 @@
               </div>
               <div class="setting-row">
                 <div class="setting-info">
+                  <span class="setting-label">Pill Position</span>
+                  <span class="setting-desc">Where the recording indicator appears</span>
+                </div>
+                <div class="pill-position-grid" id="pill-position-grid">
+                  <button class="pill-pos" data-pos="top-left" title="Top Left">
+                    <span class="pill-dot horizontal"></span>
+                  </button>
+                  <button class="pill-pos" data-pos="top-center" title="Top Center">
+                    <span class="pill-dot horizontal"></span>
+                  </button>
+                  <button class="pill-pos" data-pos="top-right" title="Top Right">
+                    <span class="pill-dot horizontal"></span>
+                  </button>
+                  <button class="pill-pos" data-pos="center-left" title="Center Left">
+                    <span class="pill-dot vertical"></span>
+                  </button>
+                  <button class="pill-pos" data-pos="center" title="Center">
+                    <span class="pill-dot horizontal"></span>
+                  </button>
+                  <button class="pill-pos" data-pos="center-right" title="Center Right">
+                    <span class="pill-dot vertical"></span>
+                  </button>
+                  <button class="pill-pos" data-pos="bottom-left" title="Bottom Left">
+                    <span class="pill-dot horizontal"></span>
+                  </button>
+                  <button class="pill-pos active" data-pos="bottom-center" title="Bottom Center">
+                    <span class="pill-dot horizontal"></span>
+                  </button>
+                  <button class="pill-pos" data-pos="bottom-right" title="Bottom Right">
+                    <span class="pill-dot horizontal"></span>
+                  </button>
+                </div>
+              </div>
+              <div class="setting-row">
+                <div class="setting-info">
                   <span class="setting-label">Microphone</span>
                   <span class="setting-desc" id="mic-status">Loading devices…</span>
                 </div>
                 <select id="mic-select" class="setting-select">
                   <option value="">System Default</option>
                 </select>
+              </div>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <span class="setting-label">Mute audio while speaking</span>
+                  <span class="setting-desc">Pause system audio during dictation</span>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="mute-toggle">
+                  <span class="toggle-slider"></span>
+                </label>
               </div>
             </div>
 

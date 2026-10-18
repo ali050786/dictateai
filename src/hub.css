@@ -767,3 +767,57 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #ccc;
 }
+
+/* --- Pill Position Grid --- */
+.pill-position-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 32px);
+  grid-template-rows: repeat(3, 32px);
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.pill-pos {
+  width: 32px;
+  height: 32px;
+  border: 1.5px solid #ddd;
+  border-radius: 6px;
+  background: #fafafa;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+
+.pill-pos:hover {
+  border-color: #bbb;
+  background: #f0f0f0;
+}
+
+.pill-pos.active {
+  border-color: #007aff;
+  background: #eef4ff;
+  box-shadow: 0 0 0 1px rgba(0, 122, 255, 0.2);
+}
+
+.pill-dot {
+  background: #666;
+  border-radius: 3px;
+  transition: all 0.15s ease;
+}
+
+.pill-pos.active .pill-dot {
+  background: #007aff;
+}
+
+.pill-dot.horizontal {
+  width: 14px;
+  height: 4px;
+}
+
+.pill-dot.vertical {
+  width: 4px;
+  height: 14px;
+}

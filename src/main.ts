@@ -17,7 +17,8 @@ import {
   setPttKey,
 } from './text-injection';
 import { transcribe, isModelDownloaded, downloadModel, setLanguage, getLanguage, getModel, startServer, stopServer, isServerRunning, isWhisperKitInstalled, setOnStatusChange } from './whisper-engine';
-import { formatText, hasApiKey, saveApiKey, loadConfig, saveConfig, ShortcutConfig } from './llm-formatter';
+import { exec } from 'child_process';
+import { formatText, hasApiKey, saveApiKey, loadConfig, saveConfig, ShortcutConfig, PillPosition } from './llm-formatter';
 import { getFocusedElementInfo } from './text-injection';
 import { applyReplacements, detectCorrections, addCorrection, getAllCorrections, removeCorrection } from './dictionary';
 import started from 'electron-squirrel-startup';
@@ -42,6 +43,11 @@ let handsFreeActive = false;
 let llmEnabled = false;
 let previewTimer: ReturnType<typeof setInterval> | null = null;
 let previewInFlight = false;
+let hideTimer: ReturnType<typeof setTimeout> | null = null;
+let hideTransitionTimer: ReturnType<typeof setTimeout> | null = null;
+let pillPosition: PillPosition = 'bottom-center';
+let muteWhileSpeaking = false;
+let didMuteAudio = false;
 
 const dictationHistory: { text: string; app: string; time: string }[] = [];
 
@@ -151,6 +157,53 @@ function updateTrayMenu(): void {
   tray.setTitle(isRecording ? '🔴' : '🎙');
 }
 
+function isVerticalPosition(pos: PillPosition): boolean {
+  return pos === 'center-left' || pos === 'center-right';
+}
+
+function applyOverlayPosition(): void {
+  if (!overlayWindow || overlayWindow.isDestroyed()) return;
+
+  const display = screen.getPrimaryDisplay();
+  const { x: dX, y: dY, width: dW, height: dH } = display.workArea;
+  const isVert = isVerticalPosition(pillPosition);
+  const MARGIN = 12;
+
+  // Resize window for vertical vs horizontal
+  const winW = isVert ? 52 : 240;
+  const winH = isVert ? 160 : 52;
+  overlayWindow.setSize(winW, winH);
+
+  // Tell renderer about orientation
+  overlayWindow.webContents.send('overlay:orientation', isVert ? 'vertical' : 'horizontal');
+
+  let x: number, y: number;
+
+  switch (pillPosition) {
+    case 'top-left':
+      x = dX + MARGIN; y = dY + MARGIN; break;
+    case 'top-center':
+      x = dX + Math.round((dW - winW) / 2); y = dY + MARGIN; break;
+    case 'top-right':
+      x = dX + dW - winW - MARGIN; y = dY + MARGIN; break;
+    case 'center-left':
+      x = dX + MARGIN; y = dY + Math.round((dH - winH) / 2); break;
+    case 'center':
+      x = dX + Math.round((dW - winW) / 2); y = dY + Math.round((dH - winH) / 2); break;
+    case 'center-right':
+      x = dX + dW - winW - MARGIN; y = dY + Math.round((dH - winH) / 2); break;
+    case 'bottom-left':
+      x = dX + MARGIN; y = dY + dH - winH - MARGIN; break;
+    case 'bottom-right':
+      x = dX + dW - winW - MARGIN; y = dY + dH - winH - MARGIN; break;
+    case 'bottom-center':
+    default:
+      x = dX + Math.round((dW - winW) / 2); y = dY + dH - winH - MARGIN; break;
+  }
+
+  overlayWindow.setPosition(x, y, false);
+}
+
 function toggleRecording(): void {
   console.log(
     `[DictateAI] toggleRecording called — isRecording=${isRecording}`,
@@ -162,13 +215,50 @@ function toggleRecording(): void {
   }
 }
 
+function muteSystemAudio(): void {
+  if (!muteWhileSpeaking) return;
+  exec('osascript -e "output muted of (get volume settings)"', (err, stdout) => {
+    if (err) {
+      console.error('[DictateAI] Failed to check mute state:', err);
+      return;
+    }
+    if (stdout.trim() === 'true') {
+      didMuteAudio = false;
+      return;
+    }
+    exec('osascript -e "set volume with output muted"', (err2) => {
+      if (err2) {
+        console.error('[DictateAI] Failed to mute audio:', err2);
+        return;
+      }
+      didMuteAudio = true;
+      console.log('[DictateAI] System audio muted');
+    });
+  });
+}
+
+function unmuteSystemAudio(): void {
+  if (!didMuteAudio) return;
+  didMuteAudio = false;
+  exec('osascript -e "set volume without output muted"', (err) => {
+    if (err) {
+      console.error('[DictateAI] Failed to unmute audio:', err);
+      return;
+    }
+    console.log('[DictateAI] System audio unmuted');
+  });
+}
+
 function startRecording(): void {
+  cancelPendingHide();
+  muteSystemAudio();
   isRecording = true;
   audioChunks = [];
   updateTrayMenu();
   console.log('[DictateAI] Recording started');
 
   if (overlayWindow && !overlayWindow.isDestroyed()) {
+    applyOverlayPosition();
     overlayWindow.webContents.send('dictation:state', 'recording');
     overlayWindow.showInactive();
   }
@@ -178,6 +268,7 @@ function startRecording(): void {
 
 function stopRecording(): void {
   isRecording = false;
+  unmuteSystemAudio();
   stopPreviewTimer();
   updateTrayMenu();
   console.log(
@@ -246,10 +337,21 @@ async function processAudio(): Promise<void> {
   }
 
   const durationSec = combined.length / 16000;
-  if (durationSec < 0.3) {
+  if (durationSec < 0.2) {
     console.log(`[DictateAI] Recording too short (${durationSec.toFixed(1)}s) — skipping`);
     finishProcessing('');
     return;
+  }
+
+  // Pad short recordings with silence so WhisperKit gets enough context
+  const MIN_DURATION = 1.5;
+  let audioToTranscribe = combined;
+  if (durationSec < MIN_DURATION) {
+    const padSamples = Math.ceil(MIN_DURATION * 16000);
+    const padded = new Float32Array(padSamples);
+    padded.set(combined, 0);
+    audioToTranscribe = padded;
+    console.log(`[DictateAI] Padded ${durationSec.toFixed(1)}s → ${MIN_DURATION}s for WhisperKit`);
   }
 
   console.log(
@@ -257,7 +359,7 @@ async function processAudio(): Promise<void> {
   );
 
   try {
-    const rawText = await transcribe(combined);
+    const rawText = await transcribe(audioToTranscribe);
     if (!rawText || /^\s*[\[(].*[\])]\s*$/i.test(rawText) || rawText.trim().length < 2) {
       console.log(`[DictateAI] No usable speech detected: "${rawText}"`);
       if (overlayWindow && !overlayWindow.isDestroyed()) {
@@ -298,11 +400,19 @@ async function processAudio(): Promise<void> {
   }
 }
 
+function cancelPendingHide(): void {
+  if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+  if (hideTransitionTimer) { clearTimeout(hideTransitionTimer); hideTransitionTimer = null; }
+}
+
 function hideOverlayAfterDelay(ms: number): void {
-  setTimeout(() => {
+  cancelPendingHide();
+  hideTimer = setTimeout(() => {
+    hideTimer = null;
     if (overlayWindow && !overlayWindow.isDestroyed()) {
       overlayWindow.webContents.send('dictation:state', 'idle');
-      setTimeout(() => {
+      hideTransitionTimer = setTimeout(() => {
+        hideTransitionTimer = null;
         if (overlayWindow && !overlayWindow.isDestroyed()) {
           overlayWindow.hide();
         }
@@ -520,6 +630,26 @@ function setupIPC(): void {
     return true;
   });
 
+  ipcMain.handle('config:getPillPosition', () => {
+    return pillPosition;
+  });
+  ipcMain.handle('config:setPillPosition', (_event, position: PillPosition) => {
+    pillPosition = position;
+    saveConfig({ pillPosition: position });
+    console.log(`[DictateAI] Pill position changed to: ${position}`);
+    return true;
+  });
+
+  ipcMain.handle('config:getMuteWhileSpeaking', () => {
+    return muteWhileSpeaking;
+  });
+  ipcMain.handle('config:setMuteWhileSpeaking', (_event, enabled: boolean) => {
+    muteWhileSpeaking = enabled;
+    saveConfig({ muteWhileSpeaking: enabled });
+    console.log(`[DictateAI] Mute while speaking: ${enabled}`);
+    return true;
+  });
+
   ipcMain.handle('config:getShortcut', () => {
     const config = loadConfig();
     return config.shortcut || null;
@@ -551,6 +681,14 @@ app.whenReady().then(() => {
     const s = savedConfig.shortcut;
     setPttKey(s.keyCode, s.flagMask, s.isModifier, s.requiredModifiers);
     console.log(`[DictateAI] Restored shortcut: ${s.display}`);
+  }
+  if (savedConfig.pillPosition) {
+    pillPosition = savedConfig.pillPosition;
+    console.log(`[DictateAI] Restored pill position: ${pillPosition}`);
+  }
+  if (savedConfig.muteWhileSpeaking != null) {
+    muteWhileSpeaking = savedConfig.muteWhileSpeaking;
+    console.log(`[DictateAI] Restored mute while speaking: ${muteWhileSpeaking}`);
   }
 
   setOnStatusChange(() => {

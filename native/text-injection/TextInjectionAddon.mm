@@ -344,6 +344,112 @@ static bool SendUndo() {
   return true;
 }
 
+// Get the screen position of the text cursor (insertion point) via AX API
+static Napi::Value GetTextCursorPosition(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  Napi::Object result = Napi::Object::New(env);
+  result.Set("available", false);
+
+  AXUIElementRef systemWide = AXUIElementCreateSystemWide();
+  AXUIElementRef focusedElement = nullptr;
+  AXError err = AXUIElementCopyAttributeValue(
+      systemWide, kAXFocusedUIElementAttribute, (CFTypeRef*)&focusedElement);
+  CFRelease(systemWide);
+
+  if (err != kAXErrorSuccess || !focusedElement) {
+    NSLog(@"[DictateAI] GetTextCursorPosition: no focused element (err=%d)", (int)err);
+    return result;
+  }
+
+  // Log what element we found
+  CFTypeRef role = nullptr;
+  AXUIElementCopyAttributeValue(focusedElement, kAXRoleAttribute, &role);
+  pid_t pid = 0;
+  AXUIElementGetPid(focusedElement, &pid);
+  NSRunningApplication* app = [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
+  NSLog(@"[DictateAI] GetTextCursorPosition: focused=%@ app=%@ role=%@",
+        focusedElement, app.localizedName ?: @"unknown",
+        role ? (__bridge NSString*)role : @"unknown");
+  if (role) CFRelease(role);
+
+  // Strategy 1: Try kAXBoundsForRangeParameterizedAttribute with the character
+  // at or just before the cursor (a zero-length range often returns degenerate rects)
+  CFTypeRef selectedRange = nullptr;
+  err = AXUIElementCopyAttributeValue(focusedElement, kAXSelectedTextRangeAttribute, &selectedRange);
+  NSLog(@"[DictateAI] GetTextCursorPosition: selectedTextRange err=%d", (int)err);
+  if (err == kAXErrorSuccess && selectedRange) {
+    CFRange range;
+    if (AXValueGetValue((AXValueRef)selectedRange, (AXValueType)kAXValueCFRangeType, &range)) {
+      NSLog(@"[DictateAI] GetTextCursorPosition: cursor at location=%ld length=%ld", (long)range.location, (long)range.length);
+      // Try a 1-char range at cursor (or just before if at end)
+      CFRange charRange;
+      if (range.location > 0) {
+        charRange = CFRangeMake(range.location - 1, 1);
+      } else {
+        charRange = CFRangeMake(0, 1);
+      }
+
+      AXValueRef charRangeValue = AXValueCreate((AXValueType)kAXValueCFRangeType, &charRange);
+      CFTypeRef boundsValue = nullptr;
+      err = AXUIElementCopyParameterizedAttributeValue(
+          focusedElement, kAXBoundsForRangeParameterizedAttribute, charRangeValue, &boundsValue);
+      CFRelease(charRangeValue);
+
+      NSLog(@"[DictateAI] GetTextCursorPosition: boundsForRange err=%d", (int)err);
+      if (err == kAXErrorSuccess && boundsValue) {
+        CGRect bounds;
+        if (AXValueGetValue((AXValueRef)boundsValue, (AXValueType)kAXValueCGRectType, &bounds)) {
+          NSLog(@"[DictateAI] GetTextCursorPosition: bounds x=%.0f y=%.0f w=%.0f h=%.0f",
+                bounds.origin.x, bounds.origin.y, bounds.size.width, bounds.size.height);
+          if (bounds.size.width > 0 || bounds.size.height > 0) {
+            result.Set("available", true);
+            // If we used the char before cursor, position at its right edge
+            if (range.location > 0) {
+              result.Set("x", Napi::Number::New(env, bounds.origin.x + bounds.size.width));
+            } else {
+              result.Set("x", Napi::Number::New(env, bounds.origin.x));
+            }
+            result.Set("y", Napi::Number::New(env, bounds.origin.y));
+            result.Set("width", Napi::Number::New(env, bounds.size.width));
+            result.Set("height", Napi::Number::New(env, bounds.size.height));
+            CFRelease(boundsValue);
+            CFRelease(selectedRange);
+            CFRelease(focusedElement);
+            return result;
+          }
+        }
+        CFRelease(boundsValue);
+      }
+    }
+    CFRelease(selectedRange);
+  }
+
+  // Strategy 2: Fall back to the focused element's own position + size
+  CFTypeRef posValue = nullptr;
+  CFTypeRef sizeValue = nullptr;
+  err = AXUIElementCopyAttributeValue(focusedElement, kAXPositionAttribute, &posValue);
+  AXError err2 = AXUIElementCopyAttributeValue(focusedElement, kAXSizeAttribute, &sizeValue);
+
+  if (err == kAXErrorSuccess && err2 == kAXErrorSuccess && posValue && sizeValue) {
+    CGPoint pos;
+    CGSize size;
+    if (AXValueGetValue((AXValueRef)posValue, (AXValueType)kAXValueCGPointType, &pos) &&
+        AXValueGetValue((AXValueRef)sizeValue, (AXValueType)kAXValueCGSizeType, &size)) {
+      result.Set("available", true);
+      result.Set("x", Napi::Number::New(env, pos.x + size.width / 2));
+      result.Set("y", Napi::Number::New(env, pos.y + size.height));
+      result.Set("width", Napi::Number::New(env, size.width));
+      result.Set("height", Napi::Number::New(env, size.height));
+      result.Set("fallback", true);
+    }
+  }
+
+  if (posValue) CFRelease(posValue);
+  if (sizeValue) CFRelease(sizeValue);
+  CFRelease(focusedElement);
+  return result;
+}
+
 // --- N-API bindings ---
 
 static Napi::Value UndoLastInjection(const Napi::CallbackInfo& info) {
@@ -440,6 +546,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("startPushToTalk", Napi::Function::New(env, StartPushToTalk));
   exports.Set("stopPushToTalk", Napi::Function::New(env, StopPushToTalk));
   exports.Set("setPttKey", Napi::Function::New(env, SetPttKey));
+  exports.Set("getTextCursorPosition", Napi::Function::New(env, GetTextCursorPosition));
   return exports;
 }
 

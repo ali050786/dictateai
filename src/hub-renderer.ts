@@ -35,6 +35,10 @@ interface HubAPI {
     setShortcut: (shortcut: ShortcutConfig) => Promise<boolean>;
     getAudioDevice: () => Promise<string>;
     setAudioDevice: (deviceId: string) => Promise<boolean>;
+    getPillPosition: () => Promise<string>;
+    setPillPosition: (position: string) => Promise<boolean>;
+    getMuteWhileSpeaking: () => Promise<boolean>;
+    setMuteWhileSpeaking: (enabled: boolean) => Promise<boolean>;
   };
   history: {
     list: () => Promise<{ text: string; app: string; time: string }[]>;
@@ -215,7 +219,19 @@ async function loadSettings(): Promise<void> {
   const lang = await window.hub.config.getLanguage();
   languageSelect.value = lang;
 
+  const savedPos = await window.hub.config.getPillPosition();
+  const posGrid = document.getElementById('pill-position-grid')!;
+  posGrid.querySelectorAll('.pill-pos').forEach(btn => {
+    btn.classList.toggle('active', (btn as HTMLElement).dataset.pos === savedPos);
+  });
+
   loadMicDevices();
+
+  const muteToggle = document.getElementById('mute-toggle') as HTMLInputElement;
+  muteToggle.checked = await window.hub.config.getMuteWhileSpeaking();
+  muteToggle.addEventListener('change', () => {
+    window.hub.config.setMuteWhileSpeaking(muteToggle.checked);
+  });
 
   const llmOn = await window.hub.config.getLlmEnabled();
   llmToggle.checked = llmOn;
@@ -589,6 +605,18 @@ document.getElementById('btn-reset-shortcuts')?.addEventListener('click', async 
   await window.hub.config.setShortcut(DEFAULT_SHORTCUT);
   document.getElementById('ptt-key-display')!.textContent = DEFAULT_KEY;
   document.getElementById('handsfree-key-display')!.textContent = DEFAULT_KEY;
+});
+
+// --- Pill Position ---
+document.getElementById('pill-position-grid')?.addEventListener('click', async (e) => {
+  const btn = (e.target as HTMLElement).closest('.pill-pos') as HTMLElement;
+  if (!btn || !btn.dataset.pos) return;
+
+  const grid = document.getElementById('pill-position-grid')!;
+  grid.querySelectorAll('.pill-pos').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  await window.hub.config.setPillPosition(btn.dataset.pos);
 });
 
 // --- Utilities ---

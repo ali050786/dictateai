@@ -15,6 +15,8 @@ export interface ShortcutConfig {
   requiredModifiers: number;
 }
 
+export type PillPosition = 'top-left' | 'top-center' | 'top-right' | 'center-left' | 'center' | 'center-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
+
 export interface Config {
   openRouterApiKey?: string;
   model?: string;
@@ -22,6 +24,8 @@ export interface Config {
   llmEnabled?: boolean;
   shortcut?: ShortcutConfig;
   audioDevice?: string;
+  pillPosition?: PillPosition;
+  muteWhileSpeaking?: boolean;
 }
 
 let cachedConfig: Config | null = null;

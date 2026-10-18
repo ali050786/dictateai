@@ -19,6 +19,10 @@ contextBridge.exposeInMainWorld('hub', {
     setShortcut: (shortcut: Record<string, unknown>) => ipcRenderer.invoke('config:setShortcut', shortcut),
     getAudioDevice: () => ipcRenderer.invoke('config:getAudioDevice'),
     setAudioDevice: (deviceId: string) => ipcRenderer.invoke('config:setAudioDevice', deviceId),
+    getPillPosition: () => ipcRenderer.invoke('config:getPillPosition'),
+    setPillPosition: (position: string) => ipcRenderer.invoke('config:setPillPosition', position),
+    getMuteWhileSpeaking: () => ipcRenderer.invoke('config:getMuteWhileSpeaking'),
+    setMuteWhileSpeaking: (enabled: boolean) => ipcRenderer.invoke('config:setMuteWhileSpeaking', enabled),
   },
   history: {
     list: () => ipcRenderer.invoke('history:list'),
