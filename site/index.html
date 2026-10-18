@@ -292,7 +292,7 @@ footer a { text-decoration: none; color: var(--ink-2); }
   <section class="hero">
     <div class="wrap hero-grid">
       <div>
-        <span class="badge"><b>NEW</b> Version 0.1.0 for Apple Silicon Macs</span>
+        <span class="badge"><b>NEW</b> Version 0.2.0: nothing else to install</span>
         <h1 class="serif">Speak.<br>It types. <em>On&nbsp;your&nbsp;Mac.</em></h1>
         <p class="lede">Hold a key, say what you mean, and clean, punctuated text appears in whatever app you're typing in. Speech recognition and AI cleanup run on your Mac, so your words stay there. No word limits, no subscription.</p>
         <div class="cta-row">
@@ -485,31 +485,24 @@ footer a { text-decoration: none; color: var(--ink-2); }
     <div class="wrap install">
       <div>
         <p class="eyebrow">Install</p>
-        <h2 class="serif">Set up in about five minutes.</h2>
-        <p class="lede" style="margin:16px 0 28px">Most of that is the one-time model download.</p>
-        <a class="btn btn-primary btn-lg js-download" id="dl" href="https://github.com/ali050786/dictateai/releases/latest/download/DictateAI-0.1.0-arm64.dmg"><svg width="20" height="20"><use href="#i-down"/></svg>Download DictateAI <small>.dmg · 127 MB</small></a>
-        <p style="font-size:13px;color:var(--ink-3);margin:12px 0 0">Version 0.1.0 · Apple Silicon · <a href="https://github.com/ali050786/dictateai/releases">All releases</a></p>
+        <h2 class="serif">Drag, drop, dictate.</h2>
+        <p class="lede" style="margin:16px 0 28px">No Terminal, no extra tools. The first run downloads the AI models once, with progress shown in Settings.</p>
+        <a class="btn btn-primary btn-lg js-download" id="dl" href="https://github.com/ali050786/dictateai/releases/latest/download/DictateAI-0.2.0-arm64.dmg"><svg width="20" height="20"><use href="#i-down"/></svg>Download DictateAI <small>.dmg · 274 MB</small></a>
+        <p style="font-size:13px;color:var(--ink-3);margin:12px 0 0">Version 0.2.0 · Apple Silicon · <a href="https://github.com/ali050786/dictateai/releases">All releases</a></p>
         <dl class="req">
           <div><dt>Chip</dt><dd>Apple M1 or later</dd></div>
-          <div><dt>App download</dt><dd>127 MB</dd></div>
+          <div><dt>App download</dt><dd>274 MB</dd></div>
           <div><dt>Speech model</dt><dd>about 500 MB</dd></div>
           <div><dt>Cleanup model</dt><dd>1.8 GB English · 4.3 GB other languages</dd></div>
           <div><dt>Most accurate model</dt><dd>needs 32 GB of memory</dd></div>
-          <div><dt>Also needed</dt><dd>Homebrew and uv</dd></div>
           <div><dt>Price</dt><dd>Free</dd></div>
         </dl>
       </div>
 
       <div class="steps">
         <div class="step reveal">
-          <h3>Install the speech and AI tools</h3>
-          <p>DictateAI uses two free command-line tools. Run these in Terminal. You'll need <a href="https://brew.sh">Homebrew</a> and <a href="https://docs.astral.sh/uv/">uv</a>.</p>
-          <div class="code"><code>brew install whisperkit-cli</code><button class="copy">Copy</button></div>
-          <div class="code"><code>uv tool install mlx-lm</code><button class="copy">Copy</button></div>
-        </div>
-        <div class="step reveal">
           <h3>Download and drag to Applications</h3>
-          <p>Open the .dmg and drag DictateAI into your Applications folder.</p>
+          <p>Open the .dmg and drag DictateAI into your Applications folder. That's the whole install: the speech and AI engines are built in, so there's nothing to set up in Terminal.</p>
         </div>
         <div class="step reveal">
           <h3>Open it the first time with right-click</h3>
@@ -522,7 +515,7 @@ footer a { text-decoration: none; color: var(--ink-2); }
         </div>
         <div class="step reveal">
           <h3>Allow the microphone and start talking</h3>
-          <p>Hold Right ⌥ Option and speak. The first dictation downloads the models, so it takes a little longer. After that it's fast. DictateAI lives in the menu bar 🎙, not the Dock.</p>
+          <p>Hold Right ⌥ Option and speak. On first launch DictateAI downloads its models (progress shows in Settings). After that it works offline. DictateAI lives in the menu bar 🎙, not the Dock.</p>
         </div>
       </div>
     </div>
