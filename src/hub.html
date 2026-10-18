@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>DictateAI</title>
+  </head>
+  <body>
+    <div id="app">
+      <nav id="sidebar">
+        <div class="sidebar-logo">
+          <svg class="logo-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/>
+            <line x1="8" y1="23" x2="16" y2="23"/>
+          </svg>
+          <span class="logo-text">DictateAI</span>
+        </div>
+
+        <div class="nav-items">
+          <button class="nav-item active" data-page="dictation">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/>
+            </svg>
+            <span>Dictation</span>
+          </button>
+          <button class="nav-item" data-page="dictionary">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+              <line x1="8" y1="7" x2="16" y2="7"/>
+              <line x1="8" y1="11" x2="14" y2="11"/>
+            </svg>
+            <span>Dictionary</span>
+          </button>
+        </div>
+
+        <div class="nav-bottom">
+          <button class="nav-item" data-page="shortcuts">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="2" y="4" width="20" height="16" rx="2"/>
+              <line x1="6" y1="8" x2="6" y2="8"/>
+              <line x1="10" y1="8" x2="10" y2="8"/>
+              <line x1="14" y1="8" x2="14" y2="8"/>
+              <line x1="18" y1="8" x2="18" y2="8"/>
+              <line x1="8" y1="12" x2="16" y2="12"/>
+              <line x1="6" y1="16" x2="18" y2="16"/>
+            </svg>
+            <span>Shortcuts</span>
+          </button>
+          <button class="nav-item" data-page="settings">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            <span>Settings</span>
+          </button>
+        </div>
+      </nav>
+
+      <main id="content">
+        <!-- Dictation Page -->
+        <section id="page-dictation" class="page active">
+          <div class="page-header">
+            <h1>Dictation</h1>
+          </div>
+          <div class="page-body">
+            <div class="hero-card">
+              <h2>Voice to text, anywhere.</h2>
+              <p>Hold <kbd>Right ⌥ Option</kbd> and speak. Your words appear in any text field, cleaned up by AI.</p>
+            </div>
+            <div class="section-header">
+              <h3>Recent Dictations</h3>
+            </div>
+            <div id="dictation-history" class="list-container">
+              <div class="empty-state">
+                <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                  <line x1="12" y1="19" x2="12" y2="23"/>
+                </svg>
+                <p>No dictations yet</p>
+                <span>Hold Right ⌥ Option to start dictating</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Dictionary Page -->
+        <section id="page-dictionary" class="page">
+          <div class="page-header">
+            <h1>Dictionary</h1>
+            <button id="btn-add-word" class="btn-primary">Add new</button>
+          </div>
+          <div class="page-body">
+            <div class="hero-card">
+              <h2>DictateAI spells the way <em>you</em> do.</h2>
+              <p>Add words here so your personal terms, company jargon, or uncommon names are spelled right in every dictation.</p>
+              <div class="hero-chips" id="suggestion-chips"></div>
+            </div>
+            <div id="dictionary-list" class="list-container">
+              <div class="empty-state" id="dict-empty">
+                <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                </svg>
+                <p>No words added yet</p>
+                <span>Click "Add new" to teach DictateAI your vocabulary</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Add/Edit Modal -->
+          <div id="dict-modal" class="modal hidden">
+            <div class="modal-backdrop"></div>
+            <div class="modal-content">
+              <h3 id="modal-title">Add new word</h3>
+              <div class="form-group">
+                <label for="dict-from">Whisper hears</label>
+                <input type="text" id="dict-from" placeholder="e.g. bee mad" />
+              </div>
+              <div class="form-group">
+                <label for="dict-to">Replace with</label>
+                <input type="text" id="dict-to" placeholder="e.g. BMAD" />
+              </div>
+              <div class="modal-actions">
+                <button id="btn-cancel" class="btn-secondary">Cancel</button>
+                <button id="btn-save" class="btn-primary">Save</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Shortcuts Page -->
+        <section id="page-shortcuts" class="page">
+          <div class="page-header">
+            <h1>Shortcuts</h1>
+            <button id="btn-reset-shortcuts" class="btn-secondary btn-sm">Reset to default</button>
+          </div>
+          <div class="page-body">
+            <div class="hero-card">
+              <h2>Your voice, your way.</h2>
+              <p>Choose how you trigger dictation. Hold a key for quick phrases, or toggle hands-free for longer thoughts.</p>
+            </div>
+
+            <div class="shortcut-card" id="shortcut-ptt">
+              <div class="shortcut-card-header">
+                <div>
+                  <h3>Push to talk</h3>
+                  <p>Hold to say something short</p>
+                </div>
+              </div>
+              <div class="shortcut-keys">
+                <div class="shortcut-key-row">
+                  <span class="key-badge" id="ptt-key-display">Right ⌥ Option</span>
+                  <div class="shortcut-actions">
+                    <button class="btn-icon" id="btn-edit-ptt" title="Change shortcut">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="shortcut-status">
+                <div class="status-dot" id="ptt-status-dot"></div>
+                <span id="ptt-status-text">Active</span>
+              </div>
+            </div>
+
+            <div class="shortcut-card" id="shortcut-handsfree">
+              <div class="shortcut-card-header">
+                <div>
+                  <h3>Hands-free mode</h3>
+                  <p>Press once to start, press again to stop. Great for longer dictation.</p>
+                </div>
+              </div>
+              <div class="shortcut-keys">
+                <div class="shortcut-key-row">
+                  <span class="key-label">Double tap</span>
+                  <span class="key-badge" id="handsfree-key-display">Right ⌥ Option</span>
+                  <div class="shortcut-actions">
+                    <button class="btn-icon" id="btn-edit-handsfree" title="Change shortcut">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="shortcut-status">
+                <div class="status-dot" id="handsfree-status-dot"></div>
+                <span id="handsfree-status-text">Active</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Shortcut Recording Modal -->
+          <div id="shortcut-modal" class="modal hidden">
+            <div class="modal-backdrop"></div>
+            <div class="modal-content">
+              <h3 id="shortcut-modal-title">Record shortcut</h3>
+              <p class="shortcut-record-desc">Press the key combination you want to use.</p>
+              <div class="shortcut-record-area" id="shortcut-record-area">
+                <span class="shortcut-record-prompt" id="shortcut-record-prompt">Press a key…</span>
+              </div>
+              <div class="modal-actions">
+                <button id="btn-cancel-shortcut" class="btn-secondary">Cancel</button>
+                <button id="btn-save-shortcut" class="btn-primary" disabled>Save</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Settings Page -->
+        <section id="page-settings" class="page">
+          <div class="page-header">
+            <h1>Settings</h1>
+          </div>
+          <div class="page-body">
+            <div class="settings-section">
+              <h3>General</h3>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <span class="setting-label">Push-to-Talk Key</span>
+                  <span class="setting-desc">Right ⌥ Option</span>
+                </div>
+              </div>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <span class="setting-label">Microphone</span>
+                  <span class="setting-desc">Built-in mic (default)</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <h3>Language</h3>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <span class="setting-label">Dictation Language</span>
+                  <span class="setting-desc">Language Whisper listens for</span>
+                </div>
+                <select id="language-select" class="setting-select">
+                  <option value="auto">Auto-detect</option>
+                  <option value="en">English</option>
+                  <option value="hi">Hindi (हिन्दी)</option>
+                  <option value="ar">Arabic (العربية)</option>
+                  <option value="fr">French (Français)</option>
+                  <option value="es">Spanish (Español)</option>
+                  <option value="de">German (Deutsch)</option>
+                  <option value="pt">Portuguese (Português)</option>
+                  <option value="it">Italian (Italiano)</option>
+                  <option value="ja">Japanese (日本語)</option>
+                  <option value="ko">Korean (한국어)</option>
+                  <option value="zh">Chinese (中文)</option>
+                  <option value="ru">Russian (Русский)</option>
+                  <option value="tr">Turkish (Türkçe)</option>
+                  <option value="nl">Dutch (Nederlands)</option>
+                  <option value="pl">Polish (Polski)</option>
+                  <option value="sv">Swedish (Svenska)</option>
+                  <option value="id">Indonesian (Bahasa)</option>
+                  <option value="th">Thai (ไทย)</option>
+                  <option value="vi">Vietnamese (Tiếng Việt)</option>
+                  <option value="uk">Ukrainian (Українська)</option>
+                  <option value="ur">Urdu (اردو)</option>
+                  <option value="bn">Bengali (বাংলা)</option>
+                  <option value="ta">Tamil (தமிழ்)</option>
+                  <option value="te">Telugu (తెలుగు)</option>
+                  <option value="mr">Marathi (मराठी)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <h3>AI Model</h3>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <span class="setting-label">Speech-to-Text</span>
+                  <span class="setting-desc" id="stt-status">WhisperKit (local, multilingual)</span>
+                </div>
+                <span class="badge badge-green" id="stt-badge">Local</span>
+              </div>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <span class="setting-label">AI Text Cleanup</span>
+                  <span class="setting-desc">Polish text with LLM after injection (slower)</span>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="llm-toggle" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <span class="setting-label">LLM Provider</span>
+                  <span class="setting-desc" id="llm-model-name">DeepSeek via OpenRouter</span>
+                </div>
+                <span class="badge badge-blue">Cloud</span>
+              </div>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <span class="setting-label">OpenRouter API Key</span>
+                  <span class="setting-desc" id="api-key-status">Loading...</span>
+                </div>
+                <button id="btn-change-key" class="btn-secondary btn-sm">Change</button>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <h3>Accessibility</h3>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <span class="setting-label">Accessibility Permission</span>
+                  <span class="setting-desc" id="accessibility-status">Checking...</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <h3>About</h3>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <span class="setting-label">DictateAI</span>
+                  <span class="setting-desc">v0.1.0 — Open source voice dictation</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- API Key Modal -->
+          <div id="apikey-modal" class="modal hidden">
+            <div class="modal-backdrop"></div>
+            <div class="modal-content">
+              <h3>OpenRouter API Key</h3>
+              <div class="form-group">
+                <label for="api-key-input">API Key</label>
+                <input type="password" id="api-key-input" placeholder="sk-or-..." />
+              </div>
+              <p class="hint">Get a key at <a href="#" id="openrouter-link">openrouter.ai/keys</a></p>
+              <div class="modal-actions">
+                <button id="btn-cancel-key" class="btn-secondary">Cancel</button>
+                <button id="btn-save-key" class="btn-primary">Save</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
