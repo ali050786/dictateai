@@ -18,7 +18,7 @@ import {
   stopPushToTalk,
   setPttKey,
 } from './text-injection';
-import { transcribe, isModelDownloaded, downloadModel, setLanguage, getLanguage, getModel, startServer, stopServer, isServerRunning, isWhisperKitInstalled, setOnStatusChange, getModelDownload } from './whisper-engine';
+import { transcribe, isModelDownloaded, downloadModel, setLanguage, getLanguage, getModel, startServer, stopServer, isServerRunning, isWhisperKitInstalled, setOnStatusChange, getModelDownload, whenServerReady } from './whisper-engine';
 import { exec } from 'child_process';
 import { formatText, canFormat, CleanupLocation, getCloudModel, DEFAULT_CLOUD_MODEL } from './llm-formatter';
 import { hasApiKey, saveApiKey, removeApiKey, migrateApiKey, loadConfig, saveConfig, ShortcutConfig, PillPosition, normalizePillPosition, getLlmProvider, LlmProvider } from './config';
@@ -407,6 +407,27 @@ async function processAudio(session: number, chunks: Float32Array[]): Promise<vo
   console.log(
     `[DictateAI] Processing ${durationSec.toFixed(1)}s of audio (${combined.length} samples)`,
   );
+
+  // Dictating before the speech model has downloaded or loaded (first run, or
+  // just after launch): keep the recording and transcribe it once it's ready.
+  if (!isServerRunning()) {
+    console.log('[DictateAI] Speech engine still getting ready — holding the recording');
+    const showProgress = () => {
+      const download = getModelDownload();
+      sendPillState(session, download ? `preparing:${download.percent}` : 'preparing');
+    };
+    showProgress();
+    const progressTimer = setInterval(showProgress, 1000);
+    const ready = await whenServerReady(10 * 60_000).finally(() => clearInterval(progressTimer));
+    if (!ready) {
+      console.error('[DictateAI] Speech engine not available — recording dropped');
+      sendPillState(session, 'stt-unavailable');
+      hidePillLater(session, 3000);
+      finishProcessing(session, '');
+      return;
+    }
+    sendPillState(session, 'processing');
+  }
 
   try {
     const sttStart = Date.now();

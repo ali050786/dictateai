@@ -36,11 +36,13 @@ const preview = document.getElementById('preview')!;
 const closeBtn = document.getElementById('close-btn')!;
 const bars = waveform.querySelectorAll<HTMLDivElement>('.bar');
 
-function updateUI(state: string): void {
+function updateUI(fullState: string): void {
+  // 'preparing:42' carries the speech model's download percent.
+  const [state, detail] = fullState.split(':');
   currentState = state;
   const cssClass = ['formatting', 'injecting', 'undo'].includes(state) ? 'processing'
-    : ['error', 'empty', 'mic-blocked'].includes(state) ? 'error'
-    : state === 'restarting' ? 'downloading'
+    : ['error', 'empty', 'mic-blocked', 'stt-unavailable'].includes(state) ? 'error'
+    : ['restarting', 'preparing'].includes(state) ? 'downloading'
     : state;
   flowBar.className = `flow-bar ${cssClass}`;
   if (isHandsfree && state === 'recording') {
@@ -66,6 +68,13 @@ function updateUI(state: string): void {
       break;
     case 'downloading':
       label.textContent = 'Downloading model';
+      break;
+    case 'preparing':
+      label.textContent = detail ? `Getting ready · ${detail}%` : 'Getting ready…';
+      stopAudioCapture();
+      break;
+    case 'stt-unavailable':
+      label.textContent = "Speech engine didn't start";
       break;
     case 'injecting':
       label.textContent = 'Done';
