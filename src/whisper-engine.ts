@@ -200,6 +200,19 @@ export function isServerRunning(): boolean {
   return serverReady && serverProcess !== null && !serverProcess.killed;
 }
 
+// Resolves true once the server is ready, or false if it isn't starting (no
+// process) or doesn't become ready in time. Lets a dictation made while the
+// model downloads or loads wait instead of failing.
+export async function whenServerReady(timeoutMs: number): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (isServerRunning()) return true;
+    if (!serverProcess) return false;
+    await new Promise(r => setTimeout(r, 250));
+  }
+  return isServerRunning();
+}
+
 function float32ToWav(samples: Float32Array, sampleRate: number): Buffer {
   const numChannels = 1;
   const bitsPerSample = 16;

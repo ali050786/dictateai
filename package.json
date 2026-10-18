@@ -1,7 +1,7 @@
 {
   "name": "dictateai",
   "productName": "DictateAI",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Open-source voice dictation for macOS — local Whisper STT + AI formatting",
   "keywords": [
