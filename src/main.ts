@@ -7,8 +7,10 @@ import {
   ipcMain,
   nativeImage,
   screen,
+  shell,
   systemPreferences,
 } from 'electron';
+import * as os from 'os';
 import {
   injectText,
   undoLastInjection,
@@ -22,9 +24,10 @@ import { transcribe, isModelDownloaded, downloadModel, setLanguage, getLanguage,
 import { exec } from 'child_process';
 import { formatText, canFormat, CleanupLocation, getCloudModel, DEFAULT_CLOUD_MODEL } from './llm-formatter';
 import { hasApiKey, saveApiKey, removeApiKey, migrateApiKey, loadConfig, saveConfig, ShortcutConfig, PillPosition, normalizePillPosition, getLlmProvider, LlmProvider } from './config';
-import { startLocalLlm, stopLocalLlm, isMlxInstalled, isLocalLlmRunning, isLocalLlmStarting, getLocalModel, setOnLocalLlmStatusChange, defaultLocalModelFor, localModelOptions, getLocalModelDownload } from './local-llm';
+import { startLocalLlm, stopLocalLlm, isMlxInstalled, isLocalLlmRunning, isLocalLlmStarting, getLocalModel, setOnLocalLlmStatusChange, defaultLocalModelFor, localModelOptions, getLocalModelDownload, didLocalLlmFail, isLocalModelDownloaded, localModelBytes, localModelCacheDir } from './local-llm';
+import { formatBytes, freeDiskBytes } from './engines';
 import { getFocusedElementInfo } from './text-injection';
-import { noticeAfterCleanup, noticeMicrophoneBlocked } from './notices';
+import { noticeAfterCleanup, noticeMicrophoneBlocked, noticeCleanupReady } from './notices';
 import { addHistory, listHistory, clearHistory } from './history';
 import { applyReplacements, detectCorrections, addCorrection, getAllCorrections, removeCorrection } from './dictionary';
 import started from 'electron-squirrel-startup';
@@ -34,6 +37,8 @@ declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 declare const HUB_WINDOW_WEBPACK_ENTRY: string;
 declare const HUB_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
+declare const WELCOME_WINDOW_WEBPACK_ENTRY: string;
+declare const WELCOME_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 
 if (started) {
   app.quit();
@@ -42,6 +47,12 @@ if (started) {
 let tray: Tray | null = null;
 let overlayWindow: BrowserWindow | null = null;
 let hubWindow: BrowserWindow | null = null;
+let welcomeWindow: BrowserWindow | null = null;
+// The speech engine didn't start (usually the model download stopped).
+let speechFailed = false;
+// The cleanup model is being fetched for the first time, so tell the user
+// once it's ready (notices.ts).
+let cleanupReadyNoticePending = false;
 
 // What the dictation pipeline is doing. `session` goes up with every
 // recording: async work from an older session still inserts its text, but
@@ -159,6 +170,52 @@ function createHubWindow(): void {
   });
 }
 
+// First launch: permissions, the speech model, and the AI cleanup offer
+// (welcome.html). Reopened from the menu bar.
+function createWelcomeWindow(): void {
+  if (welcomeWindow && !welcomeWindow.isDestroyed()) {
+    welcomeWindow.show();
+    welcomeWindow.focus();
+    return;
+  }
+
+  welcomeWindow = new BrowserWindow({
+    width: 520,
+    height: 440,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 16, y: 18 },
+    backgroundColor: '#ffffff',
+    show: false,
+    webPreferences: {
+      preload: WELCOME_WINDOW_PRELOAD_WEBPACK_ENTRY,
+    },
+  });
+
+  lockDownWebContents(welcomeWindow);
+  welcomeWindow.loadURL(WELCOME_WINDOW_WEBPACK_ENTRY);
+
+  welcomeWindow.once('ready-to-show', () => {
+    // A menu-bar app isn't frontmost when it launches.
+    app.focus({ steal: true });
+    welcomeWindow?.show();
+  });
+
+  welcomeWindow.on('closed', () => {
+    welcomeWindow = null;
+  });
+}
+
+// Pages that show engine status: the hub, and the Welcome window.
+function sendToPages(channel: string, ...args: unknown[]): void {
+  for (const win of [hubWindow, welcomeWindow]) {
+    if (win && !win.isDestroyed()) win.webContents.send(channel, ...args);
+  }
+}
+
 function createTray(): void {
   const icon = nativeImage.createFromDataURL(
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAADklEQVQ4jWNgGAWDEwAAAhAAAQmkWEEAAAAASUVORK5CYII=',
@@ -180,6 +237,7 @@ function updateTrayMenu(): void {
       label: 'Open DictateAI',
       click: () => createHubWindow(),
     },
+    { label: 'Welcome & Setup…', click: () => createWelcomeWindow() },
     { type: 'separator' },
     {
       label: isRecording() ? '⏹ Stop Recording' : '🎙 Start Recording',
@@ -508,9 +566,7 @@ function finishProcessing(session: number, text: string, appName?: string, locat
     const entry = { text, app: appName || '', time: new Date().toISOString(), location };
     addHistory(entry);
 
-    if (hubWindow && !hubWindow.isDestroyed()) {
-      hubWindow.webContents.send('dictation:log', entry);
-    }
+    sendToPages('dictation:log', entry);
 
     // A few seconds later, compare what's in the field with what we inserted
     // to learn the user's corrections (see dictionary.ts).
@@ -670,21 +726,22 @@ function setupIPC(): void {
   });
 
   ipcMain.handle('config:getLanguage', () => getLanguage());
-  ipcMain.handle('config:setLanguage', async (_event, lang: string) => {
-    setLanguage(lang);
-    saveConfig({ language: lang });
+  // downloadCleanup: false when the user said "Not now" to the cleanup model
+  // the new language needs; it then waits until they ask for it.
+  ipcMain.handle('config:setLanguage', async (_event, lang: string, downloadCleanup = true) => {
+    applyLanguage(lang, downloadCleanup);
+    return true;
+  });
+  ipcMain.handle('config:cleanupPlan', (_event, lang: string) => cleanupPlan(lang));
+  ipcMain.handle('config:downloadCleanup', () => {
+    saveConfig({ cleanupDownloadDeclined: undefined });
     syncLocalLlm();
-    if (hubWindow && !hubWindow.isDestroyed()) {
-      hubWindow.webContents.send('stt:restarting');
-    }
-    if (overlayWindow && !overlayWindow.isDestroyed()) {
-      overlayWindow.webContents.send('dictation:state', 'restarting');
-    }
     return true;
   });
   ipcMain.handle('config:getLlmEnabled', () => settings().llmEnabled);
   ipcMain.handle('config:setLlmEnabled', (_event, enabled: boolean) => {
-    saveConfig({ llmEnabled: enabled });
+    // Turning it on is the explicit choice; the size was shown next to it.
+    saveConfig(enabled ? { llmEnabled: true, cleanupDownloadDeclined: undefined } : { llmEnabled: false });
     syncLocalLlm();
     return true;
   });
@@ -700,8 +757,10 @@ function setupIPC(): void {
     running: isLocalLlmRunning(),
     starting: isLocalLlmStarting(),
     download: getLocalModelDownload(),
+    failed: didLocalLlmFail(),
     model: getLocalModel(),
     cloudModel: getCloudModel(),
+    plan: cleanupPlan(getLanguage()),
   }));
   ipcMain.handle('config:getLocalModelChoice', () => ({
     choice: loadConfig().localModel || 'auto',
@@ -725,6 +784,53 @@ function setupIPC(): void {
     engine: 'WhisperKit',
     model: getModel(),
   }));
+
+  // --- Welcome window ---
+  ipcMain.handle('welcome:status', () => ({
+    accessibility: isAccessibilityTrusted(),
+    microphone: systemPreferences.getMediaAccessStatus('microphone'),
+    speech: {
+      installed: isWhisperKitInstalled(),
+      running: isServerRunning(),
+      failed: speechFailed,
+      download: getModelDownload(),
+    },
+    shortcut: settings().shortcutLabel,
+    language: loadConfig().language ?? null,
+    locale: app.getLocale().split('-')[0].toLowerCase(),
+    llmEnabled: settings().llmEnabled,
+  }));
+  ipcMain.handle('welcome:openAccessibility', () => {
+    // Prompting also adds DictateAI to the list in System Settings.
+    checkAccessibilityPermission();
+    shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility');
+    return true;
+  });
+  ipcMain.handle('welcome:allowMicrophone', async () => {
+    if (systemPreferences.getMediaAccessStatus('microphone') === 'not-determined') {
+      return systemPreferences.askForMediaAccess('microphone');
+    }
+    // Denied once: macOS won't ask again, only System Settings can change it.
+    shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone');
+    return false;
+  });
+  ipcMain.handle('welcome:retrySpeech', () => {
+    startSpeech();
+    return true;
+  });
+  ipcMain.handle('welcome:finish', (_event, lang: string, enableCleanup: boolean) => {
+    if (lang && lang !== loadConfig().language) applyLanguage(lang, true);
+    if (enableCleanup) {
+      saveConfig({ llmEnabled: true, cleanupDownloadDeclined: undefined });
+      syncLocalLlm();
+    }
+    welcomeWindow?.close();
+    return true;
+  });
+  ipcMain.handle('welcome:close', () => {
+    welcomeWindow?.close();
+    return true;
+  });
 
   ipcMain.handle('config:getAudioDevice', () => {
     const config = loadConfig();
@@ -798,7 +904,15 @@ app.whenReady().then(async () => {
   if (!isPrimaryInstance) return;
 
   createTray();
-  await ensureMicrophoneAccess();
+  // On first launch the Welcome window explains each permission before
+  // macOS asks for it.
+  // Someone updating from an older version with everything already set up
+  // has nothing left to do in it.
+  const alreadySetUp = settings().llmEnabled && isAccessibilityTrusted()
+    && systemPreferences.getMediaAccessStatus('microphone') === 'granted';
+  if (!loadConfig().welcomeShown && alreadySetUp) saveConfig({ welcomeShown: true });
+  const firstLaunch = !loadConfig().welcomeShown;
+  if (!firstLaunch) await ensureMicrophoneAccess();
   overlayWindow = createOverlayWindow();
   registerPushToTalk();
   setupIPC();
@@ -826,19 +940,17 @@ app.whenReady().then(async () => {
   console.log(`[DictateAI] Pill position: ${pillPosition} · mute while speaking: ${settings().muteWhileSpeaking}`);
 
   setOnLocalLlmStatusChange(() => {
-    if (hubWindow && !hubWindow.isDestroyed()) {
-      hubWindow.webContents.send('llm:status-changed');
+    if (cleanupReadyNoticePending && isLocalLlmRunning()) {
+      cleanupReadyNoticePending = false;
+      noticeCleanupReady();
     }
+    sendToPages('llm:status-changed');
   });
   syncLocalLlm();
 
-  setOnStatusChange(() => {
-    if (hubWindow && !hubWindow.isDestroyed()) {
-      hubWindow.webContents.send('stt:status-changed');
-    }
-  });
+  setOnStatusChange(() => sendToPages('stt:status-changed'));
 
-  const hasAccess = checkAccessibilityPermission();
+  const hasAccess = firstLaunch ? isAccessibilityTrusted() : checkAccessibilityPermission();
   console.log(
     `[DictateAI] Accessibility permission: ${hasAccess ? 'granted' : 'NEEDS GRANT — check System Settings → Privacy → Accessibility'}`,
   );
@@ -850,20 +962,64 @@ app.whenReady().then(async () => {
     if (overlayWindow && !overlayWindow.isDestroyed()) {
       overlayWindow.webContents.send('dictation:state', 'downloading');
     }
-    startServer().then((ok) => {
-      if (ok) {
-        console.log('[DictateAI] WhisperKit server ready.');
-      } else {
-        console.error('[DictateAI] WhisperKit server failed to start.');
-      }
-      if (hubWindow && !hubWindow.isDestroyed()) {
-        hubWindow.webContents.send('stt:status-changed');
-      }
-    });
+    startSpeech();
+  }
+
+  if (firstLaunch) {
+    saveConfig({ welcomeShown: true });
+    createWelcomeWindow();
   }
 
   console.log(`[DictateAI] Ready. Hold ${settings().shortcutLabel} to dictate.`);
 });
+
+function startSpeech(): void {
+  speechFailed = false;
+  sendToPages('stt:status-changed');
+  startServer().then((ok) => {
+    speechFailed = !ok;
+    if (ok) {
+      console.log('[DictateAI] WhisperKit server ready.');
+    } else {
+      console.error('[DictateAI] WhisperKit server failed to start.');
+    }
+    sendToPages('stt:status-changed');
+  });
+}
+
+function applyLanguage(lang: string, downloadCleanup: boolean): void {
+  setLanguage(lang);
+  const plan = cleanupPlan(lang);
+  saveConfig({
+    language: lang,
+    cleanupDownloadDeclined: !downloadCleanup && !plan.downloaded ? plan.model : undefined,
+  });
+  syncLocalLlm();
+  sendToPages('stt:restarting');
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.webContents.send('dictation:state', 'restarting');
+  }
+}
+
+// The cleanup model a language would use, and what fetching it costs. The
+// size is shown before every download (Welcome, Settings, language change).
+function cleanupPlan(lang: string) {
+  const model = loadConfig().localModel || defaultLocalModelFor(lang);
+  const bytes = localModelBytes(model);
+  const downloaded = isLocalModelDownloaded(model);
+  const freeBytes = freeDiskBytes(localModelCacheDir());
+  return {
+    model,
+    size: formatBytes(bytes),
+    downloaded,
+    free: freeBytes == null ? null : formatBytes(freeBytes),
+    // Room for the model plus 2 GB, so the download never fills the disk.
+    enoughSpace: downloaded || freeBytes == null || freeBytes >= bytes + 2e9,
+    // The larger model holds about 4.3 GB of memory while loaded.
+    lowMemory: bytes > 3e9 && os.totalmem() < 12 * 1024 ** 3,
+    declined: loadConfig().cleanupDownloadDeclined === model && !downloaded,
+  };
+}
 
 // The push-to-talk key needs Accessibility. On a fresh install it isn't
 // granted yet, so watch for the grant and start listening then, without
@@ -877,7 +1033,7 @@ function waitForAccessibility(): void {
     registerPushToTalk();
     const shortcut = loadConfig().shortcut;
     if (shortcut) setPttKey(shortcut.keyCode, shortcut.flagMask, shortcut.isModifier, shortcut.requiredModifiers);
-    if (hubWindow && !hubWindow.isDestroyed()) hubWindow.webContents.send('stt:status-changed');
+    sendToPages('stt:status-changed');
   }, 2000);
 }
 
@@ -885,7 +1041,15 @@ function waitForAccessibility(): void {
 function syncLocalLlm(): void {
   if (settings().llmEnabled && getLlmProvider() === 'local') {
     const config = loadConfig();
-    startLocalLlm(config.localModel || defaultLocalModelFor(config.language));
+    const model = config.localModel || defaultLocalModelFor(config.language);
+    const downloaded = isLocalModelDownloaded(model);
+    // "Not now" to this model's download: dictation stays plain text.
+    if (config.cleanupDownloadDeclined === model && !downloaded) {
+      stopLocalLlm();
+      return;
+    }
+    if (!downloaded && !config.notices?.cleanupReadyShown) cleanupReadyNoticePending = true;
+    startLocalLlm(model);
   } else {
     stopLocalLlm();
   }

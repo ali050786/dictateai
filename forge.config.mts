@@ -85,6 +85,14 @@ const config: ForgeConfig = {
               js: './src/hub-preload.ts',
             },
           },
+          {
+            html: './src/welcome.html',
+            js: './src/welcome-renderer.ts',
+            name: 'welcome_window',
+            preload: {
+              js: './src/welcome-preload.ts',
+            },
+          },
         ],
       },
     }),
