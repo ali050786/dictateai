@@ -340,6 +340,7 @@ section { position: relative; padding: 112px 0; scroll-margin-top: 64px; overflo
 .req dt { color: var(--ink-3); }
 .req dd { margin: 0; text-align: right; font-weight: 500; }
 .steps { counter-reset: s; border-top: 1px solid var(--line); }
+.steps, .step { scroll-margin-top: 88px; }
 .step { position: relative; padding: 24px 12px 24px 64px; border-bottom: 1px solid var(--line); }
 .step::before { counter-increment: s; content: counter(s); position: absolute; left: 12px; top: 22px; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font: 600 14px Inter, sans-serif; color: var(--accent); border: 1px solid rgba(255,111,97,.45); background: rgba(255,111,97,.08); box-shadow: 0 0 20px -6px rgba(255,111,97,.7); }
 .step h3 { font-size: 17px; margin-bottom: 4px; }
