@@ -48,3 +48,7 @@ npm start
 ```
 
 Set `DICTATEAI_DEBUG=1` to log dictated text; by default logs show only its length.
+
+## History
+
+How this version was built, and why: [docs/sessions/2026-10-18-session.md](docs/sessions/2026-10-18-session.md).
