@@ -15,8 +15,31 @@ const ENGLISH_MODEL = 'mlx-community/Qwen2.5-3B-Instruct-4bit';
 const MULTILINGUAL_MODEL = 'mlx-community/Qwen2.5-7B-Instruct-4bit';
 const DEFAULT_LOCAL_MODEL = MULTILINGUAL_MODEL;
 
+// ~8.5 GB of weights: below 32 GB of RAM it pushes the Mac into swap and every
+// dictation waits seconds, so it isn't offered there at all.
+const LARGE_MODEL = 'mlx-community/Qwen2.5-14B-Instruct-4bit';
+const LARGE_MODEL_MIN_RAM_GB = 32;
+
 export function defaultLocalModelFor(language: string | undefined): string {
   return language === 'en' ? ENGLISH_MODEL : MULTILINGUAL_MODEL;
+}
+
+export interface LocalModelOption {
+  id: string; // 'auto' or an MLX model ID
+  label: string;
+  detail: string;
+}
+
+export function localModelOptions(): LocalModelOption[] {
+  const options: LocalModelOption[] = [
+    { id: 'auto', label: 'Automatic (recommended)', detail: 'Qwen 3B for English, Qwen 7B for other languages' },
+    { id: ENGLISH_MODEL, label: 'Faster', detail: 'Qwen 3B · about 0.5s · best for English' },
+    { id: MULTILINGUAL_MODEL, label: 'More accurate', detail: 'Qwen 7B · 1–3s · every language' },
+  ];
+  if (os.totalmem() / 1024 ** 3 >= LARGE_MODEL_MIN_RAM_GB) {
+    options.push({ id: LARGE_MODEL, label: 'Most accurate', detail: 'Qwen 14B · several seconds · downloads about 8 GB' });
+  }
+  return options;
 }
 
 let serverProcess: ChildProcess | null = null;

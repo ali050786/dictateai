@@ -9,6 +9,17 @@ interface DictionaryEntry {
   to: string;
   count: number;
   lastUsed: string;
+  // Added or kept by the user in the Dictionary tab; applies immediately.
+  manual?: boolean;
+}
+
+// A correction learned from the user's edits applies only once they've made
+// the same fix this many times, so a one-off rewrite ("free" → "paid") never
+// becomes a rule.
+const LEARN_THRESHOLD = 2;
+
+function isActive(entry: DictionaryEntry): boolean {
+  return entry.manual === true || entry.count >= LEARN_THRESHOLD;
 }
 
 interface Dictionary {
@@ -40,7 +51,7 @@ function save(dict: Dictionary): void {
   fs.writeFileSync(DICT_PATH, JSON.stringify(dict, null, 2));
 }
 
-export function addCorrection(original: string, corrected: string): void {
+export function addCorrection(original: string, corrected: string, manual = false): void {
   if (!original || !corrected || original === corrected) return;
 
   const dict = load();
@@ -50,15 +61,18 @@ export function addCorrection(original: string, corrected: string): void {
   );
 
   if (existing) {
+    // A different fix for the same word starts counting again.
+    existing.count = existing.to === corrected.trim() ? existing.count + 1 : 1;
     existing.to = corrected.trim();
-    existing.count += 1;
     existing.lastUsed = new Date().toISOString();
+    if (manual) existing.manual = true;
   } else {
     dict.replacements.push({
       from: original.trim(),
       to: corrected.trim(),
       count: 1,
       lastUsed: new Date().toISOString(),
+      ...(manual ? { manual: true } : {}),
     });
   }
 
@@ -71,7 +85,7 @@ export function applyReplacements(text: string): string {
   if (dict.replacements.length === 0) return text;
 
   let result = text;
-  for (const entry of dict.replacements) {
+  for (const entry of dict.replacements.filter(isActive)) {
     const pattern = new RegExp(
       `\\b${escapeRegex(entry.from)}\\b`,
       'gi',
@@ -89,6 +103,7 @@ export function applyReplacements(text: string): string {
 export function getRecentCorrections(limit = 20): DictionaryEntry[] {
   const dict = load();
   return dict.replacements
+    .filter(isActive)
     .sort((a, b) => b.count - a.count)
     .slice(0, limit);
 }
@@ -121,58 +136,46 @@ function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// The word without surrounding punctuation, so "the." and "the" match.
+function bareWord(word: string): string {
+  return word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+}
+
+// Learns from a user fixing one word of what was just dictated. The field
+// often holds other text too (earlier sentences, a greeting typed before
+// dictating), so only the stretch of the field that lines up with the
+// dictated text is compared, and only a single changed word counts.
 export function detectCorrections(
   injectedText: string,
   currentFieldText: string,
 ): void {
   if (!injectedText || !currentFieldText) return;
+  if (currentFieldText.includes(injectedText)) return;
 
-  const injectedWords = injectedText.split(/\s+/);
-  const currentWords = currentFieldText.split(/\s+/);
+  const injected = injectedText.split(/\s+/).filter(Boolean);
+  const field = currentFieldText.split(/\s+/).filter(Boolean);
+  // Too few words to tell where the dictation sits in the field.
+  if (injected.length < 3) return;
 
-  const injectedLower = injectedText.toLowerCase();
-  const startIdx = currentFieldText.toLowerCase().indexOf(injectedLower);
-  if (startIdx === -1) {
-    const correctedRegion = findCorrectedRegion(
-      injectedText,
-      currentFieldText,
-    );
-    if (correctedRegion) {
-      addCorrection(correctedRegion.original, correctedRegion.corrected);
-    }
-    return;
-  }
-
-  const actualText = currentFieldText.slice(
-    startIdx,
-    startIdx + injectedText.length,
-  );
-  if (actualText !== injectedText) {
-    const origWords = injectedText.split(/\s+/);
-    const newWords = actualText.split(/\s+/);
-    for (let i = 0; i < Math.min(origWords.length, newWords.length); i++) {
-      if (
-        origWords[i] !== newWords[i] &&
-        origWords[i].toLowerCase() === newWords[i].toLowerCase()
-      ) {
-        addCorrection(origWords[i], newWords[i]);
+  let candidate: { from: string; to: string } | null = null;
+  for (let start = 0; start + injected.length <= field.length; start++) {
+    let changed = -1;
+    let changes = 0;
+    for (let i = 0; i < injected.length && changes < 2; i++) {
+      if (bareWord(injected[i]) !== bareWord(field[start + i])) {
+        changed = i;
+        changes++;
       }
     }
-  }
-}
+    if (changes !== 1) continue;
 
-function findCorrectedRegion(
-  original: string,
-  current: string,
-): { original: string; corrected: string } | null {
-  const origWords = original.split(/\s+/);
-  const currWords = current.split(/\s+/);
-
-  for (let i = 0; i < Math.min(origWords.length, currWords.length); i++) {
-    if (origWords[i] !== currWords[i]) {
-      return { original: origWords[i], corrected: currWords[i] };
-    }
+    const from = bareWord(injected[changed]);
+    const to = bareWord(field[start + changed]);
+    if (!from || !to) continue;
+    // Two different places line up: ambiguous, learn nothing.
+    if (candidate) return;
+    candidate = { from, to };
   }
 
-  return null;
+  if (candidate) addCorrection(candidate.from, candidate.to);
 }

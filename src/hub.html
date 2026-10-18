@@ -328,11 +328,19 @@
                   <span class="setting-label">Cleanup runs</span>
                   <span class="setting-desc" id="llm-provider-desc">Loading...</span>
                   <span class="setting-model" id="llm-model-name"></span>
+                  <button type="button" class="link-button" id="btn-choose-model">Advanced: choose model</button>
                 </div>
                 <select id="llm-provider-select" class="setting-select">
                   <option value="local">On your Mac</option>
                   <option value="cloud">Cloud</option>
                 </select>
+              </div>
+              <div class="setting-row" id="local-model-row">
+                <div class="setting-info">
+                  <span class="setting-label">Local model</span>
+                  <span class="setting-desc" id="local-model-desc"></span>
+                </div>
+                <select id="local-model-select" class="setting-select"></select>
               </div>
               <div class="setting-row" id="cloud-model-row">
                 <div class="setting-info">

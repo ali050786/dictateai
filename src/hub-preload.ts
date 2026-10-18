@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('hub', {
     getLlmProvider: () => ipcRenderer.invoke('config:getLlmProvider'),
     setLlmProvider: (provider: string) => ipcRenderer.invoke('config:setLlmProvider', provider),
     setCloudModel: (model: string) => ipcRenderer.invoke('config:setCloudModel', model),
+    getLocalModelChoice: () => ipcRenderer.invoke('config:getLocalModelChoice'),
+    setLocalModelChoice: (id: string) => ipcRenderer.invoke('config:setLocalModelChoice', id),
     llmStatus: () => ipcRenderer.invoke('config:llmStatus'),
     getShortcut: () => ipcRenderer.invoke('config:getShortcut'),
     setShortcut: (shortcut: Record<string, unknown>) => ipcRenderer.invoke('config:setShortcut', shortcut),

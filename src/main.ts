@@ -19,7 +19,7 @@ import {
 import { transcribe, isModelDownloaded, downloadModel, setLanguage, getLanguage, getModel, startServer, stopServer, isServerRunning, isWhisperKitInstalled, setOnStatusChange } from './whisper-engine';
 import { exec } from 'child_process';
 import { formatText, hasApiKey, saveApiKey, loadConfig, saveConfig, ShortcutConfig, PillPosition, normalizePillPosition, canFormat, removeApiKey, getLlmProvider, LlmProvider, CleanupLocation, getCloudModel, DEFAULT_CLOUD_MODEL } from './llm-formatter';
-import { startLocalLlm, stopLocalLlm, isMlxInstalled, isLocalLlmRunning, isLocalLlmStarting, getLocalModel, setOnLocalLlmStatusChange, defaultLocalModelFor } from './local-llm';
+import { startLocalLlm, stopLocalLlm, isMlxInstalled, isLocalLlmRunning, isLocalLlmStarting, getLocalModel, setOnLocalLlmStatusChange, defaultLocalModelFor, localModelOptions } from './local-llm';
 import { getFocusedElementInfo } from './text-injection';
 import { noticeAfterCleanup } from './notices';
 import { applyReplacements, detectCorrections, addCorrection, getAllCorrections, removeCorrection } from './dictionary';
@@ -573,7 +573,7 @@ function setupIPC(): void {
   ipcMain.handle('config:hasAccessibility', () => checkAccessibilityPermission());
 
   ipcMain.handle('dictionary:add', (_event, from: string, to: string) => {
-    addCorrection(from, to);
+    addCorrection(from, to, true);
     return true;
   });
   ipcMain.handle('dictionary:remove', (_event, from: string) => {
@@ -621,6 +621,16 @@ function setupIPC(): void {
     model: getLocalModel(),
     cloudModel: getCloudModel(),
   }));
+  ipcMain.handle('config:getLocalModelChoice', () => ({
+    choice: loadConfig().localModel || 'auto',
+    options: localModelOptions(),
+  }));
+  ipcMain.handle('config:setLocalModelChoice', (_event, id: string) => {
+    if (!localModelOptions().some(o => o.id === id)) return false;
+    saveConfig({ localModel: id === 'auto' ? undefined : id });
+    syncLocalLlm();
+    return true;
+  });
   ipcMain.handle('config:setCloudModel', (_event, model: string) => {
     saveConfig({ model: model.trim() || DEFAULT_CLOUD_MODEL });
     return true;

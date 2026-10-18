@@ -5,6 +5,7 @@ interface DictionaryEntry {
   to: string;
   count: number;
   lastUsed: string;
+  manual?: boolean;
 }
 
 interface ShortcutConfig {
@@ -43,6 +44,8 @@ interface HubAPI {
       cloudModel: string;
     }>;
     setCloudModel: (model: string) => Promise<boolean>;
+    getLocalModelChoice: () => Promise<{ choice: string; options: { id: string; label: string; detail: string }[] }>;
+    setLocalModelChoice: (id: string) => Promise<boolean>;
     getShortcut: () => Promise<ShortcutConfig | null>;
     setShortcut: (shortcut: ShortcutConfig) => Promise<boolean>;
     getAudioDevice: () => Promise<string>;
@@ -129,6 +132,7 @@ function renderDictionary(entries: DictionaryEntry[]): void {
         <span class="dict-entry-arrow">→</span>
         <span class="dict-entry-to">${escapeHtml(entry.to)}</span>
         ${entry.count > 1 ? `<span class="dict-entry-sparkle">✨</span>` : ''}
+        ${!entry.manual && entry.count < 2 ? `<span class="dict-entry-learning" title="Learned from one edit. Applies after you make the same fix again.">learning</span>` : ''}
       </div>
       <div class="dict-entry-actions">
         <button class="btn-icon" data-action="edit" title="Edit">
@@ -223,6 +227,12 @@ const llmProviderDesc = document.getElementById('llm-provider-desc')!;
 const llmModelName = document.getElementById('llm-model-name')!;
 const apiKeyRow = document.getElementById('api-key-row')!;
 const cloudModelRow = document.getElementById('cloud-model-row')!;
+const btnChooseModel = document.getElementById('btn-choose-model')!;
+const localModelRow = document.getElementById('local-model-row')!;
+const localModelSelect = document.getElementById('local-model-select') as HTMLSelectElement;
+const localModelDesc = document.getElementById('local-model-desc')!;
+// The picker stays tucked away unless opened or a non-automatic model is set.
+let localModelPickerOpen = false;
 const cloudModelInput = document.getElementById('cloud-model-input') as HTMLInputElement;
 const micSelect = document.getElementById('mic-select') as HTMLSelectElement;
 const micStatus = document.getElementById('mic-status')!;
@@ -348,6 +358,7 @@ async function loadLlmStatus(): Promise<void> {
   llmProviderSelect.value = status.provider;
   apiKeyRow.style.display = isCloud ? '' : 'none';
   cloudModelRow.style.display = isCloud ? '' : 'none';
+  await loadLocalModelChoice(isCloud);
   llmProviderDesc.style.color = '';
 
   if (isCloud) {
@@ -378,6 +389,34 @@ llmProviderSelect.addEventListener('change', async () => {
     // Cloud only ever uses the user's own key; ask for it right away.
     if (!(await window.hub.config.hasApiKey())) openKeyModal();
   }
+  loadLlmStatus();
+});
+
+async function loadLocalModelChoice(isCloud: boolean): Promise<void> {
+  const { choice, options } = await window.hub.config.getLocalModelChoice();
+  if (choice !== 'auto') localModelPickerOpen = true;
+
+  localModelSelect.innerHTML = '';
+  for (const option of options) {
+    const el = document.createElement('option');
+    el.value = option.id;
+    el.textContent = option.label;
+    localModelSelect.appendChild(el);
+  }
+  localModelSelect.value = choice;
+  localModelDesc.textContent = options.find(o => o.id === choice)?.detail ?? '';
+
+  btnChooseModel.style.display = !isCloud && !localModelPickerOpen ? '' : 'none';
+  localModelRow.style.display = !isCloud && localModelPickerOpen ? '' : 'none';
+}
+
+btnChooseModel.addEventListener('click', () => {
+  localModelPickerOpen = true;
+  loadLlmStatus();
+});
+
+localModelSelect.addEventListener('change', async () => {
+  await window.hub.config.setLocalModelChoice(localModelSelect.value);
   loadLlmStatus();
 });
 
