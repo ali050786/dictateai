@@ -7,7 +7,7 @@ Apple Silicon only.
 ## Install
 
 1. Download `DictateAI-<version>-arm64.dmg` from [Releases](https://github.com/ali050786/dictateai/releases), open it and drag **DictateAI** into **Applications**.
-2. The first time, right-click DictateAI in Applications and choose **Open** (the app is signed ad hoc, not notarized).
+2. Open DictateAI. When macOS says it could not verify the app, click **Done**, then go to System Settings → Privacy & Security and click **Open Anyway**. The app is signed ad hoc, not notarized, and since macOS 15 right-click → Open no longer gets past this.
 3. It lives in the menu bar (🎙), not the Dock. Allow **Accessibility** when macOS asks (System Settings → Privacy & Security → Accessibility → DictateAI). The dictation key starts working as soon as you allow it.
 4. Allow the **Microphone** the first time you dictate.
 
