@@ -1,4 +1,7 @@
 import type { ForgeConfig } from '@electron-forge/shared-types';
+import { execFileSync } from 'node:child_process';
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { MakerSquirrel } from '@electron-forge/maker-squirrel';
 import { MakerZIP } from '@electron-forge/maker-zip';
 import { MakerDMG } from '@electron-forge/maker-dmg';
@@ -12,6 +15,8 @@ import { FuseV1Options, FuseVersion } from '@electron/fuses';
 import { mainConfig } from './webpack.main.config';
 import { rendererConfig } from './webpack.renderer.config';
 
+const BUNDLE_ID = 'io.github.ali050786.dictateai';
+
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
@@ -19,7 +24,7 @@ const config: ForgeConfig = {
     // webpack never sees it. Copy it next to app.asar (Contents/Resources).
     extraResource: ['native/text-injection/build/Release/text_injection.node'],
     // macOS keys Accessibility, Microphone and Keychain access to this ID.
-    appBundleId: 'io.github.ali050786.dictateai',
+    appBundleId: BUNDLE_ID,
     appCategoryType: 'public.app-category.productivity',
     extendInfo: {
       // Menu-bar app: no Dock icon, not even briefly at launch.
@@ -29,6 +34,24 @@ const config: ForgeConfig = {
     },
   },
   rebuildConfig: {},
+  hooks: {
+    // The app is only signed ad hoc, and that signature carries Electron's
+    // identifier (com.github.Electron). macOS privacy permissions
+    // (Microphone, Accessibility) key on the signature, so re-sign the bundle
+    // with our own identifier. Packaging also edits the helper apps'
+    // Info.plists, which invalidates their signatures, so sign those too.
+    postPackage: async (_config, { platform, outputPaths }) => {
+      if (platform !== 'darwin') return;
+      for (const dir of outputPaths) {
+        for (const entry of readdirSync(dir).filter((name) => name.endsWith('.app'))) {
+          const app = join(dir, entry);
+          // Nested helpers first (each keeps its own identifier), then the app.
+          execFileSync('codesign', ['--force', '--deep', '--sign', '-', app]);
+          execFileSync('codesign', ['--force', '--sign', '-', '--identifier', BUNDLE_ID, app]);
+        }
+      }
+    },
+  },
   makers: [
     new MakerSquirrel({}),
     new MakerZIP({}, ['darwin']),

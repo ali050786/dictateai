@@ -1,4 +1,4 @@
-import { Notification } from 'electron';
+import { Notification, shell } from 'electron';
 import { loadConfig, saveConfig } from './config';
 import { CleanupResult } from './llm-formatter';
 
@@ -45,4 +45,20 @@ export function noticeAfterCleanup(result: CleanupResult, localModel: string, la
     );
     saveConfig({ notices: { ...notices, modelNoteShown: true } });
   }
+}
+
+const MICROPHONE_SETTINGS = 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone';
+let microphoneNoticeShown = false;
+
+// Once per launch: macOS is giving us silence because the microphone isn't
+// allowed. Clicking opens the right System Settings pane.
+export function noticeMicrophoneBlocked(): void {
+  if (microphoneNoticeShown || !Notification.isSupported()) return;
+  microphoneNoticeShown = true;
+  const notification = new Notification({
+    title: 'Microphone is blocked',
+    body: 'Allow DictateAI in System Settings → Privacy & Security → Microphone, then reopen DictateAI. Click to open.',
+  });
+  notification.on('click', () => shell.openExternal(MICROPHONE_SETTINGS));
+  notification.show();
 }
