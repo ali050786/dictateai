@@ -378,7 +378,7 @@ footer a { text-decoration: none; color: var(--ink-2); }
         <div class="feat reveal">
           <div class="ic"><svg><use href="#i-chip"/></svg></div>
           <h3>AI cleanup on your Mac</h3>
-          <p>A local model (Qwen 2.5 on Apple's MLX) removes filler words, fixes punctuation and handles "no wait, I mean…". It takes about half a second for English.</p>
+          <p>A local model (Qwen 2.5 on Apple's MLX) removes filler words, fixes punctuation and handles "no wait, I mean…". Turn it on in Settings whenever you like.</p>
         </div>
         <div class="feat reveal">
           <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19V5M4 19h16"/><path d="M8 15l3-4 3 2 5-6"/></svg></div>
@@ -486,15 +486,14 @@ footer a { text-decoration: none; color: var(--ink-2); }
       <div>
         <p class="eyebrow">Install</p>
         <h2 class="serif">Drag, drop, dictate.</h2>
-        <p class="lede" style="margin:16px 0 28px">No Terminal, no extra tools. The first run downloads the AI models once, with progress shown in Settings.</p>
+        <p class="lede" style="margin:16px 0 28px">No Terminal, no extra tools. You're dictating about a minute after you first open it.</p>
         <a class="btn btn-primary btn-lg js-download" id="dl" href="https://github.com/ali050786/dictateai/releases/latest/download/DictateAI-0.2.0-arm64.dmg"><svg width="20" height="20"><use href="#i-down"/></svg>Download DictateAI <small>.dmg · 274 MB</small></a>
         <p style="font-size:13px;color:var(--ink-3);margin:12px 0 0">Version 0.2.0 · Apple Silicon · <a href="https://github.com/ali050786/dictateai/releases">All releases</a></p>
         <dl class="req">
           <div><dt>Chip</dt><dd>Apple M1 or later</dd></div>
-          <div><dt>App download</dt><dd>274 MB</dd></div>
-          <div><dt>Speech model</dt><dd>about 500 MB</dd></div>
-          <div><dt>Cleanup model</dt><dd>1.8 GB English · 4.3 GB other languages</dd></div>
-          <div><dt>Most accurate model</dt><dd>needs 32 GB of memory</dd></div>
+          <div><dt>App</dt><dd>274 MB</dd></div>
+          <div><dt>Speech model, on first launch</dt><dd>about 500 MB, once</dd></div>
+          <div><dt>AI cleanup, only if you turn it on</dt><dd>1.7 GB (English) or 4.3 GB</dd></div>
           <div><dt>Price</dt><dd>Free</dd></div>
         </dl>
       </div>
@@ -505,9 +504,9 @@ footer a { text-decoration: none; color: var(--ink-2); }
           <p>Open the .dmg and drag DictateAI into your Applications folder. That's the whole install: the speech and AI engines are built in, so there's nothing to set up in Terminal.</p>
         </div>
         <div class="step reveal">
-          <h3>Open it the first time with right-click</h3>
-          <p>In Applications, right-click DictateAI and choose <b>Open</b>, then <b>Open</b> again. You only need to do this once.</p>
-          <div class="note">Why? DictateAI is free and isn't notarized by Apple yet, so macOS asks you to confirm the first time. You can read every line of the code on GitHub.</div>
+          <h3>Allow it to open, once</h3>
+          <p>Open DictateAI. macOS says it "could not verify" the app: click <b>Done</b>. Then go to System Settings → Privacy &amp; Security, scroll down, and click <b>Open Anyway</b> next to DictateAI. You only do this once.</p>
+          <div class="note">Why? DictateAI is free and isn't notarized by Apple yet, so macOS asks you to confirm it yourself. You can read every line of the code on GitHub.</div>
         </div>
         <div class="step reveal">
           <h3>Allow Accessibility</h3>
@@ -515,7 +514,11 @@ footer a { text-decoration: none; color: var(--ink-2); }
         </div>
         <div class="step reveal">
           <h3>Allow the microphone and start talking</h3>
-          <p>Hold Right ⌥ Option and speak. On first launch DictateAI downloads its models (progress shows in Settings). After that it works offline. DictateAI lives in the menu bar 🎙, not the Dock.</p>
+          <p>Hold Right ⌥ Option and speak. The first time, DictateAI fetches its speech model, which takes about a minute. After that it works offline. DictateAI lives in the menu bar 🎙, not the Dock.</p>
+        </div>
+        <div class="step reveal">
+          <h3>Turn on AI cleanup <span style="font-weight:500;color:var(--ink-3)">(optional)</span></h3>
+          <p>Click 🎙 in the menu bar → Open DictateAI → Settings → AI Text Cleanup. The model downloads once in the background, and you can keep dictating plain text while it does.</p>
         </div>
       </div>
     </div>
@@ -528,9 +531,10 @@ footer a { text-decoration: none; color: var(--ink-2); }
       <h2 class="serif reveal">Questions, answered.</h2>
       <div class="faq">
         <details><summary>Is DictateAI really free?</summary><p>Yes. It's open source under the MIT licence, with no subscription, trial or word limit. The only possible cost is the optional cloud cleanup, which you pay to OpenRouter directly with your own key.</p></details>
-        <details><summary>Does it need the internet?</summary><p>Only once, to download the speech and cleanup models. After that, dictation and cleanup work offline.</p></details>
+        <details><summary>Does it need the internet?</summary><p>Only to download its models the first time. After that, dictation and cleanup work offline.</p></details>
+        <details><summary>How much space does it use?</summary><p>The app is 274 MB, and the speech model it fetches on first launch is about 500 MB. AI cleanup is optional; turning it on adds a model of 1.7 GB for English, or 4.3 GB for other languages, since a larger model is needed to keep Hindi, Arabic and others in their own script.</p></details>
         <details><summary>How is this different from macOS Dictation?</summary><p>DictateAI adds an AI cleanup step: it removes "um" and "uh", fixes punctuation, handles corrections like "no wait, Thursday", and applies your personal dictionary. It works with a single push-to-talk key in any app and has no time limit.</p></details>
-        <details><summary>Why does macOS warn me when I open it?</summary><p>The app isn't notarized by Apple yet, which needs a paid developer account. Right-click → Open the first time and macOS will remember your choice.</p></details>
+        <details><summary>Why does macOS warn me when I open it?</summary><p>The app isn't notarized by Apple yet, which needs a paid developer account. Open it once, click Done on the warning, then click Open Anyway in System Settings → Privacy &amp; Security. macOS remembers your choice.</p></details>
         <details><summary>Why does it need Accessibility access?</summary><p>To notice when you press the dictation key while another app is in front, and to place text at your cursor. It doesn't read your screen, and it doesn't record anything unless you're holding the key or in hands-free mode.</p></details>
         <details><summary>Which languages work?</summary><p>26, including English, Hindi, Urdu, Arabic, Spanish, French, German, Japanese, Chinese and more, plus auto-detect. English uses a faster 3B cleanup model and other languages a 7B model. You can choose a faster or more accurate model in Settings.</p></details>
         <details><summary>Will it work on my Intel Mac?</summary><p>No. The local models rely on Apple Silicon (M1 or later).</p></details>
