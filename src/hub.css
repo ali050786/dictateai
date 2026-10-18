@@ -338,7 +338,18 @@ body {
 .history-app {
   font-size: 12px;
   color: #aaa;
-  margin-top: 4px;
+}
+
+.history-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.history-meta .badge {
+  font-size: 10px;
+  padding: 2px 6px;
 }
 
 /* --- Settings --- */
@@ -459,6 +470,28 @@ body {
 }
 
 .setting-select:focus {
+  border-color: #1a1a1a;
+}
+
+.setting-model {
+  display: block;
+  font-size: 11px;
+  color: #aaa;
+  margin-top: 2px;
+}
+
+.setting-input {
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #1a1a1a;
+  outline: none;
+  width: 220px;
+}
+
+.setting-input:focus {
   border-color: #1a1a1a;
 }
 

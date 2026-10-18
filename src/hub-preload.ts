@@ -15,6 +15,11 @@ contextBridge.exposeInMainWorld('hub', {
     sttStatus: () => ipcRenderer.invoke('config:sttStatus'),
     getLlmEnabled: () => ipcRenderer.invoke('config:getLlmEnabled'),
     setLlmEnabled: (enabled: boolean) => ipcRenderer.invoke('config:setLlmEnabled', enabled),
+    getLlmProvider: () => ipcRenderer.invoke('config:getLlmProvider'),
+    setLlmProvider: (provider: string, tier?: string) => ipcRenderer.invoke('config:setLlmProvider', provider, tier),
+    getPaidModel: () => ipcRenderer.invoke('config:getPaidModel'),
+    setPaidModel: (model: string) => ipcRenderer.invoke('config:setPaidModel', model),
+    llmStatus: () => ipcRenderer.invoke('config:llmStatus'),
     getShortcut: () => ipcRenderer.invoke('config:getShortcut'),
     setShortcut: (shortcut: Record<string, unknown>) => ipcRenderer.invoke('config:setShortcut', shortcut),
     getAudioDevice: () => ipcRenderer.invoke('config:getAudioDevice'),
@@ -32,6 +37,11 @@ contextBridge.exposeInMainWorld('hub', {
       callback(entry);
     ipcRenderer.on('dictation:log', handler);
     return () => ipcRenderer.removeListener('dictation:log', handler);
+  },
+  onLlmStatusChanged: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('llm:status-changed', handler);
+    return () => ipcRenderer.removeListener('llm:status-changed', handler);
   },
   onSttRestarting: (callback: () => void) => {
     const handler = () => callback();

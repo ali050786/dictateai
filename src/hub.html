@@ -345,12 +345,24 @@
               </div>
               <div class="setting-row">
                 <div class="setting-info">
-                  <span class="setting-label">LLM Provider</span>
-                  <span class="setting-desc" id="llm-model-name">DeepSeek via OpenRouter</span>
+                  <span class="setting-label">Cleanup runs</span>
+                  <span class="setting-desc" id="llm-provider-desc">Loading...</span>
+                  <span class="setting-model" id="llm-model-name"></span>
                 </div>
-                <span class="badge badge-blue">Cloud</span>
+                <select id="llm-provider-select" class="setting-select">
+                  <option value="local">On your Mac</option>
+                  <option value="cloud-free">Cloud, free</option>
+                  <option value="cloud-paid">Cloud, paid</option>
+                </select>
               </div>
-              <div class="setting-row">
+              <div class="setting-row" id="paid-model-row">
+                <div class="setting-info">
+                  <span class="setting-label">Cloud model</span>
+                  <span class="setting-desc">Any OpenRouter model ID</span>
+                </div>
+                <input type="text" id="paid-model-input" class="setting-input" spellcheck="false" />
+              </div>
+              <div class="setting-row" id="api-key-row">
                 <div class="setting-info">
                   <span class="setting-label">OpenRouter API Key</span>
                   <span class="setting-desc" id="api-key-status">Loading...</span>

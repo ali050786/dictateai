@@ -31,6 +31,19 @@ interface HubAPI {
     sttStatus: () => Promise<{ installed: boolean; running: boolean; engine: string; model: string }>;
     getLlmEnabled: () => Promise<boolean>;
     setLlmEnabled: (enabled: boolean) => Promise<boolean>;
+    getLlmProvider: () => Promise<'local' | 'cloud'>;
+    setLlmProvider: (provider: 'local' | 'cloud', tier?: 'free' | 'paid') => Promise<boolean>;
+    llmStatus: () => Promise<{
+      provider: 'local' | 'cloud';
+      mlxInstalled: boolean;
+      running: boolean;
+      starting: boolean;
+      model: string;
+      cloudTier: 'free' | 'paid';
+      cloudModel: string;
+    }>;
+    getPaidModel: () => Promise<string>;
+    setPaidModel: (model: string) => Promise<boolean>;
     getShortcut: () => Promise<ShortcutConfig | null>;
     setShortcut: (shortcut: ShortcutConfig) => Promise<boolean>;
     getAudioDevice: () => Promise<string>;
@@ -41,9 +54,10 @@ interface HubAPI {
     setMuteWhileSpeaking: (enabled: boolean) => Promise<boolean>;
   };
   history: {
-    list: () => Promise<{ text: string; app: string; time: string }[]>;
+    list: () => Promise<HistoryEntry[]>;
   };
-  onDictationLog: (callback: (entry: { text: string; app: string; time: string }) => void) => () => void;
+  onDictationLog: (callback: (entry: HistoryEntry) => void) => () => void;
+  onLlmStatusChanged: (callback: () => void) => () => void;
   onSttRestarting: (callback: () => void) => () => void;
   onSttStatusChanged: (callback: () => void) => () => void;
   openExternal: (url: string) => void;
@@ -204,6 +218,12 @@ const openrouterLink = document.getElementById('openrouter-link')!;
 
 const languageSelect = document.getElementById('language-select') as HTMLSelectElement;
 const llmToggle = document.getElementById('llm-toggle') as HTMLInputElement;
+const llmProviderSelect = document.getElementById('llm-provider-select') as HTMLSelectElement;
+const llmProviderDesc = document.getElementById('llm-provider-desc')!;
+const llmModelName = document.getElementById('llm-model-name')!;
+const apiKeyRow = document.getElementById('api-key-row')!;
+const paidModelRow = document.getElementById('paid-model-row')!;
+const paidModelInput = document.getElementById('paid-model-input') as HTMLInputElement;
 const micSelect = document.getElementById('mic-select') as HTMLSelectElement;
 const micStatus = document.getElementById('mic-status')!;
 
@@ -235,6 +255,7 @@ async function loadSettings(): Promise<void> {
 
   const llmOn = await window.hub.config.getLlmEnabled();
   llmToggle.checked = llmOn;
+  await loadLlmStatus();
 
   const stt = await window.hub.config.sttStatus();
   const sttStatus = document.getElementById('stt-status')!;
@@ -318,6 +339,62 @@ window.hub.onSttStatusChanged(() => {
 
 llmToggle.addEventListener('change', async () => {
   await window.hub.config.setLlmEnabled(llmToggle.checked);
+  loadLlmStatus();
+});
+
+async function loadLlmStatus(): Promise<void> {
+  const status = await window.hub.config.llmStatus();
+  const isCloud = status.provider === 'cloud';
+  llmProviderSelect.value = isCloud ? `cloud-${status.cloudTier}` : 'local';
+  apiKeyRow.style.display = isCloud ? '' : 'none';
+  paidModelRow.style.display = isCloud && status.cloudTier === 'paid' ? '' : 'none';
+  llmProviderDesc.style.color = '';
+
+  if (isCloud) {
+    llmProviderDesc.textContent = status.cloudTier === 'free'
+      ? 'Your OpenRouter key. About 50 cleanups a day, then your Mac takes over.'
+      : 'Your OpenRouter key, your credits.';
+    llmModelName.textContent = status.cloudModel;
+    if (status.cloudTier === 'paid' && document.activeElement !== paidModelInput) {
+      paidModelInput.value = status.cloudModel;
+    }
+  } else if (!status.mlxInstalled) {
+    llmProviderDesc.textContent = 'mlx-lm not installed — run: uv tool install mlx-lm';
+    llmProviderDesc.style.color = '#dc2626';
+    llmModelName.textContent = '';
+  } else {
+    const state = status.running
+      ? 'ready'
+      : status.starting
+        ? 'loading (first run downloads the model)…'
+        : llmToggle.checked ? 'stopped' : 'off until AI Text Cleanup is on';
+    llmProviderDesc.textContent = `Private, unlimited — ${state}`;
+    llmProviderDesc.style.color = status.running ? '#059669' : '';
+    llmModelName.textContent = status.model;
+  }
+}
+
+llmProviderSelect.addEventListener('change', async () => {
+  const value = llmProviderSelect.value;
+  if (value === 'local') {
+    await window.hub.config.setLlmProvider('local');
+  } else {
+    await window.hub.config.setLlmProvider('cloud', value === 'cloud-paid' ? 'paid' : 'free');
+  }
+  loadLlmStatus();
+});
+
+paidModelInput.addEventListener('change', async () => {
+  await window.hub.config.setPaidModel(paidModelInput.value);
+  loadLlmStatus();
+});
+
+paidModelInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') paidModelInput.blur();
+});
+
+window.hub.onLlmStatusChanged(() => {
+  loadLlmStatus();
 });
 
 btnChangeKey.addEventListener('click', () => {
@@ -352,15 +429,18 @@ openrouterLink.addEventListener('click', (e) => {
 });
 
 // --- Dictation History ---
+// location: where cleanup ran. Raw text counts as local; it never left the Mac.
+interface HistoryEntry { text: string; app: string; time: string; location?: 'local' | 'cloud' }
+
 const historyContainer = document.getElementById('dictation-history')!;
-const dictationLog: { text: string; app: string; time: string }[] = [];
+const dictationLog: HistoryEntry[] = [];
 
 async function loadHistory(): Promise<void> {
   const entries = await window.hub.history.list();
   renderHistory(entries);
 }
 
-function renderHistory(entries: { text: string; app: string; time: string }[]): void {
+function renderHistory(entries: HistoryEntry[]): void {
   const existing = historyContainer.querySelectorAll('.history-entry');
   existing.forEach(e => e.remove());
 
@@ -383,7 +463,10 @@ function renderHistory(entries: { text: string; app: string; time: string }[]): 
     el.innerHTML = `
       <div class="history-time">${timeStr}</div>
       <div class="history-text">${escapeHtml(entry.text)}</div>
-      ${entry.app ? `<div class="history-app">${escapeHtml(entry.app)}</div>` : ''}
+      <div class="history-meta">
+        <span class="badge ${entry.location === 'cloud' ? 'badge-blue' : 'badge-green'}">${entry.location === 'cloud' ? 'Cloud' : 'Local'}</span>
+        ${entry.app ? `<span class="history-app">${escapeHtml(entry.app)}</span>` : ''}
+      </div>
     `;
     historyContainer.appendChild(el);
   });

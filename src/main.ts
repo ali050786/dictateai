@@ -18,7 +18,8 @@ import {
 } from './text-injection';
 import { transcribe, isModelDownloaded, downloadModel, setLanguage, getLanguage, getModel, startServer, stopServer, isServerRunning, isWhisperKitInstalled, setOnStatusChange } from './whisper-engine';
 import { exec } from 'child_process';
-import { formatText, hasApiKey, saveApiKey, loadConfig, saveConfig, ShortcutConfig, PillPosition } from './llm-formatter';
+import { formatText, hasApiKey, saveApiKey, loadConfig, saveConfig, ShortcutConfig, PillPosition, canFormat, getLlmProvider, LlmProvider, CloudTier, CleanupLocation, getCloudTier, getCloudModel, DEFAULT_PAID_MODEL } from './llm-formatter';
+import { startLocalLlm, stopLocalLlm, isMlxInstalled, isLocalLlmRunning, isLocalLlmStarting, getLocalModel, setOnLocalLlmStatusChange, defaultLocalModelFor } from './local-llm';
 import { getFocusedElementInfo } from './text-injection';
 import { applyReplacements, detectCorrections, addCorrection, getAllCorrections, removeCorrection } from './dictionary';
 import started from 'electron-squirrel-startup';
@@ -49,7 +50,7 @@ let pillPosition: PillPosition = 'bottom-center';
 let muteWhileSpeaking = false;
 let didMuteAudio = false;
 
-const dictationHistory: { text: string; app: string; time: string }[] = [];
+const dictationHistory: { text: string; app: string; time: string; location: CleanupLocation }[] = [];
 
 function createOverlayWindow(): BrowserWindow {
   const display = screen.getPrimaryDisplay();
@@ -359,7 +360,9 @@ async function processAudio(): Promise<void> {
   );
 
   try {
+    const sttStart = Date.now();
     const rawText = await transcribe(audioToTranscribe);
+    console.log(`[DictateAI] Transcription took ${Date.now() - sttStart}ms`);
     if (!rawText || /^\s*[\[(].*[\])]\s*$/i.test(rawText) || rawText.trim().length < 2) {
       console.log(`[DictateAI] No usable speech detected: "${rawText}"`);
       if (overlayWindow && !overlayWindow.isDestroyed()) {
@@ -373,16 +376,18 @@ async function processAudio(): Promise<void> {
     const correctedText = applyReplacements(rawText);
     const context = getFocusedElementInfo();
 
-    if (llmEnabled && hasApiKey()) {
+    if (llmEnabled && canFormat()) {
       if (overlayWindow && !overlayWindow.isDestroyed()) {
         overlayWindow.webContents.send('dictation:state', 'formatting');
       }
+      const llmStart = Date.now();
       try {
-        const formatted = await formatText(correctedText, 'dictation', {
+        const result = await formatText(correctedText, 'dictation', {
           app: context.app,
           role: context.role,
         });
-        finishProcessing(formatted || correctedText, context.app);
+        console.log(`[DictateAI] LLM cleanup took ${Date.now() - llmStart}ms`);
+        finishProcessing(result.text || correctedText, context.app, result.location);
       } catch (err) {
         console.error('[DictateAI] LLM formatting failed, using raw:', err);
         finishProcessing(correctedText, context.app);
@@ -421,7 +426,7 @@ function hideOverlayAfterDelay(ms: number): void {
   }, ms);
 }
 
-function finishProcessing(text: string, appName?: string): void {
+function finishProcessing(text: string, appName?: string, location: CleanupLocation = 'local'): void {
   audioChunks = [];
 
   if (text) {
@@ -436,7 +441,7 @@ function finishProcessing(text: string, appName?: string): void {
     lastInjectedText = text;
     hideOverlayAfterDelay(1200);
 
-    const entry = { text, app: appName || '', time: new Date().toISOString() };
+    const entry = { text, app: appName || '', time: new Date().toISOString(), location };
     dictationHistory.unshift(entry);
     if (dictationHistory.length > 100) dictationHistory.pop();
 
@@ -596,6 +601,7 @@ function setupIPC(): void {
   ipcMain.handle('config:setLanguage', async (_event, lang: string) => {
     setLanguage(lang);
     saveConfig({ language: lang });
+    syncLocalLlm();
     if (hubWindow && !hubWindow.isDestroyed()) {
       hubWindow.webContents.send('stt:restarting');
     }
@@ -608,8 +614,30 @@ function setupIPC(): void {
   ipcMain.handle('config:setLlmEnabled', (_event, enabled: boolean) => {
     llmEnabled = enabled;
     saveConfig({ llmEnabled: enabled });
+    syncLocalLlm();
     return true;
   });
+  ipcMain.handle('config:getLlmProvider', () => getLlmProvider());
+  ipcMain.handle('config:setLlmProvider', (_event, provider: LlmProvider, tier?: CloudTier) => {
+    saveConfig(tier ? { llmProvider: provider, cloudTier: tier } : { llmProvider: provider });
+    syncLocalLlm();
+    return true;
+  });
+  ipcMain.handle('config:llmStatus', () => ({
+    provider: getLlmProvider(),
+    mlxInstalled: isMlxInstalled(),
+    running: isLocalLlmRunning(),
+    starting: isLocalLlmStarting(),
+    model: getLocalModel(),
+    cloudTier: getCloudTier(),
+    cloudModel: getCloudModel(),
+  }));
+  ipcMain.handle('config:getPaidModel', () => loadConfig().model || DEFAULT_PAID_MODEL);
+  ipcMain.handle('config:setPaidModel', (_event, model: string) => {
+    saveConfig({ model: model.trim() || DEFAULT_PAID_MODEL });
+    return true;
+  });
+
   ipcMain.handle('config:sttStatus', () => ({
     installed: isWhisperKitInstalled(),
     running: isServerRunning(),
@@ -691,6 +719,13 @@ app.whenReady().then(() => {
     console.log(`[DictateAI] Restored mute while speaking: ${muteWhileSpeaking}`);
   }
 
+  setOnLocalLlmStatusChange(() => {
+    if (hubWindow && !hubWindow.isDestroyed()) {
+      hubWindow.webContents.send('llm:status-changed');
+    }
+  });
+  syncLocalLlm();
+
   setOnStatusChange(() => {
     if (hubWindow && !hubWindow.isDestroyed()) {
       hubWindow.webContents.send('stt:status-changed');
@@ -723,8 +758,19 @@ app.whenReady().then(() => {
   console.log('[DictateAI] Ready. Hold Right Option key to dictate.');
 });
 
+// Keep the local model loaded only while it can be used: it holds ~4.5 GB.
+function syncLocalLlm(): void {
+  if (llmEnabled && getLlmProvider() === 'local') {
+    const config = loadConfig();
+    startLocalLlm(config.localModel || defaultLocalModelFor(config.language));
+  } else {
+    stopLocalLlm();
+  }
+}
+
 app.on('will-quit', () => {
   stopServer();
+  stopLocalLlm();
   stopPushToTalk();
   globalShortcut.unregisterAll();
 });

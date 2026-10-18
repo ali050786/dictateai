@@ -1,6 +1,6 @@
 # DictateAI — Session Summary (2026-10-18)
 
-All changes below are uncommitted, built on top of commit `fd9c565`.
+All changes below are committed in `4f00b60` (on top of `fd9c565`).
 
 ---
 
@@ -54,7 +54,7 @@ All changes below are uncommitted, built on top of commit `fd9c565`.
 
 ---
 
-## Files Changed (11 files, +553 / -50 lines)
+## Files Changed (commit `4f00b60`: 12 files incl. this summary, +645 / -50 lines)
 
 | File | Changes |
 |---|---|
@@ -86,7 +86,17 @@ All changes below are uncommitted, built on top of commit `fd9c565`.
 
 ## Pending / Not Yet Done
 
-- **Local LLM inference**: Currently uses DeepSeek via OpenRouter (cloud) for text cleanup. Plan to replace with local MLX inference using a Qwen model — `mlx-lm` needs to be installed.
-- **Commit**: None of these changes are committed yet.
-- **Native addon in packaged app**: The `.node` binary isn't bundled into the asar — text injection works in dev mode but not in the packaged build.
 - **Accessibility permission**: The packaged app (`out/DictateAI-darwin-arm64/`) needs a fresh Accessibility grant in System Settings since it's a different binary from the dev Electron.
+- **Housekeeping**: `npm run lint` reports formatting issues in 14 files (`npm run lint:fix` fixes them); untracked `build/config.gypi` is a stray node-gyp file; no README or LICENSE file yet although `package.json` says MIT.
+
+---
+
+## Follow-up (same day, uncommitted)
+
+- **Native addon packaging — fixed**: `forge.config.mts` ships `text_injection.node` via `extraResource`; `src/text-injection.ts` loads it from `process.resourcesPath` when packaged; `prepackage`/`premake` run `npm run build:native`. Verified: packaged app starts the push-to-talk monitor.
+- **Local LLM — done**: `src/local-llm.ts` runs `mlx_lm.server` (install: `uv tool install mlx-lm`) on port 50061 with `Qwen2.5-3B-Instruct-4bit` when language is English (~0.3–0.6s) and `Qwen2.5-7B-Instruct-4bit` otherwise (~1–3.5s); override with `localModel` in config. Settings → LLM Provider picks Local (default) or Cloud. The server runs only while AI Text Cleanup is on with Local selected, and is warmed up at start. If it isn't ready, text is inserted raw — it never falls back to the cloud.
+  - Tested: 3B was faster (~0.5s) but translated Hindi to English; 7B kept Hindi in Devanagari at ~1–2.5s. The dictation prompt now has few-shot examples (English + Hindi).
+  - Real dictation worked on 7B but felt slow, hence the English → 3B switch. The log now prints `Transcription took …ms` and `LLM cleanup took …ms`.
+- **Cloud → local fallback — done** (decision doc: `sentry/_bmad-output/planning-artifacts/dictateai-llm-cleanup-decisions.md`, step 1). With provider `cloud`, a 429 pauses the cloud for 15 minutes and uses the local model; other errors and rejected results also fall back to local. `src/cleanup-check.ts` rejects results that change writing system (e.g. Devanagari → Latin), get much shorter, or much longer; for local results, the raw transcript is used instead. OpenRouter retries are off so the fallback is immediate. The local server is reused if another instance already holds port 50061, and only reports ready after a successful warm-up.
+  - Tested: 9 check cases pass; a simulated OpenRouter 429 made 1 cloud call, the next dictation was cleaned locally, and the cloud stayed paused. Not yet tested with a real OpenRouter key.
+- **Settings + History — done** (decision doc step 2). Settings → "Cleanup runs": On your Mac / Cloud, free (`openrouter/free`) / Cloud, paid (any OpenRouter model ID, default `deepseek/deepseek-chat`), with the model name in small grey text. API key row shows only for cloud; model input only for paid. Config: `llmProvider` + `cloudTier` (`free` default) + `model` (paid model). History entries carry a Local or Cloud tag (raw text counts as Local). Checked in a stubbed hub preview; not yet seen in the running app.
