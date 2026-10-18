@@ -22,6 +22,7 @@ import {
 } from './text-injection';
 import { transcribe, isModelDownloaded, downloadModel, setLanguage, getLanguage, getModel, startServer, stopServer, isServerRunning, isWhisperKitInstalled, setOnStatusChange, getModelDownload, whenServerReady } from './whisper-engine';
 import { exec } from 'child_process';
+import * as path from 'path';
 import { formatText, canFormat, CleanupLocation, getCloudModel, DEFAULT_CLOUD_MODEL } from './llm-formatter';
 import { hasApiKey, saveApiKey, removeApiKey, migrateApiKey, loadConfig, saveConfig, ShortcutConfig, PillPosition, normalizePillPosition, getLlmProvider, LlmProvider } from './config';
 import { startLocalLlm, stopLocalLlm, isMlxInstalled, isLocalLlmRunning, isLocalLlmStarting, getLocalModel, setOnLocalLlmStatusChange, defaultLocalModelFor, localModelOptions, getLocalModelDownload, didLocalLlmFail, isLocalModelDownloaded, localModelBytes, localModelCacheDir } from './local-llm';
@@ -216,14 +217,19 @@ function sendToPages(channel: string, ...args: unknown[]): void {
   }
 }
 
-function createTray(): void {
-  const icon = nativeImage.createFromDataURL(
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAADklEQVQ4jWNgGAWDEwAAAhAAAQmkWEEAAAAASUVORK5CYII=',
-  );
+// Menu-bar icons from assets/tray (scripts/build-icons.mjs). Template images,
+// so macOS draws them in the menu bar's own colour; @2x is picked up by name.
+function trayIcon(recording: boolean): Electron.NativeImage {
+  const dir = app.isPackaged
+    ? path.join(process.resourcesPath, 'tray')
+    : path.join(path.resolve(__dirname, '..', '..'), 'assets', 'tray');
+  const icon = nativeImage.createFromPath(path.join(dir, recording ? 'trayRecordingTemplate.png' : 'trayTemplate.png'));
   icon.setTemplateImage(true);
+  return icon;
+}
 
-  tray = new Tray(icon);
-  tray.setTitle('🎙');
+function createTray(): void {
+  tray = new Tray(trayIcon(false));
   tray.setToolTip('DictateAI');
   tray.on('click', () => createHubWindow());
   updateTrayMenu();
@@ -255,7 +261,7 @@ function updateTrayMenu(): void {
   ]);
 
   tray.setContextMenu(contextMenu);
-  tray.setTitle(isRecording() ? '🔴' : '🎙');
+  tray.setImage(trayIcon(isRecording()));
 }
 
 function applyOverlayPosition(): void {

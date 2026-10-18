@@ -24,7 +24,9 @@ const config: ForgeConfig = {
     // webpack never sees it. Copy it next to app.asar (Contents/Resources).
     // The speech and cleanup engines (scripts/build-engines.sh) land in
     // Contents/Resources/bin and Contents/Resources/python.
-    extraResource: ['native/text-injection/build/Release/text_injection.node', 'engines/bin', 'engines/python'],
+    extraResource: ['native/text-injection/build/Release/text_injection.node', 'engines/bin', 'engines/python', 'assets/tray'],
+    // App, Dock and Finder icon (scripts/build-icons.mjs; forge adds .icns).
+    icon: 'assets/icon/DictateAI',
     // macOS keys Accessibility, Microphone and Keychain access to this ID.
     appBundleId: BUNDLE_ID,
     appCategoryType: 'public.app-category.productivity',
@@ -58,7 +60,7 @@ const config: ForgeConfig = {
     new MakerSquirrel({}),
     new MakerZIP({}, ['darwin']),
     // Drag-to-Applications installer: out/make/DictateAI-<version>-arm64.dmg
-    new MakerDMG({ format: 'ULFO' }, ['darwin']),
+    new MakerDMG({ format: 'ULFO', icon: 'assets/icon/DictateAI.icns' }, ['darwin']),
     new MakerRpm({}),
     new MakerDeb({}),
   ],

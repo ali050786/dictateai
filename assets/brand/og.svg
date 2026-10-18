@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#15171d"/>
+  <g transform="translate(250 330) scale(0.62) translate(-512 -512)"><g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M372 262h280a120 120 0 0 1 120 120v196a120 120 0 0 1-120 120H452l-112 92a14 14 0 0 1-22-13l14-91a120 120 0 0 1-80-108V382a120 120 0 0 1 120-120z" stroke="#ffffff" stroke-width="30"/><path d="M330 480C347 405 370 405 387 480S427 555 444 480S479 438 494 480S523 506 538 480H606" stroke="#ffffff" stroke-width="32"/><path d="M676 392v176" stroke="#ff6f61" stroke-width="32"/></g></g>
+  <text x="470" y="270" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="84" font-weight="700" fill="#ffffff" letter-spacing="-2">DictateAI</text>
+  <text x="472" y="345" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="38" fill="#ff6f61">Speak. It types. On your Mac.</text>
+  <text x="472" y="410" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="26" fill="#8d919c">Private · Works offline · Free and open source</text>
+</svg>
