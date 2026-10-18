@@ -504,9 +504,9 @@ footer a { text-decoration: none; color: var(--ink-2); }
           <p>Open the .dmg and drag DictateAI into your Applications folder. That's the whole install: the speech and AI engines are built in, so there's nothing to set up in Terminal.</p>
         </div>
         <div class="step reveal">
-          <h3>Open it the first time with right-click</h3>
-          <p>In Applications, right-click DictateAI and choose <b>Open</b>, then <b>Open</b> again. You only need to do this once.</p>
-          <div class="note">Why? DictateAI is free and isn't notarized by Apple yet, so macOS asks you to confirm the first time. You can read every line of the code on GitHub.</div>
+          <h3>Allow it to open, once</h3>
+          <p>Open DictateAI. macOS says it "could not verify" the app: click <b>Done</b>. Then go to System Settings → Privacy &amp; Security, scroll down, and click <b>Open Anyway</b> next to DictateAI. You only do this once.</p>
+          <div class="note">Why? DictateAI is free and isn't notarized by Apple yet, so macOS asks you to confirm it yourself. You can read every line of the code on GitHub.</div>
         </div>
         <div class="step reveal">
           <h3>Allow Accessibility</h3>
@@ -534,7 +534,7 @@ footer a { text-decoration: none; color: var(--ink-2); }
         <details><summary>Does it need the internet?</summary><p>Only to download its models the first time. After that, dictation and cleanup work offline.</p></details>
         <details><summary>How much space does it use?</summary><p>The app is 274 MB, and the speech model it fetches on first launch is about 500 MB. AI cleanup is optional; turning it on adds a model of 1.7 GB for English, or 4.3 GB for other languages, since a larger model is needed to keep Hindi, Arabic and others in their own script.</p></details>
         <details><summary>How is this different from macOS Dictation?</summary><p>DictateAI adds an AI cleanup step: it removes "um" and "uh", fixes punctuation, handles corrections like "no wait, Thursday", and applies your personal dictionary. It works with a single push-to-talk key in any app and has no time limit.</p></details>
-        <details><summary>Why does macOS warn me when I open it?</summary><p>The app isn't notarized by Apple yet, which needs a paid developer account. Right-click → Open the first time and macOS will remember your choice.</p></details>
+        <details><summary>Why does macOS warn me when I open it?</summary><p>The app isn't notarized by Apple yet, which needs a paid developer account. Open it once, click Done on the warning, then click Open Anyway in System Settings → Privacy &amp; Security. macOS remembers your choice.</p></details>
         <details><summary>Why does it need Accessibility access?</summary><p>To notice when you press the dictation key while another app is in front, and to place text at your cursor. It doesn't read your screen, and it doesn't record anything unless you're holding the key or in hands-free mode.</p></details>
         <details><summary>Which languages work?</summary><p>26, including English, Hindi, Urdu, Arabic, Spanish, French, German, Japanese, Chinese and more, plus auto-detect. English uses a faster 3B cleanup model and other languages a 7B model. You can choose a faster or more accurate model in Settings.</p></details>
         <details><summary>Will it work on my Intel Mac?</summary><p>No. The local models rely on Apple Silicon (M1 or later).</p></details>
