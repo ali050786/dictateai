@@ -33,18 +33,16 @@ interface HubAPI {
     getLlmEnabled: () => Promise<boolean>;
     setLlmEnabled: (enabled: boolean) => Promise<boolean>;
     getLlmProvider: () => Promise<'local' | 'cloud'>;
-    setLlmProvider: (provider: 'local' | 'cloud', tier?: 'free' | 'paid') => Promise<boolean>;
+    setLlmProvider: (provider: 'local' | 'cloud') => Promise<boolean>;
     llmStatus: () => Promise<{
       provider: 'local' | 'cloud';
       mlxInstalled: boolean;
       running: boolean;
       starting: boolean;
       model: string;
-      cloudTier: 'free' | 'paid';
       cloudModel: string;
     }>;
-    getPaidModel: () => Promise<string>;
-    setPaidModel: (model: string) => Promise<boolean>;
+    setCloudModel: (model: string) => Promise<boolean>;
     getShortcut: () => Promise<ShortcutConfig | null>;
     setShortcut: (shortcut: ShortcutConfig) => Promise<boolean>;
     getAudioDevice: () => Promise<string>;
@@ -224,8 +222,8 @@ const llmProviderSelect = document.getElementById('llm-provider-select') as HTML
 const llmProviderDesc = document.getElementById('llm-provider-desc')!;
 const llmModelName = document.getElementById('llm-model-name')!;
 const apiKeyRow = document.getElementById('api-key-row')!;
-const paidModelRow = document.getElementById('paid-model-row')!;
-const paidModelInput = document.getElementById('paid-model-input') as HTMLInputElement;
+const cloudModelRow = document.getElementById('cloud-model-row')!;
+const cloudModelInput = document.getElementById('cloud-model-input') as HTMLInputElement;
 const micSelect = document.getElementById('mic-select') as HTMLSelectElement;
 const micStatus = document.getElementById('mic-status')!;
 
@@ -245,11 +243,7 @@ async function loadSettings(): Promise<void> {
   const lang = await window.hub.config.getLanguage();
   languageSelect.value = lang;
 
-  const savedPos = await window.hub.config.getPillPosition();
-  const posGrid = document.getElementById('pill-position-grid')!;
-  posGrid.querySelectorAll('.pill-pos').forEach(btn => {
-    btn.classList.toggle('active', (btn as HTMLElement).dataset.pos === savedPos);
-  });
+  showPillPosition(await window.hub.config.getPillPosition());
 
   loadMicDevices();
 
@@ -351,19 +345,15 @@ llmToggle.addEventListener('change', async () => {
 async function loadLlmStatus(): Promise<void> {
   const status = await window.hub.config.llmStatus();
   const isCloud = status.provider === 'cloud';
-  llmProviderSelect.value = isCloud ? `cloud-${status.cloudTier}` : 'local';
+  llmProviderSelect.value = status.provider;
   apiKeyRow.style.display = isCloud ? '' : 'none';
-  paidModelRow.style.display = isCloud && status.cloudTier === 'paid' ? '' : 'none';
+  cloudModelRow.style.display = isCloud ? '' : 'none';
   llmProviderDesc.style.color = '';
 
   if (isCloud) {
-    llmProviderDesc.textContent = status.cloudTier === 'free'
-      ? 'Your OpenRouter key. About 50 cleanups a day, then your Mac takes over.'
-      : 'Your OpenRouter key, your credits.';
+    llmProviderDesc.textContent = 'Your OpenRouter key, your credits.';
     llmModelName.textContent = status.cloudModel;
-    if (status.cloudTier === 'paid' && document.activeElement !== paidModelInput) {
-      paidModelInput.value = status.cloudModel;
-    }
+    if (document.activeElement !== cloudModelInput) cloudModelInput.value = status.cloudModel;
   } else if (!status.mlxInstalled) {
     llmProviderDesc.textContent = 'mlx-lm not installed — run: uv tool install mlx-lm';
     llmProviderDesc.style.color = '#dc2626';
@@ -381,24 +371,23 @@ async function loadLlmStatus(): Promise<void> {
 }
 
 llmProviderSelect.addEventListener('change', async () => {
-  const value = llmProviderSelect.value;
-  if (value === 'local') {
+  if (llmProviderSelect.value === 'local') {
     await window.hub.config.setLlmProvider('local');
   } else {
-    await window.hub.config.setLlmProvider('cloud', value === 'cloud-paid' ? 'paid' : 'free');
+    await window.hub.config.setLlmProvider('cloud');
     // Cloud only ever uses the user's own key; ask for it right away.
     if (!(await window.hub.config.hasApiKey())) openKeyModal();
   }
   loadLlmStatus();
 });
 
-paidModelInput.addEventListener('change', async () => {
-  await window.hub.config.setPaidModel(paidModelInput.value);
+cloudModelInput.addEventListener('change', async () => {
+  await window.hub.config.setCloudModel(cloudModelInput.value);
   loadLlmStatus();
 });
 
-paidModelInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') paidModelInput.blur();
+cloudModelInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') cloudModelInput.blur();
 });
 
 window.hub.onLlmStatusChanged(() => {
@@ -707,14 +696,25 @@ document.getElementById('btn-reset-shortcuts')?.addEventListener('click', async 
 });
 
 // --- Pill Position ---
+function showPillPosition(pos: string): void {
+  const grid = document.getElementById('pill-position-grid')!;
+  let label = '';
+  grid.querySelectorAll<HTMLElement>('.pill-pos').forEach(btn => {
+    const active = btn.dataset.pos === pos;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-checked', String(active));
+    if (active) label = btn.getAttribute('aria-label') || '';
+  });
+  document.getElementById('pill-position-desc')!.textContent = label
+    ? `${label} of your screen`
+    : 'Where the recording pill appears on your screen';
+}
+
 document.getElementById('pill-position-grid')?.addEventListener('click', async (e) => {
   const btn = (e.target as HTMLElement).closest('.pill-pos') as HTMLElement;
   if (!btn || !btn.dataset.pos) return;
 
-  const grid = document.getElementById('pill-position-grid')!;
-  grid.querySelectorAll('.pill-pos').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-
+  showPillPosition(btn.dataset.pos);
   await window.hub.config.setPillPosition(btn.dataset.pos);
 });
 

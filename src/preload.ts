@@ -40,10 +40,4 @@ contextBridge.exposeInMainWorld('dictateAI', {
   },
   stopRecording: () => ipcRenderer.send('overlay:stopRecording'),
   setClickable: (clickable: boolean) => ipcRenderer.send('overlay:setClickable', clickable),
-  onOrientation: (callback: (orientation: string) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, orientation: string) =>
-      callback(orientation);
-    ipcRenderer.on('overlay:orientation', handler);
-    return () => ipcRenderer.removeListener('overlay:orientation', handler);
-  },
 });

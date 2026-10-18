@@ -17,10 +17,19 @@ export interface ShortcutConfig {
   requiredModifiers: number;
 }
 
-export type PillPosition = 'top-left' | 'top-center' | 'top-right' | 'center-left' | 'center' | 'center-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
+export type PillPosition = 'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
+
+const PILL_POSITIONS: PillPosition[] = ['top-left', 'top-center', 'top-right', 'bottom-left', 'bottom-center', 'bottom-right'];
+
+// The middle-row positions were removed; move them to the bottom spot below.
+export function normalizePillPosition(pos: string | undefined): PillPosition {
+  if (PILL_POSITIONS.includes(pos as PillPosition)) return pos as PillPosition;
+  if (pos === 'center-left') return 'bottom-left';
+  if (pos === 'center-right') return 'bottom-right';
+  return 'bottom-center';
+}
 
 export type LlmProvider = 'local' | 'cloud';
-export type CloudTier = 'free' | 'paid';
 // Where the injected text was cleaned; 'local' also covers raw text, which
 // never left the Mac either.
 export type CleanupLocation = 'local' | 'cloud';
@@ -39,7 +48,9 @@ export interface Config {
   openRouterApiKey?: string;
   model?: string;
   llmProvider?: LlmProvider;
-  cloudTier?: CloudTier;
+  // Legacy: 'free' meant openrouter/free, removed because it was slow.
+  // main.ts moves those users to local on startup.
+  cloudTier?: 'free' | 'paid';
   localModel?: string;
   language?: string;
   llmEnabled?: boolean;
@@ -97,22 +108,14 @@ export function canFormat(): boolean {
   return hasApiKey() || isLocalLlmRunning();
 }
 
-export const DEFAULT_PAID_MODEL = 'deepseek/deepseek-chat';
-// OpenRouter's Free Models Router: picks a free model at random per request.
-const FREE_CLOUD_MODEL = 'openrouter/free';
-
-export function getCloudTier(): CloudTier {
-  return loadConfig().cloudTier ?? 'free';
-}
+export const DEFAULT_CLOUD_MODEL = 'deepseek/deepseek-chat';
 
 export function getCloudModel(): string {
-  return getCloudTier() === 'free'
-    ? FREE_CLOUD_MODEL
-    : loadConfig().model || DEFAULT_PAID_MODEL;
+  return loadConfig().model || DEFAULT_CLOUD_MODEL;
 }
 
 // After a 429, skip the cloud for a while instead of failing on every
-// dictation. Free OpenRouter models allow 20 requests a minute and 50 a day.
+// dictation (e.g. the user's OpenRouter credits ran out).
 const CLOUD_PAUSE_MS = 15 * 60_000;
 let cloudPausedUntil = 0;
 

@@ -1,7 +1,6 @@
-// Sanity check for LLM cleanup output. openrouter/free routes each request to
-// a random free model, and small local models sometimes translate or answer
-// the text instead of cleaning it, so a result that changes too much is
-// discarded rather than injected.
+// Sanity check for LLM cleanup output. Cloud models vary, and small local
+// models sometimes translate or answer the text instead of cleaning it, so a
+// result that changes too much is discarded rather than injected.
 
 // Japanese and Chinese mix these scripts within one sentence, so they count
 // as one group.

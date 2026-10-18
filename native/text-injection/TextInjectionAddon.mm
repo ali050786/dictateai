@@ -4,7 +4,29 @@
 #import <Carbon/Carbon.h>
 #include <thread>
 
-// Strategy 1: AXUIElement — set the value attribute of the focused text field
+// Moves the insertion point to `pos` (UTF-16 offset) with nothing selected.
+static bool SetCaret(AXUIElementRef element, CFIndex pos) {
+  CFRange range = CFRangeMake(pos, 0);
+  AXValueRef value = AXValueCreate((AXValueType)kAXValueCFRangeType, &range);
+  if (!value) return false;
+  AXError err = AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute, value);
+  CFRelease(value);
+  return err == kAXErrorSuccess;
+}
+
+static NSUInteger CopyValueLength(AXUIElementRef element) {
+  CFTypeRef value = nullptr;
+  if (AXUIElementCopyAttributeValue(element, kAXValueAttribute, &value) != kAXErrorSuccess || !value) return 0;
+  NSUInteger length = CFGetTypeID(value) == CFStringGetTypeID() ? [(__bridge NSString*)value length] : 0;
+  CFRelease(value);
+  return length;
+}
+
+// Strategy 1: AXUIElement. Replace the selection at the cursor, like typing,
+// so the app keeps its cursor (after the inserted text), formatting and undo.
+// Only reports success once the field's text has actually changed; callers
+// then fall back to paste. Never rewrites the whole value: apps reset the
+// cursor to the start when that happens.
 static bool InjectViaAccessibility(const std::string& text) {
   AXUIElementRef systemWide = AXUIElementCreateSystemWide();
   AXUIElementRef focusedElement = nullptr;
@@ -14,59 +36,48 @@ static bool InjectViaAccessibility(const std::string& text) {
 
   if (err != kAXErrorSuccess || !focusedElement) return false;
 
-  // Check if element accepts text input
-  CFTypeRef role = nullptr;
-  AXUIElementCopyAttributeValue(focusedElement, kAXRoleAttribute, &role);
-  bool isTextField = false;
-  if (role) {
-    isTextField = CFEqual(role, kAXTextFieldRole) ||
-                  CFEqual(role, kAXTextAreaRole) ||
-                  CFEqual(role, kAXComboBoxRole);
-    CFRelease(role);
+  Boolean settable = false;
+  AXUIElementIsAttributeSettable(focusedElement, kAXSelectedTextAttribute, &settable);
+  if (!settable) {
+    CFRelease(focusedElement);
+    return false;
   }
-
-  if (!isTextField) {
-    // Still try — some apps use custom roles
-  }
-
-  // Get current value and selection to append at cursor
-  CFTypeRef currentValue = nullptr;
-  AXUIElementCopyAttributeValue(focusedElement, kAXValueAttribute, &currentValue);
-
-  CFTypeRef selectedRange = nullptr;
-  AXUIElementCopyAttributeValue(focusedElement, kAXSelectedTextRangeAttribute, &selectedRange);
 
   NSString* nsText = [NSString stringWithUTF8String:text.c_str()];
-  NSString* current = currentValue ? (__bridge NSString*)currentValue : @"";
+  NSUInteger before = CopyValueLength(focusedElement);
 
-  NSString* newValue;
-  if (selectedRange) {
-    AXValueRef rangeValue = (AXValueRef)selectedRange;
+  NSUInteger selectionLength = 0;
+  CFIndex selectionStart = before;
+  CFTypeRef selectedRange = nullptr;
+  if (AXUIElementCopyAttributeValue(focusedElement, kAXSelectedTextRangeAttribute, &selectedRange) == kAXErrorSuccess && selectedRange) {
     CFRange range;
-    if (AXValueGetValue(rangeValue, (AXValueType)kAXValueCFRangeType, &range)) {
-      NSMutableString* mutable_ = [current mutableCopy];
-      NSRange nsRange = NSMakeRange(range.location, range.length);
-      if (nsRange.location + nsRange.length <= (NSUInteger)[mutable_ length]) {
-        [mutable_ replaceCharactersInRange:nsRange withString:nsText];
-        newValue = mutable_;
-      } else {
-        newValue = [current stringByAppendingString:nsText];
-      }
-    } else {
-      newValue = [current stringByAppendingString:nsText];
+    if (AXValueGetValue((AXValueRef)selectedRange, (AXValueType)kAXValueCFRangeType, &range) && range.location >= 0) {
+      selectionStart = range.location;
+      selectionLength = range.length;
     }
     CFRelease(selectedRange);
-  } else {
-    newValue = [current stringByAppendingString:nsText];
+  }
+  NSUInteger expected = before - selectionLength + [nsText length];
+
+  if (AXUIElementSetAttributeValue(focusedElement, kAXSelectedTextAttribute, (__bridge CFTypeRef)nsText) != kAXErrorSuccess) {
+    CFRelease(focusedElement);
+    return false;
   }
 
-  if (currentValue) CFRelease(currentValue);
+  // Chromium and Electron apps (Chrome, Slack, Claude, VS Code…) apply the
+  // edit asynchronously, so wait briefly for the new text to show up. Any
+  // change in length means the insert landed: falling back to paste then
+  // would type the text twice.
+  bool landed = false;
+  for (int waited = 0; waited <= 300; waited += 25) {
+    NSUInteger now = CopyValueLength(focusedElement);
+    if (now == expected || now != before) { landed = true; break; }
+    usleep(25 * 1000);
+  }
 
-  err = AXUIElementSetAttributeValue(
-      focusedElement, kAXValueAttribute, (__bridge CFTypeRef)newValue);
-
+  if (landed) SetCaret(focusedElement, selectionStart + [nsText length]);
   CFRelease(focusedElement);
-  return err == kAXErrorSuccess;
+  return landed;
 }
 
 // Strategy 2: CGEvent keystroke simulation — types each character
@@ -469,9 +480,11 @@ static Napi::Value InjectText(const Napi::CallbackInfo& info) {
   if (text.empty()) return Napi::String::New(env, "empty");
 
   // Try strategies in order
+  // Paste comes before keystrokes: it inserts at the cursor in one step and
+  // leaves the cursor after the text in every app.
   if (InjectViaAccessibility(text)) return Napi::String::New(env, "accessibility");
-  if (InjectViaKeystrokes(text)) return Napi::String::New(env, "keystrokes");
   if (InjectViaClipboard(text)) return Napi::String::New(env, "clipboard");
+  if (InjectViaKeystrokes(text)) return Napi::String::New(env, "keystrokes");
 
   return Napi::String::New(env, "failed");
 }

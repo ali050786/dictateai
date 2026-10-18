@@ -232,37 +232,17 @@
               </div>
               <div class="setting-row">
                 <div class="setting-info">
-                  <span class="setting-label">Pill Position</span>
-                  <span class="setting-desc">Where the recording indicator appears</span>
+                  <span class="setting-label">Pill position</span>
+                  <span class="setting-desc" id="pill-position-desc">Where the recording pill appears on your screen</span>
                 </div>
-                <div class="pill-position-grid" id="pill-position-grid">
-                  <button class="pill-pos" data-pos="top-left" title="Top Left">
-                    <span class="pill-dot horizontal"></span>
-                  </button>
-                  <button class="pill-pos" data-pos="top-center" title="Top Center">
-                    <span class="pill-dot horizontal"></span>
-                  </button>
-                  <button class="pill-pos" data-pos="top-right" title="Top Right">
-                    <span class="pill-dot horizontal"></span>
-                  </button>
-                  <button class="pill-pos" data-pos="center-left" title="Center Left">
-                    <span class="pill-dot vertical"></span>
-                  </button>
-                  <button class="pill-pos" data-pos="center" title="Center">
-                    <span class="pill-dot horizontal"></span>
-                  </button>
-                  <button class="pill-pos" data-pos="center-right" title="Center Right">
-                    <span class="pill-dot vertical"></span>
-                  </button>
-                  <button class="pill-pos" data-pos="bottom-left" title="Bottom Left">
-                    <span class="pill-dot horizontal"></span>
-                  </button>
-                  <button class="pill-pos active" data-pos="bottom-center" title="Bottom Center">
-                    <span class="pill-dot horizontal"></span>
-                  </button>
-                  <button class="pill-pos" data-pos="bottom-right" title="Bottom Right">
-                    <span class="pill-dot horizontal"></span>
-                  </button>
+                <div class="pill-screen" id="pill-position-grid" role="radiogroup" aria-label="Pill position">
+                  <span class="pill-screen-menubar"></span>
+                  <button class="pill-pos" data-pos="top-left" role="radio" aria-label="Top left" title="Top left"><span class="pill-dot"></span></button>
+                  <button class="pill-pos" data-pos="top-center" role="radio" aria-label="Top center" title="Top center"><span class="pill-dot"></span></button>
+                  <button class="pill-pos" data-pos="top-right" role="radio" aria-label="Top right" title="Top right"><span class="pill-dot"></span></button>
+                  <button class="pill-pos" data-pos="bottom-left" role="radio" aria-label="Bottom left" title="Bottom left"><span class="pill-dot"></span></button>
+                  <button class="pill-pos active" data-pos="bottom-center" role="radio" aria-label="Bottom center" title="Bottom center"><span class="pill-dot"></span></button>
+                  <button class="pill-pos" data-pos="bottom-right" role="radio" aria-label="Bottom right" title="Bottom right"><span class="pill-dot"></span></button>
                 </div>
               </div>
               <div class="setting-row">
@@ -351,16 +331,15 @@
                 </div>
                 <select id="llm-provider-select" class="setting-select">
                   <option value="local">On your Mac</option>
-                  <option value="cloud-free">Cloud, free</option>
-                  <option value="cloud-paid">Cloud, paid</option>
+                  <option value="cloud">Cloud</option>
                 </select>
               </div>
-              <div class="setting-row" id="paid-model-row">
+              <div class="setting-row" id="cloud-model-row">
                 <div class="setting-info">
                   <span class="setting-label">Cloud model</span>
                   <span class="setting-desc">Any OpenRouter model ID</span>
                 </div>
-                <input type="text" id="paid-model-input" class="setting-input" spellcheck="false" />
+                <input type="text" id="cloud-model-input" class="setting-input" spellcheck="false" />
               </div>
               <div class="setting-row" id="api-key-row">
                 <div class="setting-info">

@@ -806,56 +806,69 @@ body {
   background: #ccc;
 }
 
-/* --- Pill Position Grid --- */
-.pill-position-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 32px);
-  grid-template-rows: repeat(3, 32px);
-  gap: 4px;
+/* --- Pill Position: a miniature screen with the six spots --- */
+.pill-screen {
+  position: relative;
+  width: 136px;
+  height: 86px;
   flex-shrink: 0;
+  border: 1.5px solid #d4d4d4;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.pill-screen-menubar {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 7px;
+  background: #ededed;
 }
 
 .pill-pos {
-  width: 32px;
-  height: 32px;
-  border: 1.5px solid #ddd;
+  position: absolute;
+  width: 40px;
+  height: 26px;
+  border: none;
   border-radius: 6px;
-  background: #fafafa;
+  background: transparent;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
-  transition: all 0.15s ease;
 }
+
+.pill-pos[data-pos^="top"] { top: 9px; }
+.pill-pos[data-pos^="bottom"] { bottom: 3px; }
+.pill-pos[data-pos$="left"] { left: 3px; }
+.pill-pos[data-pos$="center"] { left: calc(50% - 20px); }
+.pill-pos[data-pos$="right"] { right: 3px; }
 
 .pill-pos:hover {
-  border-color: #bbb;
-  background: #f0f0f0;
+  background: #f3f3f3;
 }
 
-.pill-pos.active {
-  border-color: #007aff;
-  background: #eef4ff;
-  box-shadow: 0 0 0 1px rgba(0, 122, 255, 0.2);
+.pill-pos:focus-visible {
+  outline: 2px solid #007aff;
+  outline-offset: -2px;
 }
 
 .pill-dot {
-  background: #666;
+  width: 20px;
+  height: 6px;
   border-radius: 3px;
+  background: #d4d4d4;
   transition: all 0.15s ease;
 }
 
+.pill-pos:hover .pill-dot {
+  background: #999;
+}
+
 .pill-pos.active .pill-dot {
-  background: #007aff;
-}
-
-.pill-dot.horizontal {
-  width: 14px;
-  height: 4px;
-}
-
-.pill-dot.vertical {
-  width: 4px;
-  height: 14px;
+  width: 24px;
+  height: 7px;
+  background: #1a1a1a;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }

@@ -18,7 +18,7 @@ import {
 } from './text-injection';
 import { transcribe, isModelDownloaded, downloadModel, setLanguage, getLanguage, getModel, startServer, stopServer, isServerRunning, isWhisperKitInstalled, setOnStatusChange } from './whisper-engine';
 import { exec } from 'child_process';
-import { formatText, hasApiKey, saveApiKey, loadConfig, saveConfig, ShortcutConfig, PillPosition, canFormat, removeApiKey, getLlmProvider, LlmProvider, CloudTier, CleanupLocation, getCloudTier, getCloudModel, DEFAULT_PAID_MODEL } from './llm-formatter';
+import { formatText, hasApiKey, saveApiKey, loadConfig, saveConfig, ShortcutConfig, PillPosition, normalizePillPosition, canFormat, removeApiKey, getLlmProvider, LlmProvider, CleanupLocation, getCloudModel, DEFAULT_CLOUD_MODEL } from './llm-formatter';
 import { startLocalLlm, stopLocalLlm, isMlxInstalled, isLocalLlmRunning, isLocalLlmStarting, getLocalModel, setOnLocalLlmStatusChange, defaultLocalModelFor } from './local-llm';
 import { getFocusedElementInfo } from './text-injection';
 import { noticeAfterCleanup } from './notices';
@@ -159,25 +159,15 @@ function updateTrayMenu(): void {
   tray.setTitle(isRecording ? '🔴' : '🎙');
 }
 
-function isVerticalPosition(pos: PillPosition): boolean {
-  return pos === 'center-left' || pos === 'center-right';
-}
-
 function applyOverlayPosition(): void {
   if (!overlayWindow || overlayWindow.isDestroyed()) return;
 
   const display = screen.getPrimaryDisplay();
   const { x: dX, y: dY, width: dW, height: dH } = display.workArea;
-  const isVert = isVerticalPosition(pillPosition);
   const MARGIN = 12;
-
-  // Resize window for vertical vs horizontal
-  const winW = isVert ? 52 : 240;
-  const winH = isVert ? 160 : 52;
+  const winW = 240;
+  const winH = 52;
   overlayWindow.setSize(winW, winH);
-
-  // Tell renderer about orientation
-  overlayWindow.webContents.send('overlay:orientation', isVert ? 'vertical' : 'horizontal');
 
   let x: number, y: number;
 
@@ -188,12 +178,6 @@ function applyOverlayPosition(): void {
       x = dX + Math.round((dW - winW) / 2); y = dY + MARGIN; break;
     case 'top-right':
       x = dX + dW - winW - MARGIN; y = dY + MARGIN; break;
-    case 'center-left':
-      x = dX + MARGIN; y = dY + Math.round((dH - winH) / 2); break;
-    case 'center':
-      x = dX + Math.round((dW - winW) / 2); y = dY + Math.round((dH - winH) / 2); break;
-    case 'center-right':
-      x = dX + dW - winW - MARGIN; y = dY + Math.round((dH - winH) / 2); break;
     case 'bottom-left':
       x = dX + MARGIN; y = dY + dH - winH - MARGIN; break;
     case 'bottom-right':
@@ -624,8 +608,8 @@ function setupIPC(): void {
     return true;
   });
   ipcMain.handle('config:getLlmProvider', () => getLlmProvider());
-  ipcMain.handle('config:setLlmProvider', (_event, provider: LlmProvider, tier?: CloudTier) => {
-    saveConfig(tier ? { llmProvider: provider, cloudTier: tier } : { llmProvider: provider });
+  ipcMain.handle('config:setLlmProvider', (_event, provider: LlmProvider) => {
+    saveConfig({ llmProvider: provider });
     syncLocalLlm();
     return true;
   });
@@ -635,12 +619,10 @@ function setupIPC(): void {
     running: isLocalLlmRunning(),
     starting: isLocalLlmStarting(),
     model: getLocalModel(),
-    cloudTier: getCloudTier(),
     cloudModel: getCloudModel(),
   }));
-  ipcMain.handle('config:getPaidModel', () => loadConfig().model || DEFAULT_PAID_MODEL);
-  ipcMain.handle('config:setPaidModel', (_event, model: string) => {
-    saveConfig({ model: model.trim() || DEFAULT_PAID_MODEL });
+  ipcMain.handle('config:setCloudModel', (_event, model: string) => {
+    saveConfig({ model: model.trim() || DEFAULT_CLOUD_MODEL });
     return true;
   });
 
@@ -667,9 +649,9 @@ function setupIPC(): void {
   ipcMain.handle('config:getPillPosition', () => {
     return pillPosition;
   });
-  ipcMain.handle('config:setPillPosition', (_event, position: PillPosition) => {
-    pillPosition = position;
-    saveConfig({ pillPosition: position });
+  ipcMain.handle('config:setPillPosition', (_event, position: string) => {
+    pillPosition = normalizePillPosition(position);
+    saveConfig({ pillPosition });
     console.log(`[DictateAI] Pill position changed to: ${position}`);
     return true;
   });
@@ -708,6 +690,13 @@ app.whenReady().then(() => {
   if (savedConfig.language) {
     setLanguage(savedConfig.language);
   }
+  // "Cloud, free" (openrouter/free) was removed for being slow. Move those
+  // users to local rather than onto paid credits they never chose.
+  if (savedConfig.cloudTier !== undefined) {
+    const wasFree = savedConfig.llmProvider === 'cloud' && savedConfig.cloudTier === 'free';
+    saveConfig(wasFree ? { llmProvider: 'local', cloudTier: undefined } : { cloudTier: undefined });
+    if (wasFree) console.log('[DictateAI] Cloud, free was removed — switched cleanup to local');
+  }
   if (savedConfig.llmEnabled !== undefined) {
     llmEnabled = savedConfig.llmEnabled;
   }
@@ -717,7 +706,8 @@ app.whenReady().then(() => {
     console.log(`[DictateAI] Restored shortcut: ${s.display}`);
   }
   if (savedConfig.pillPosition) {
-    pillPosition = savedConfig.pillPosition;
+    pillPosition = normalizePillPosition(savedConfig.pillPosition);
+    if (pillPosition !== savedConfig.pillPosition) saveConfig({ pillPosition });
     console.log(`[DictateAI] Restored pill position: ${pillPosition}`);
   }
   if (savedConfig.muteWhileSpeaking != null) {

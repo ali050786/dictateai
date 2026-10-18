@@ -16,12 +16,6 @@ body {
   padding-bottom: 8px;
 }
 
-/* Vertical layout for side positions */
-body.vertical {
-  align-items: center;
-  padding-bottom: 0;
-}
-
 .flow-bar {
   display: flex;
   align-items: center;
@@ -36,12 +30,6 @@ body.vertical {
     0 0 0 0.5px rgba(255, 255, 255, 0.08) inset;
 }
 
-/* Vertical pill */
-body.vertical .flow-bar {
-  flex-direction: column;
-  border-radius: 20px;
-}
-
 /* Idle: hidden */
 .flow-bar.idle {
   opacity: 0;
@@ -50,10 +38,6 @@ body.vertical .flow-bar {
   width: 48px;
   height: 36px;
   background: rgba(30, 30, 30, 0.85);
-}
-
-body.vertical .flow-bar.idle {
-  transform: translateX(12px) scale(0.92);
 }
 
 /* Recording: compact dark pill with waveform */
@@ -66,13 +50,6 @@ body.vertical .flow-bar.idle {
   background: rgba(20, 20, 22, 0.92);
 }
 
-body.vertical .flow-bar.recording {
-  transform: translateX(0) scale(1);
-  width: 36px;
-  height: 140px;
-  padding: 14px 0;
-}
-
 /* Processing: compact pill with label */
 .flow-bar.processing {
   opacity: 1;
@@ -83,13 +60,6 @@ body.vertical .flow-bar.recording {
   background: rgba(20, 20, 22, 0.92);
 }
 
-body.vertical .flow-bar.processing {
-  transform: translateX(0) scale(1);
-  width: 34px;
-  height: 120px;
-  padding: 14px 0;
-}
-
 /* Downloading: wider for text */
 .flow-bar.downloading {
   opacity: 1;
@@ -98,13 +68,6 @@ body.vertical .flow-bar.processing {
   height: 34px;
   padding: 0 14px;
   background: rgba(20, 20, 22, 0.92);
-}
-
-body.vertical .flow-bar.downloading {
-  transform: translateX(0) scale(1);
-  width: 34px;
-  height: 160px;
-  padding: 14px 0;
 }
 
 /* Error / empty: brief red-tinted pill */
@@ -118,13 +81,6 @@ body.vertical .flow-bar.downloading {
   box-shadow:
     0 4px 20px rgba(0, 0, 0, 0.35),
     0 0 0 0.5px rgba(220, 38, 38, 0.25) inset;
-}
-
-body.vertical .flow-bar.error {
-  transform: translateX(0) scale(1);
-  width: 34px;
-  height: 160px;
-  padding: 14px 0;
 }
 
 .flow-bar.error .label {
@@ -143,12 +99,6 @@ body.vertical .flow-bar.error {
   height: 20px;
 }
 
-body.vertical .waveform {
-  flex-direction: column;
-  width: 20px;
-  height: auto;
-}
-
 .flow-bar.idle .waveform,
 .flow-bar.processing .waveform,
 .flow-bar.downloading .waveform {
@@ -162,14 +112,6 @@ body.vertical .waveform {
   transition: height 0.08s ease-out;
   min-height: 3px;
   height: 3px;
-}
-
-body.vertical .waveform .bar {
-  width: 3px;
-  min-width: 3px;
-  height: 2.5px;
-  min-height: 2.5px;
-  transition: width 0.08s ease-out;
 }
 
 /* Idle animation for bars when recording but silent */
@@ -188,15 +130,6 @@ body.vertical .waveform .bar {
   50% { height: 8px; opacity: 0.8; }
 }
 
-body.vertical .flow-bar.recording .waveform .bar {
-  animation: idle-pulse-v 1.2s ease-in-out infinite;
-}
-
-@keyframes idle-pulse-v {
-  0%, 100% { width: 3px; opacity: 0.5; }
-  50% { width: 8px; opacity: 0.8; }
-}
-
 /* When audio levels are being set via JS, disable the CSS animation */
 .flow-bar.recording.has-audio .waveform .bar {
   animation: none;
@@ -209,11 +142,6 @@ body.vertical .flow-bar.recording .waveform .bar {
   letter-spacing: 0.01em;
   white-space: nowrap;
   color: rgba(255, 255, 255, 0.85);
-}
-
-body.vertical .label {
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
 }
 
 .flow-bar.idle .label {
@@ -232,13 +160,6 @@ body.vertical .label {
   display: none;
 }
 
-body.vertical .preview {
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  max-width: none;
-  max-height: 200px;
-}
-
 .flow-bar.recording .preview:not(:empty) {
   display: inline;
 }
@@ -252,16 +173,6 @@ body.vertical .preview {
   min-width: 140px;
   max-width: 320px;
   padding: 0 14px;
-}
-
-body.vertical .flow-bar.recording.has-preview {
-  width: 36px;
-  min-width: 36px;
-  max-width: 36px;
-  height: auto;
-  min-height: 140px;
-  max-height: 320px;
-  padding: 14px 0;
 }
 
 /* --- Close button (hands-free only) --- */
@@ -282,11 +193,6 @@ body.vertical .flow-bar.recording.has-preview {
   margin-left: 2px;
   flex-shrink: 0;
   transition: background 0.15s ease;
-}
-
-body.vertical .close-btn {
-  margin-left: 0;
-  margin-top: 2px;
 }
 
 .close-btn:hover {
@@ -310,12 +216,6 @@ body.vertical .close-btn {
   margin-right: 6px;
   vertical-align: middle;
   animation: dot-pulse 1s ease-in-out infinite;
-}
-
-body.vertical .flow-bar.processing .label::before,
-body.vertical .flow-bar.downloading .label::before {
-  margin-right: 0;
-  margin-bottom: 6px;
 }
 
 @keyframes dot-pulse {
