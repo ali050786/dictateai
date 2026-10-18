@@ -1,4 +1,5 @@
 import * as path from 'path';
+import { app } from 'electron';
 
 declare const __non_webpack_require__: typeof require;
 
@@ -34,16 +35,17 @@ function getAddon(): TextInjectionAddon {
   if (addon) return addon;
 
   // In dev: __dirname = <project>/.webpack/main → go up 2 to reach project root
-  // In prod: the addon will be in the app's resources
-  const projectRoot = path.resolve(__dirname, '..', '..');
-  const addonPath = path.join(
-    projectRoot,
-    'native',
-    'text-injection',
-    'build',
-    'Release',
-    'text_injection.node',
-  );
+  // In prod: forge's extraResource copies the addon into Contents/Resources
+  const addonPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'text_injection.node')
+    : path.join(
+        path.resolve(__dirname, '..', '..'),
+        'native',
+        'text-injection',
+        'build',
+        'Release',
+        'text_injection.node',
+      );
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires

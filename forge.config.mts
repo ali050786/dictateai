@@ -14,6 +14,9 @@ import { rendererConfig } from './webpack.renderer.config';
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
+    // The text-injection addon is loaded with a plain require at runtime, so
+    // webpack never sees it. Copy it next to app.asar (Contents/Resources).
+    extraResource: ['native/text-injection/build/Release/text_injection.node'],
   },
   rebuildConfig: {},
   makers: [
