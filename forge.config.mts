@@ -22,7 +22,9 @@ const config: ForgeConfig = {
     asar: true,
     // The text-injection addon is loaded with a plain require at runtime, so
     // webpack never sees it. Copy it next to app.asar (Contents/Resources).
-    extraResource: ['native/text-injection/build/Release/text_injection.node'],
+    // The speech and cleanup engines (scripts/build-engines.sh) land in
+    // Contents/Resources/bin and Contents/Resources/python.
+    extraResource: ['native/text-injection/build/Release/text_injection.node', 'engines/bin', 'engines/python'],
     // macOS keys Accessibility, Microphone and Keychain access to this ID.
     appBundleId: BUNDLE_ID,
     appCategoryType: 'public.app-category.productivity',

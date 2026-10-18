@@ -1,7 +1,7 @@
 {
   "name": "dictateai",
   "productName": "DictateAI",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Open-source voice dictation for macOS — local Whisper STT + AI formatting",
   "keywords": [
@@ -16,10 +16,11 @@
   "main": ".webpack/main/index.cjs",
   "scripts": {
     "build:native": "node-gyp rebuild --directory native/text-injection",
+    "build:engines": "scripts/build-engines.sh",
     "start": "electron-forge start",
-    "prepackage": "npm run build:native",
+    "prepackage": "npm run build:native && npm run build:engines",
     "package": "electron-forge package",
-    "premake": "npm run build:native",
+    "premake": "npm run build:native && npm run build:engines",
     "make": "electron-forge make",
     "release": "electron-forge release",
     "lint": "oxlint && oxfmt --check",

@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as http from 'http';
 import { redact } from './log';
+import { bundledPath, DownloadWatch, formatBytes } from './engines';
 
 const WHISPERKIT_PORT = 50060;
 const WHISPERKIT_HOST = 'localhost';
@@ -12,18 +13,25 @@ const DEFAULT_MODEL = 'small';
 // WhisperKit's default download folder is ~/Documents/huggingface, which
 // macOS blocks for apps without Documents access; keep models with our data.
 const MODEL_DIR = path.join(os.homedir(), '.dictateai', 'whisperkit');
+// openai_whisper-small, downloaded the first time the server starts.
+const MODEL_BYTES = 486_500_000;
 
 let serverProcess: ChildProcess | null = null;
 let currentLanguage = 'auto';
 let currentModel = DEFAULT_MODEL;
 let serverReady = false;
 let onStatusChange: (() => void) | null = null;
+const download = new DownloadWatch(MODEL_DIR, MODEL_BYTES, () => onStatusChange?.());
 
 export function setOnStatusChange(cb: () => void): void {
   onStatusChange = cb;
 }
 
+// The copy bundled in the app first; in dev without engines/, a Homebrew install.
 function findWhisperKitCLI(): string | null {
+  const bundled = bundledPath('bin', 'whisperkit-cli');
+  if (bundled) return bundled;
+
   const candidates = [
     '/opt/homebrew/bin/whisperkit-cli',
     '/usr/local/bin/whisperkit-cli',
@@ -44,6 +52,11 @@ function findWhisperKitCLI(): string | null {
 
 export function isWhisperKitInstalled(): boolean {
   return findWhisperKitCLI() !== null;
+}
+
+// While the speech model downloads on first run: how far along, and how big it is.
+export function getModelDownload(): { percent: number; size: string } | null {
+  return download.percent == null ? null : { percent: download.percent, size: formatBytes(MODEL_BYTES) };
 }
 
 export function setLanguage(lang: string): void {
@@ -82,6 +95,8 @@ export async function downloadModel(
 async function waitForServer(timeoutMs = 60_000): Promise<boolean> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
+    // The server exited (a failed download, a bad model): stop waiting.
+    if (!serverProcess) return false;
     try {
       const ok = await checkServerHealth();
       if (ok) return true;
@@ -114,7 +129,7 @@ export async function startServer(): Promise<boolean> {
 
   const cliPath = findWhisperKitCLI();
   if (!cliPath) {
-    console.error('[DictateAI] WhisperKit CLI not found. Install with: brew install whisperkit-cli');
+    console.error('[DictateAI] Speech engine not found. Run scripts/build-engines.sh, or: brew install whisperkit-cli');
     return false;
   }
 
@@ -156,7 +171,9 @@ export async function startServer(): Promise<boolean> {
   });
 
   console.log('[DictateAI] Waiting for WhisperKit server to be ready...');
-  const ready = await waitForServer(300_000);
+  // The first start downloads the model, which can take a while on a slow connection.
+  download.begin();
+  const ready = await waitForServer(30 * 60_000).finally(() => download.end());
 
   if (ready) {
     serverReady = true;

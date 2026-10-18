@@ -30,3 +30,6 @@ npm-debug.log*
 
 # Lock file
 package-lock.json
+
+# Bundled engines (built by scripts/build-engines.sh)
+engines/

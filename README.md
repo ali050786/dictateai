@@ -4,34 +4,30 @@ Voice dictation for macOS that runs on your Mac. Hold a key, speak, and the text
 
 Apple Silicon only.
 
-## Requirements
+## Install
 
-DictateAI uses two command-line tools for the speech and AI models:
+1. Download `DictateAI-<version>-arm64.dmg` from [Releases](https://github.com/ali050786/dictateai/releases), open it and drag **DictateAI** into **Applications**.
+2. The first time, right-click DictateAI in Applications and choose **Open** (the app is signed ad hoc, not notarized).
+3. It lives in the menu bar (🎙), not the Dock. Allow **Accessibility** when macOS asks (System Settings → Privacy & Security → Accessibility → DictateAI). The dictation key starts working as soon as you allow it.
+4. Allow the **Microphone** the first time you dictate.
+
+Nothing else to install: the speech engine (WhisperKit) and the cleanup engine (a standalone Python with mlx-lm) ship inside the app. The first run downloads the models, with progress shown in Settings: about 490 MB for speech, and 1.7 GB (English) or 4.3 GB (other languages) for cleanup.
+
+After rebuilding and reinstalling, macOS may ask for Accessibility again.
+
+## Build
+
+Building needs Homebrew's `whisperkit-cli` (copied into the app) and [uv](https://docs.astral.sh/uv/) (fetches the bundled Python):
 
 ```bash
 brew install whisperkit-cli
 ```
 
 ```bash
-uv tool install mlx-lm
+npm install && npm run make
 ```
 
-(`uv` comes from https://docs.astral.sh/uv/.) The first run downloads the models: about 500 MB for speech, and 1.8 GB (English) or 4.3 GB (other languages) for cleanup.
-
-## Install
-
-1. Build the installer:
-
-   ```bash
-   npm install && npm run make
-   ```
-
-2. Open `out/make/dmg/arm64/DictateAI-<version>-arm64.dmg` and drag **DictateAI** into **Applications**.
-3. Open DictateAI from Applications. It lives in the menu bar (🎙), not the Dock.
-4. Allow **Accessibility** when macOS asks (System Settings → Privacy & Security → Accessibility → DictateAI). The dictation key starts working as soon as you allow it.
-5. Allow the **Microphone** the first time you dictate.
-
-The app is signed ad hoc, not notarized. That's fine for a copy you built yourself; a build downloaded from elsewhere would need right-click → Open the first time. After rebuilding and reinstalling, macOS may ask for Accessibility again.
+`npm run make` runs `scripts/build-engines.sh` and writes `out/make/dmg/arm64/DictateAI-<version>-arm64.dmg`.
 
 ## Use
 
@@ -44,7 +40,7 @@ Settings, history and your dictionary are in the app window: click the menu-bar 
 ## Develop
 
 ```bash
-npm start
+npm run build:engines && npm start
 ```
 
 Set `DICTATEAI_DEBUG=1` to log dictated text; by default logs show only its length.
