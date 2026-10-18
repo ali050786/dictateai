@@ -18,12 +18,15 @@ import {
 } from './text-injection';
 import { transcribe, isModelDownloaded, downloadModel, setLanguage, getLanguage, getModel, startServer, stopServer, isServerRunning, isWhisperKitInstalled, setOnStatusChange } from './whisper-engine';
 import { exec } from 'child_process';
-import { formatText, hasApiKey, saveApiKey, loadConfig, saveConfig, ShortcutConfig, PillPosition, normalizePillPosition, canFormat, removeApiKey, getLlmProvider, LlmProvider, CleanupLocation, getCloudModel, DEFAULT_CLOUD_MODEL } from './llm-formatter';
+import { formatText, canFormat, CleanupLocation, getCloudModel, DEFAULT_CLOUD_MODEL } from './llm-formatter';
+import { hasApiKey, saveApiKey, removeApiKey, migrateApiKey, loadConfig, saveConfig, ShortcutConfig, PillPosition, normalizePillPosition, getLlmProvider, LlmProvider } from './config';
 import { startLocalLlm, stopLocalLlm, isMlxInstalled, isLocalLlmRunning, isLocalLlmStarting, getLocalModel, setOnLocalLlmStatusChange, defaultLocalModelFor, localModelOptions } from './local-llm';
 import { getFocusedElementInfo } from './text-injection';
 import { noticeAfterCleanup } from './notices';
+import { addHistory, listHistory, clearHistory } from './history';
 import { applyReplacements, detectCorrections, addCorrection, getAllCorrections, removeCorrection } from './dictionary';
 import started from 'electron-squirrel-startup';
+import { redact } from './log';
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
@@ -37,21 +40,48 @@ if (started) {
 let tray: Tray | null = null;
 let overlayWindow: BrowserWindow | null = null;
 let hubWindow: BrowserWindow | null = null;
-let isRecording = false;
-let audioChunks: Float32Array[] = [];
-let lastInjectedText = '';
-let lastPTTDown = 0;
-let handsFreeActive = false;
-let llmEnabled = false;
-let previewTimer: ReturnType<typeof setInterval> | null = null;
-let previewInFlight = false;
-let hideTimer: ReturnType<typeof setTimeout> | null = null;
-let hideTransitionTimer: ReturnType<typeof setTimeout> | null = null;
-let pillPosition: PillPosition = 'bottom-center';
-let muteWhileSpeaking = false;
+
+// What the dictation pipeline is doing. `session` goes up with every
+// recording: async work from an older session still inserts its text, but
+// never touches the pill or the audio of the current one.
+type Phase = 'idle' | 'recording' | 'processing';
+const dictation = {
+  phase: 'idle' as Phase,
+  session: 0,
+  chunks: [] as Float32Array[],
+  handsFree: false,
+  previewTimer: null as ReturnType<typeof setInterval> | null,
+  previewInFlight: false,
+};
+// Recordings are processed one after another, so text is inserted in the
+// order it was spoken even when the user starts talking again early.
+let processingQueue: Promise<void> = Promise.resolve();
+
+const pillTimers = {
+  hide: null as ReturnType<typeof setTimeout> | null,
+  transition: null as ReturnType<typeof setTimeout> | null,
+};
+
+// True only when we muted system audio ourselves, so we never unmute audio
+// the user had muted.
 let didMuteAudio = false;
 
-const dictationHistory: { text: string; app: string; time: string; location: CleanupLocation }[] = [];
+function isRecording(): boolean {
+  return dictation.phase === 'recording';
+}
+
+// Settings are read from config.ts (cached) rather than copied into
+// variables here, so there is one source of truth.
+function settings(): { llmEnabled: boolean; pillPosition: PillPosition; muteWhileSpeaking: boolean; shortcutLabel: string } {
+  const config = loadConfig();
+  return {
+    llmEnabled: config.llmEnabled ?? false,
+    pillPosition: normalizePillPosition(config.pillPosition),
+    muteWhileSpeaking: config.muteWhileSpeaking ?? false,
+    shortcutLabel: config.shortcut?.display || 'Right ⌥ Option',
+  };
+}
+
 
 function createOverlayWindow(): BrowserWindow {
   const display = screen.getPrimaryDisplay();
@@ -77,11 +107,19 @@ function createOverlayWindow(): BrowserWindow {
     },
   });
 
+  lockDownWebContents(win);
   win.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
   win.setIgnoreMouseEvents(true);
   win.hide();
 
   return win;
+}
+
+// Our pages never open windows or navigate; refuse both so injected content
+// can't load a remote page with the preload's bridge attached.
+function lockDownWebContents(win: BrowserWindow): void {
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  win.webContents.on('will-navigate', (event) => event.preventDefault());
 }
 
 function createHubWindow(): void {
@@ -105,6 +143,7 @@ function createHubWindow(): void {
     },
   });
 
+  lockDownWebContents(hubWindow);
   hubWindow.loadURL(HUB_WINDOW_WEBPACK_ENTRY);
 
   hubWindow.once('ready-to-show', () => {
@@ -141,11 +180,11 @@ function updateTrayMenu(): void {
     },
     { type: 'separator' },
     {
-      label: isRecording ? '⏹ Stop Recording' : '🎙 Start Recording',
+      label: isRecording() ? '⏹ Stop Recording' : '🎙 Start Recording',
       click: () => toggleRecording(),
     },
     {
-      label: 'Hold Right ⌥ Option to dictate',
+      label: `Hold ${settings().shortcutLabel} to dictate`,
       enabled: false,
     },
     { type: 'separator' },
@@ -156,7 +195,7 @@ function updateTrayMenu(): void {
   ]);
 
   tray.setContextMenu(contextMenu);
-  tray.setTitle(isRecording ? '🔴' : '🎙');
+  tray.setTitle(isRecording() ? '🔴' : '🎙');
 }
 
 function applyOverlayPosition(): void {
@@ -171,7 +210,7 @@ function applyOverlayPosition(): void {
 
   let x: number, y: number;
 
-  switch (pillPosition) {
+  switch (settings().pillPosition) {
     case 'top-left':
       x = dX + MARGIN; y = dY + MARGIN; break;
     case 'top-center':
@@ -191,10 +230,8 @@ function applyOverlayPosition(): void {
 }
 
 function toggleRecording(): void {
-  console.log(
-    `[DictateAI] toggleRecording called — isRecording=${isRecording}`,
-  );
-  if (isRecording) {
+  console.log(`[DictateAI] toggleRecording called — phase=${dictation.phase}`);
+  if (isRecording()) {
     stopRecording();
   } else {
     startRecording();
@@ -202,7 +239,7 @@ function toggleRecording(): void {
 }
 
 function muteSystemAudio(): void {
-  if (!muteWhileSpeaking) return;
+  if (!settings().muteWhileSpeaking) return;
   exec('osascript -e "output muted of (get volume settings)"', (err, stdout) => {
     if (err) {
       console.error('[DictateAI] Failed to check mute state:', err);
@@ -236,10 +273,12 @@ function unmuteSystemAudio(): void {
 }
 
 function startRecording(): void {
+  if (isRecording()) return;
+  dictation.session++;
+  dictation.phase = 'recording';
+  dictation.chunks = [];
   cancelPendingHide();
   muteSystemAudio();
-  isRecording = true;
-  audioChunks = [];
   updateTrayMenu();
   console.log('[DictateAI] Recording started');
 
@@ -253,40 +292,56 @@ function startRecording(): void {
 }
 
 function stopRecording(): void {
-  isRecording = false;
+  if (!isRecording()) return;
+  const session = dictation.session;
+  const chunks = dictation.chunks;
+  dictation.phase = 'processing';
+  dictation.chunks = [];
   unmuteSystemAudio();
   stopPreviewTimer();
   updateTrayMenu();
-  console.log(
-    `[DictateAI] Recording stopped — ${audioChunks.length} chunks collected`,
-  );
+  console.log(`[DictateAI] Recording stopped — ${chunks.length} chunks collected`);
 
+  sendPillState(session, 'processing');
+  processingQueue = processingQueue.then(() => processAudio(session, chunks));
+}
+
+// Pill updates from a dictation that has since been replaced by a newer
+// recording are dropped.
+function sendPillState(session: number, state: string): void {
+  if (session !== dictation.session) return;
   if (overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.webContents.send('dictation:state', 'processing');
+    overlayWindow.webContents.send('dictation:state', state);
   }
+}
 
-  processAudio();
+function hidePillLater(session: number, ms: number): void {
+  if (session === dictation.session) hideOverlayAfterDelay(ms);
+}
+
+function joinChunks(chunks: Float32Array[]): Float32Array {
+  const combined = new Float32Array(chunks.reduce((sum, chunk) => sum + chunk.length, 0));
+  let offset = 0;
+  for (const chunk of chunks) {
+    combined.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return combined;
 }
 
 function startPreviewTimer(): void {
   stopPreviewTimer();
-  previewTimer = setInterval(async () => {
-    if (!isRecording || audioChunks.length === 0 || previewInFlight) return;
+  const session = dictation.session;
+  dictation.previewTimer = setInterval(async () => {
+    if (!isRecording() || dictation.chunks.length === 0 || dictation.previewInFlight) return;
 
-    const totalLength = audioChunks.reduce((sum, chunk) => sum + chunk.length, 0);
-    if (totalLength / 16000 < 1.0) return;
+    const combined = joinChunks(dictation.chunks);
+    if (combined.length / 16000 < 1.0) return;
 
-    const combined = new Float32Array(totalLength);
-    let offset = 0;
-    for (const chunk of audioChunks) {
-      combined.set(chunk, offset);
-      offset += chunk.length;
-    }
-
-    previewInFlight = true;
+    dictation.previewInFlight = true;
     try {
       const preview = await transcribe(combined);
-      if (isRecording && preview && !/^\s*[\[(].*[\])]\s*$/i.test(preview)) {
+      if (isRecording() && session === dictation.session && preview && !/^\s*[\[(].*[\])]\s*$/i.test(preview)) {
         if (overlayWindow && !overlayWindow.isDestroyed()) {
           overlayWindow.webContents.send('dictation:preview', preview);
         }
@@ -294,38 +349,34 @@ function startPreviewTimer(): void {
     } catch {
       // preview failures are non-critical
     } finally {
-      previewInFlight = false;
+      dictation.previewInFlight = false;
     }
   }, 2000);
 }
 
 function stopPreviewTimer(): void {
-  if (previewTimer) {
-    clearInterval(previewTimer);
-    previewTimer = null;
+  if (dictation.previewTimer) {
+    clearInterval(dictation.previewTimer);
+    dictation.previewTimer = null;
   }
-  previewInFlight = false;
+  dictation.previewInFlight = false;
 }
 
-async function processAudio(): Promise<void> {
-  if (audioChunks.length === 0) {
+async function processAudio(session: number, chunks: Float32Array[]): Promise<void> {
+  if (chunks.length === 0) {
     console.log('[DictateAI] No audio chunks — skipping');
-    finishProcessing('');
+    hidePillLater(session, 300);
+    finishProcessing(session, '');
     return;
   }
 
-  const totalLength = audioChunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  const combined = new Float32Array(totalLength);
-  let offset = 0;
-  for (const chunk of audioChunks) {
-    combined.set(chunk, offset);
-    offset += chunk.length;
-  }
+  const combined = joinChunks(chunks);
 
   const durationSec = combined.length / 16000;
   if (durationSec < 0.2) {
     console.log(`[DictateAI] Recording too short (${durationSec.toFixed(1)}s) — skipping`);
-    finishProcessing('');
+    hidePillLater(session, 300);
+    finishProcessing(session, '');
     return;
   }
 
@@ -349,22 +400,18 @@ async function processAudio(): Promise<void> {
     const rawText = await transcribe(audioToTranscribe);
     console.log(`[DictateAI] Transcription took ${Date.now() - sttStart}ms`);
     if (!rawText || /^\s*[\[(].*[\])]\s*$/i.test(rawText) || rawText.trim().length < 2) {
-      console.log(`[DictateAI] No usable speech detected: "${rawText}"`);
-      if (overlayWindow && !overlayWindow.isDestroyed()) {
-        overlayWindow.webContents.send('dictation:state', 'empty');
-      }
-      hideOverlayAfterDelay(1500);
-      finishProcessing('');
+      console.log(`[DictateAI] No usable speech detected: ${redact(rawText)}`);
+      sendPillState(session, 'empty');
+      hidePillLater(session, 1500);
+      finishProcessing(session, '');
       return;
     }
 
     const correctedText = applyReplacements(rawText);
     const context = getFocusedElementInfo();
 
-    if (llmEnabled && canFormat()) {
-      if (overlayWindow && !overlayWindow.isDestroyed()) {
-        overlayWindow.webContents.send('dictation:state', 'formatting');
-      }
+    if (settings().llmEnabled && canFormat()) {
+      sendPillState(session, 'formatting');
       const llmStart = Date.now();
       try {
         const result = await formatText(correctedText, 'dictation', {
@@ -372,38 +419,36 @@ async function processAudio(): Promise<void> {
           role: context.role,
         });
         console.log(`[DictateAI] LLM cleanup took ${Date.now() - llmStart}ms`);
-        finishProcessing(result.text || correctedText, context.app, result.location);
+        finishProcessing(session, result.text || correctedText, context.app, result.location);
         noticeAfterCleanup(result, getLocalModel(), loadConfig().language);
       } catch (err) {
         console.error('[DictateAI] LLM formatting failed, using raw:', err);
-        finishProcessing(correctedText, context.app);
+        finishProcessing(session, correctedText, context.app);
       }
     } else {
-      finishProcessing(correctedText, context.app);
+      finishProcessing(session, correctedText, context.app);
     }
   } catch (err) {
     console.error('[DictateAI] Transcription failed:', err);
-    if (overlayWindow && !overlayWindow.isDestroyed()) {
-      overlayWindow.webContents.send('dictation:state', 'error');
-    }
-    hideOverlayAfterDelay(2000);
-    finishProcessing('');
+    sendPillState(session, 'error');
+    hidePillLater(session, 2000);
+    finishProcessing(session, '');
   }
 }
 
 function cancelPendingHide(): void {
-  if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
-  if (hideTransitionTimer) { clearTimeout(hideTransitionTimer); hideTransitionTimer = null; }
+  if (pillTimers.hide) { clearTimeout(pillTimers.hide); pillTimers.hide = null; }
+  if (pillTimers.transition) { clearTimeout(pillTimers.transition); pillTimers.transition = null; }
 }
 
 function hideOverlayAfterDelay(ms: number): void {
   cancelPendingHide();
-  hideTimer = setTimeout(() => {
-    hideTimer = null;
+  pillTimers.hide = setTimeout(() => {
+    pillTimers.hide = null;
     if (overlayWindow && !overlayWindow.isDestroyed()) {
       overlayWindow.webContents.send('dictation:state', 'idle');
-      hideTransitionTimer = setTimeout(() => {
-        hideTransitionTimer = null;
+      pillTimers.transition = setTimeout(() => {
+        pillTimers.transition = null;
         if (overlayWindow && !overlayWindow.isDestroyed()) {
           overlayWindow.hide();
         }
@@ -412,45 +457,43 @@ function hideOverlayAfterDelay(ms: number): void {
   }, ms);
 }
 
-function finishProcessing(text: string, appName?: string, location: CleanupLocation = 'local'): void {
-  audioChunks = [];
+function finishProcessing(session: number, text: string, appName?: string, location: CleanupLocation = 'local'): void {
+  if (session === dictation.session && dictation.phase === 'processing') {
+    dictation.phase = 'idle';
+  }
 
   if (text) {
-    console.log(`[DictateAI] Result: ${text}`);
+    console.log(`[DictateAI] Result: ${redact(text)}`);
 
-    if (overlayWindow && !overlayWindow.isDestroyed()) {
-      overlayWindow.webContents.send('dictation:state', 'injecting');
-    }
+    sendPillState(session, 'injecting');
 
     const method = injectText(text);
     console.log(`[DictateAI] Injected via: ${method}`);
-    lastInjectedText = text;
-    hideOverlayAfterDelay(1200);
+    hidePillLater(session, 1200);
 
     const entry = { text, app: appName || '', time: new Date().toISOString(), location };
-    dictationHistory.unshift(entry);
-    if (dictationHistory.length > 100) dictationHistory.pop();
+    addHistory(entry);
 
     if (hubWindow && !hubWindow.isDestroyed()) {
       hubWindow.webContents.send('dictation:log', entry);
     }
 
+    // A few seconds later, compare what's in the field with what we inserted
+    // to learn the user's corrections (see dictionary.ts).
     setTimeout(() => {
-      if (!lastInjectedText) return;
       try {
         const fieldInfo = getFocusedElementInfo();
         console.log(`[DictateAI] Correction check — available: ${fieldInfo.available}, app: ${fieldInfo.app}, role: ${fieldInfo.role}`);
-        console.log(`[DictateAI] Correction check — title: "${fieldInfo.title || ''}", value: "${(fieldInfo.value || '').slice(0, 200)}"`);
-        console.log(`[DictateAI] Correction check — injected: "${lastInjectedText}"`);
+        console.log(`[DictateAI] Correction check — title: ${redact(fieldInfo.title)}, value: ${redact(fieldInfo.value)}`);
+        console.log(`[DictateAI] Correction check — injected: ${redact(text)}`);
         if (fieldInfo.available && fieldInfo.value) {
-          detectCorrections(lastInjectedText, fieldInfo.value);
+          detectCorrections(text, fieldInfo.value);
         } else {
           console.log('[DictateAI] Correction check — no value from focused element');
         }
       } catch (err) {
         console.error('[DictateAI] Correction check error:', err);
       }
-      lastInjectedText = '';
     }, 5000);
   }
 }
@@ -460,14 +503,15 @@ function registerPushToTalk(): void {
   const TRIPLE_TAP_MS = 600;
   let tapCount = 0;
   let tapTimer: ReturnType<typeof setTimeout> | null = null;
+  let lastPTTDown = 0;
 
   const started = startPushToTalk((event) => {
     const now = Date.now();
 
     if (event === 'down') {
-      if (handsFreeActive) {
+      if (dictation.handsFree) {
         console.log('[DictateAI] Hands-free: key down — stop recording');
-        handsFreeActive = false;
+        dictation.handsFree = false;
         if (overlayWindow && !overlayWindow.isDestroyed()) {
           overlayWindow.webContents.send('dictation:handsfree', false);
           overlayWindow.setIgnoreMouseEvents(true);
@@ -487,7 +531,7 @@ function registerPushToTalk(): void {
 
       if (tapTimer) clearTimeout(tapTimer);
 
-      if (tapCount >= 3 && !isRecording) {
+      if (tapCount >= 3 && !isRecording()) {
         console.log('[DictateAI] Triple-tap detected — undo last dictation');
         tapCount = 0;
         undoLastInjection();
@@ -499,10 +543,10 @@ function registerPushToTalk(): void {
         return;
       }
 
-      if (tapCount === 2 && !isRecording) {
+      if (tapCount === 2 && !isRecording()) {
         tapTimer = setTimeout(() => {
           console.log('[DictateAI] Double-tap confirmed — hands-free mode');
-          handsFreeActive = true;
+          dictation.handsFree = true;
           startRecording();
           if (overlayWindow && !overlayWindow.isDestroyed()) {
             overlayWindow.webContents.send('dictation:handsfree', true);
@@ -513,13 +557,13 @@ function registerPushToTalk(): void {
         return;
       }
 
-      if (tapCount === 1 && !isRecording) {
+      if (tapCount === 1 && !isRecording()) {
         console.log('[DictateAI] PTT key down — start recording');
         startRecording();
       }
     } else if (event === 'up') {
-      if (handsFreeActive) return;
-      if (isRecording && tapCount <= 1) {
+      if (dictation.handsFree) return;
+      if (isRecording() && tapCount <= 1) {
         console.log('[DictateAI] PTT key up — stop recording');
         stopRecording();
       }
@@ -530,15 +574,15 @@ function registerPushToTalk(): void {
 
 function setupIPC(): void {
   ipcMain.on('audio:chunk', (_event, data: ArrayBuffer) => {
-    if (isRecording) {
-      audioChunks.push(new Float32Array(data));
+    if (isRecording()) {
+      dictation.chunks.push(new Float32Array(data));
     }
   });
 
   ipcMain.on('overlay:stopRecording', () => {
-    if (isRecording) {
+    if (isRecording()) {
       console.log('[DictateAI] Stop recording from overlay close button');
-      handsFreeActive = false;
+      dictation.handsFree = false;
       if (overlayWindow && !overlayWindow.isDestroyed()) {
         overlayWindow.webContents.send('dictation:handsfree', false);
         overlayWindow.setIgnoreMouseEvents(true);
@@ -558,7 +602,7 @@ function setupIPC(): void {
   });
 
   ipcMain.handle('dictation:getState', () => {
-    return isRecording ? 'recording' : 'idle';
+    return isRecording() ? 'recording' : 'idle';
   });
 
   ipcMain.handle('config:hasApiKey', () => hasApiKey());
@@ -583,8 +627,12 @@ function setupIPC(): void {
     return getAllCorrections();
   });
 
+  ipcMain.handle('history:clear', () => {
+    clearHistory();
+    return true;
+  });
   ipcMain.handle('history:list', () => {
-    return dictationHistory;
+    return listHistory();
   });
 
   ipcMain.handle('config:getLanguage', () => getLanguage());
@@ -600,9 +648,8 @@ function setupIPC(): void {
     }
     return true;
   });
-  ipcMain.handle('config:getLlmEnabled', () => llmEnabled);
+  ipcMain.handle('config:getLlmEnabled', () => settings().llmEnabled);
   ipcMain.handle('config:setLlmEnabled', (_event, enabled: boolean) => {
-    llmEnabled = enabled;
     saveConfig({ llmEnabled: enabled });
     syncLocalLlm();
     return true;
@@ -657,20 +704,18 @@ function setupIPC(): void {
   });
 
   ipcMain.handle('config:getPillPosition', () => {
-    return pillPosition;
+    return settings().pillPosition;
   });
   ipcMain.handle('config:setPillPosition', (_event, position: string) => {
-    pillPosition = normalizePillPosition(position);
-    saveConfig({ pillPosition });
+    saveConfig({ pillPosition: normalizePillPosition(position) });
     console.log(`[DictateAI] Pill position changed to: ${position}`);
     return true;
   });
 
   ipcMain.handle('config:getMuteWhileSpeaking', () => {
-    return muteWhileSpeaking;
+    return settings().muteWhileSpeaking;
   });
   ipcMain.handle('config:setMuteWhileSpeaking', (_event, enabled: boolean) => {
-    muteWhileSpeaking = enabled;
     saveConfig({ muteWhileSpeaking: enabled });
     console.log(`[DictateAI] Mute while speaking: ${enabled}`);
     return true;
@@ -690,12 +735,24 @@ function setupIPC(): void {
 
 app.dock?.hide();
 
+// A second copy would fight the first for the push-to-talk key and the
+// WhisperKit/MLX ports. Launching again just opens the existing hub.
+const isPrimaryInstance = app.requestSingleInstanceLock();
+if (!isPrimaryInstance) {
+  app.quit();
+} else {
+  app.on('second-instance', () => createHubWindow());
+}
+
 app.whenReady().then(() => {
+  if (!isPrimaryInstance) return;
+
   createTray();
   overlayWindow = createOverlayWindow();
   registerPushToTalk();
   setupIPC();
 
+  migrateApiKey();
   const savedConfig = loadConfig();
   if (savedConfig.language) {
     setLanguage(savedConfig.language);
@@ -707,23 +764,15 @@ app.whenReady().then(() => {
     saveConfig(wasFree ? { llmProvider: 'local', cloudTier: undefined } : { cloudTier: undefined });
     if (wasFree) console.log('[DictateAI] Cloud, free was removed — switched cleanup to local');
   }
-  if (savedConfig.llmEnabled !== undefined) {
-    llmEnabled = savedConfig.llmEnabled;
-  }
   if (savedConfig.shortcut) {
     const s = savedConfig.shortcut;
     setPttKey(s.keyCode, s.flagMask, s.isModifier, s.requiredModifiers);
     console.log(`[DictateAI] Restored shortcut: ${s.display}`);
   }
-  if (savedConfig.pillPosition) {
-    pillPosition = normalizePillPosition(savedConfig.pillPosition);
-    if (pillPosition !== savedConfig.pillPosition) saveConfig({ pillPosition });
-    console.log(`[DictateAI] Restored pill position: ${pillPosition}`);
-  }
-  if (savedConfig.muteWhileSpeaking != null) {
-    muteWhileSpeaking = savedConfig.muteWhileSpeaking;
-    console.log(`[DictateAI] Restored mute while speaking: ${muteWhileSpeaking}`);
-  }
+  // Saved middle-row positions (removed) are rewritten to their new spot.
+  const pillPosition = settings().pillPosition;
+  if (savedConfig.pillPosition && pillPosition !== savedConfig.pillPosition) saveConfig({ pillPosition });
+  console.log(`[DictateAI] Pill position: ${pillPosition} · mute while speaking: ${settings().muteWhileSpeaking}`);
 
   setOnLocalLlmStatusChange(() => {
     if (hubWindow && !hubWindow.isDestroyed()) {
@@ -761,12 +810,12 @@ app.whenReady().then(() => {
     });
   }
 
-  console.log('[DictateAI] Ready. Hold Right Option key to dictate.');
+  console.log(`[DictateAI] Ready. Hold ${settings().shortcutLabel} to dictate.`);
 });
 
 // Keep the local model loaded only while it can be used: it holds ~4.5 GB.
 function syncLocalLlm(): void {
-  if (llmEnabled && getLlmProvider() === 'local') {
+  if (settings().llmEnabled && getLlmProvider() === 'local') {
     const config = loadConfig();
     startLocalLlm(config.localModel || defaultLocalModelFor(config.language));
   } else {

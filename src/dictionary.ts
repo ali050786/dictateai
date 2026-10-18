@@ -1,8 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
+import { DATA_DIR, writePrivateFile } from './config';
+import { redact } from './log';
 
-const DICT_PATH = path.join(os.homedir(), '.dictateai', 'dictionary.json');
+const DICT_PATH = path.join(DATA_DIR, 'dictionary.json');
 
 interface DictionaryEntry {
   from: string;
@@ -28,11 +29,6 @@ interface Dictionary {
 
 let cached: Dictionary | null = null;
 
-function ensureDir(): void {
-  const dir = path.dirname(DICT_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-}
-
 function load(): Dictionary {
   if (cached) return cached;
   try {
@@ -47,8 +43,7 @@ function load(): Dictionary {
 
 function save(dict: Dictionary): void {
   cached = dict;
-  ensureDir();
-  fs.writeFileSync(DICT_PATH, JSON.stringify(dict, null, 2));
+  writePrivateFile(DICT_PATH, JSON.stringify(dict, null, 2));
 }
 
 export function addCorrection(original: string, corrected: string, manual = false): void {
@@ -77,7 +72,7 @@ export function addCorrection(original: string, corrected: string, manual = fals
   }
 
   save(dict);
-  console.log(`[DictateAI] Dictionary: "${original}" → "${corrected}"`);
+  console.log(`[DictateAI] Dictionary learned: ${redact(original)} → ${redact(corrected)}`);
 }
 
 export function applyReplacements(text: string): string {
@@ -94,7 +89,7 @@ export function applyReplacements(text: string): string {
   }
 
   if (result !== text) {
-    console.log(`[DictateAI] Dictionary applied: "${text}" → "${result}"`);
+    console.log(`[DictateAI] Dictionary applied: ${redact(text)} → ${redact(result)}`);
   }
 
   return result;

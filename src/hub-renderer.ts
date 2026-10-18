@@ -57,6 +57,7 @@ interface HubAPI {
   };
   history: {
     list: () => Promise<HistoryEntry[]>;
+    clear: () => Promise<boolean>;
   };
   onDictationLog: (callback: (entry: HistoryEntry) => void) => () => void;
   onLlmStatusChanged: (callback: () => void) => () => void;
@@ -237,6 +238,13 @@ const cloudModelInput = document.getElementById('cloud-model-input') as HTMLInpu
 const micSelect = document.getElementById('mic-select') as HTMLSelectElement;
 const micStatus = document.getElementById('mic-status')!;
 
+// loadSettings runs again on every status change, so listeners are attached
+// once here, never inside it.
+const muteToggle = document.getElementById('mute-toggle') as HTMLInputElement;
+muteToggle.addEventListener('change', () => {
+  window.hub.config.setMuteWhileSpeaking(muteToggle.checked);
+});
+
 async function loadSettings(): Promise<void> {
   const hasKey = await window.hub.config.hasApiKey();
   apiKeyStatus.textContent = hasKey
@@ -257,11 +265,7 @@ async function loadSettings(): Promise<void> {
 
   loadMicDevices();
 
-  const muteToggle = document.getElementById('mute-toggle') as HTMLInputElement;
   muteToggle.checked = await window.hub.config.getMuteWhileSpeaking();
-  muteToggle.addEventListener('change', () => {
-    window.hub.config.setMuteWhileSpeaking(muteToggle.checked);
-  });
 
   const llmOn = await window.hub.config.getLlmEnabled();
   llmToggle.checked = llmOn;
@@ -516,6 +520,13 @@ function renderHistory(entries: HistoryEntry[]): void {
   });
 }
 
+document.getElementById('btn-clear-history')!.addEventListener('click', async () => {
+  if (!confirm('Clear your dictation history from this Mac?')) return;
+  await window.hub.history.clear();
+  dictationLog.length = 0;
+  renderHistory([]);
+});
+
 window.hub.onDictationLog((entry) => {
   dictationLog.unshift(entry);
   if (document.getElementById('page-dictation')!.classList.contains('active')) {
@@ -594,9 +605,14 @@ async function loadShortcuts(): Promise<void> {
   hfText.textContent = 'Active';
 
   const saved = await window.hub.config.getShortcut();
-  const display = saved?.display || DEFAULT_KEY;
+  showShortcut(saved?.display || DEFAULT_KEY);
+}
+
+// The shortcut appears on the Shortcuts page and in the Dictation hero.
+function showShortcut(display: string): void {
   document.getElementById('ptt-key-display')!.textContent = display;
   document.getElementById('handsfree-key-display')!.textContent = display;
+  document.getElementById('hero-key')!.textContent = display;
 }
 
 function keyEventToLabel(e: KeyboardEvent): string {
@@ -721,8 +737,7 @@ btnSaveShortcut.addEventListener('click', async () => {
 
   await window.hub.config.setShortcut(config);
 
-  document.getElementById('ptt-key-display')!.textContent = recordedKeyDisplay;
-  document.getElementById('handsfree-key-display')!.textContent = recordedKeyDisplay;
+  showShortcut(recordedKeyDisplay);
 
   shortcutModal.classList.add('hidden');
   editingShortcut = null;
@@ -730,8 +745,7 @@ btnSaveShortcut.addEventListener('click', async () => {
 
 document.getElementById('btn-reset-shortcuts')?.addEventListener('click', async () => {
   await window.hub.config.setShortcut(DEFAULT_SHORTCUT);
-  document.getElementById('ptt-key-display')!.textContent = DEFAULT_KEY;
-  document.getElementById('handsfree-key-display')!.textContent = DEFAULT_KEY;
+  showShortcut(DEFAULT_KEY);
 });
 
 // --- Pill Position ---
@@ -767,3 +781,5 @@ function escapeHtml(str: string): string {
 // --- Init ---
 loadSettings();
 loadDictionary();
+loadHistory();
+loadShortcuts();

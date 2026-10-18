@@ -9,6 +9,9 @@ rules.push({
 });
 
 export const rendererConfig: Configuration = {
+  // Forge's dev default (eval-source-map) needs 'unsafe-eval', which the
+  // pages' Content-Security-Policy doesn't allow.
+  devtool: 'source-map',
   module: {
     rules,
   },

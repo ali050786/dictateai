@@ -108,3 +108,19 @@ All changes below are committed in `4f00b60` (on top of `fd9c565`).
   - Cloud: "Cloud, free" (`openrouter/free`) removed for being slow. Options are On your Mac and Cloud (your key, your model, default `deepseek/deepseek-chat`). Users on Cloud, free are moved to local on startup.
 - **Dictionary learning fix — uncommitted.** Auto-learning compared the dictated text with the whole field from its first word, so any earlier text or edit became a rule (7 bad ones, e.g. "We" → "Hi,", "free" → "paid"; Ali deleted them, BMAD and Party-Mode kept and marked `manual`). `detectCorrections` now finds the stretch of the field that lines up with the dictation, learns only a single changed word, and ignores punctuation-only changes. Learned entries apply only after the same fix is made twice (`LEARN_THRESHOLD`); entries added in the Dictionary tab apply immediately. The Dictionary tab marks not-yet-active entries "learning".
 - **Local model choice (Sally's design) — uncommitted.** Under "Cleanup runs", an "Advanced: choose model" link opens a picker: Automatic (recommended, 3B for English and 7B otherwise), Faster (3B), More accurate (7B), and Most accurate (14B) only on Macs with 32 GB or more. The choice is saved as `localModel`; Automatic clears it. 14B has not been tested for quality or speed.
+
+---
+
+## Final pass: state, security, UX (2026-10-18, BMAD party mode)
+
+1. **Clipboard** — paste saves every clipboard item and type (images, rich text, files) and restores it 0.5s later, unless the user copied something new meanwhile. Our text is marked transient/concealed so clipboard managers skip it. Tested with an image round trip.
+2. **OpenRouter key** — encrypted with Electron `safeStorage` (Keychain) as `openRouterKeyEncrypted`; a plaintext key is migrated on startup. `config.json`, `dictionary.json`, `history.json` are written 0600 and `~/.dictateai` is 0700. Note: the dev app (Electron) and packaged app (DictateAI) have different Keychain identities, so a key saved in one can't be decrypted by the other; re-enter it.
+3. **Local model server** — started with `--allowed-origins https://dictateai.invalid`, so web pages can't read replies or send JSON requests. Limit: a page could still send a blind simple POST that makes the Mac generate; `mlx_lm.server` has no auth.
+4. **Logs** — dictated text and field contents are logged as `<N chars>` (`src/log.ts`); `DICTATEAI_DEBUG=1` logs the text.
+5. **Mute switch** — its listener was re-attached on every settings reload; now attached once.
+6. **History** — persisted to `~/.dictateai/history.json` (last 100) with a Clear button. The Dictation page and tray now show the user's real shortcut instead of "Right ⌥ Option".
+7. **Hardening** — Content-Security-Policy on both pages (overlay allows `data:` scripts for the audio worklet), renderer dev source maps switched off `eval`, windows refuse new windows and navigation, `openExternal` only opens `https://openrouter.ai`. Verified in dev and in the packaged app (via remote debugging).
+8. **Single instance** — `requestSingleInstanceLock`; a second launch opens the existing hub. Verified with the packaged app.
+9. **State** — `main.ts` uses one `dictation` object (`phase`, `session`, `chunks`, `handsFree`, preview timer) and reads settings from `src/config.ts` (moved out of `llm-formatter.ts`). Older dictations still insert their text but can't change the pill or wipe the new recording's audio; recordings are processed in order. Fixed: empty or too-short recordings left the pill stuck on "Transcribing".
+
+Not verified by hand yet: the state machine under real rapid dictation, and cloud cleanup with the encrypted key.

@@ -1,35 +1,10 @@
 import OpenAI from 'openai';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
 import { getCorrectionsPrompt } from './dictionary';
 import { MLX_BASE_URL, getLocalModel, isLocalLlmRunning, startLocalLlm, defaultLocalModelFor } from './local-llm';
 import { checkCleanup } from './cleanup-check';
+import { loadConfig, getLlmProvider, getApiKey, hasApiKey } from './config';
+import { redact } from './log';
 
-const CONFIG_PATH = path.join(os.homedir(), '.dictateai', 'config.json');
-
-export interface ShortcutConfig {
-  code: string;
-  display: string;
-  keyCode: number;
-  flagMask: number;
-  isModifier: boolean;
-  requiredModifiers: number;
-}
-
-export type PillPosition = 'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
-
-const PILL_POSITIONS: PillPosition[] = ['top-left', 'top-center', 'top-right', 'bottom-left', 'bottom-center', 'bottom-right'];
-
-// The middle-row positions were removed; move them to the bottom spot below.
-export function normalizePillPosition(pos: string | undefined): PillPosition {
-  if (PILL_POSITIONS.includes(pos as PillPosition)) return pos as PillPosition;
-  if (pos === 'center-left') return 'bottom-left';
-  if (pos === 'center-right') return 'bottom-right';
-  return 'bottom-center';
-}
-
-export type LlmProvider = 'local' | 'cloud';
 // Where the injected text was cleaned; 'local' also covers raw text, which
 // never left the Mac either.
 export type CleanupLocation = 'local' | 'cloud';
@@ -42,63 +17,6 @@ export interface CleanupResult {
   // False when the raw transcript was returned unchanged.
   cleaned: boolean;
   fallback?: CloudFallback;
-}
-
-export interface Config {
-  openRouterApiKey?: string;
-  model?: string;
-  llmProvider?: LlmProvider;
-  // Legacy: 'free' meant openrouter/free, removed because it was slow.
-  // main.ts moves those users to local on startup.
-  cloudTier?: 'free' | 'paid';
-  localModel?: string;
-  language?: string;
-  llmEnabled?: boolean;
-  shortcut?: ShortcutConfig;
-  audioDevice?: string;
-  pillPosition?: PillPosition;
-  // One-time and once-a-day notices (see notices.ts).
-  notices?: { modelNoteShown?: boolean; fallbackShownOn?: string };
-  muteWhileSpeaking?: boolean;
-}
-
-let cachedConfig: Config | null = null;
-
-export function loadConfig(): Config {
-  if (cachedConfig) return cachedConfig;
-  try {
-    if (fs.existsSync(CONFIG_PATH)) {
-      cachedConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
-      return cachedConfig!;
-    }
-  } catch {}
-  cachedConfig = {};
-  return cachedConfig;
-}
-
-export function saveConfig(updates: Partial<Config>): void {
-  const dir = path.dirname(CONFIG_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  cachedConfig = { ...loadConfig(), ...updates };
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(cachedConfig, null, 2));
-}
-
-export function saveApiKey(key: string): void {
-  saveConfig({ openRouterApiKey: key });
-}
-
-// Drops the key from memory and from config.json (JSON.stringify omits
-// undefined fields).
-export function removeApiKey(): void {
-  saveConfig({ openRouterApiKey: undefined });
-}
-
-export function hasApiKey(): boolean {
-  return !!loadConfig().openRouterApiKey;
-}
-
-export function getLlmProvider(): LlmProvider {
-  return loadConfig().llmProvider ?? 'local';
 }
 
 // True when the selected provider can take a request right now. A local
@@ -129,12 +47,12 @@ function getLocalClient(): OpenAI | null {
 }
 
 function getCloudClient(): OpenAI | null {
-  const config = loadConfig();
-  if (!config.openRouterApiKey) return null;
+  const apiKey = getApiKey();
+  if (!apiKey) return null;
 
   return new OpenAI({
     baseURL: 'https://openrouter.ai/api/v1',
-    apiKey: config.openRouterApiKey,
+    apiKey,
     // Retrying a 429 only delays the local fallback by several seconds.
     maxRetries: 0,
     defaultHeaders: {
@@ -214,11 +132,11 @@ export async function formatText(
         const formatted = await complete(cloud, model, systemPrompt, rawText);
         const problem = checkCleanup(rawText, formatted);
         if (!problem) {
-          console.log(`[DictateAI] LLM formatted (${mode}, ${model}): "${formatted}"`);
+          console.log(`[DictateAI] LLM formatted (${mode}, ${model}): ${redact(formatted)}`);
           return { text: formatted, location: 'cloud', cleaned: true };
         }
         fallback = 'rejected';
-        console.log(`[DictateAI] Cloud result rejected (${problem}): "${formatted}"`);
+        console.log(`[DictateAI] Cloud result rejected (${problem}): ${redact(formatted)}`);
       } catch (err) {
         if (isRateLimited(err)) {
           cloudPausedUntil = Date.now() + CLOUD_PAUSE_MS;
@@ -245,10 +163,10 @@ export async function formatText(
     const formatted = await complete(local, getLocalModel(), systemPrompt, rawText);
     const problem = checkCleanup(rawText, formatted);
     if (!problem) {
-      console.log(`[DictateAI] LLM formatted (${mode}, local): "${formatted}"`);
+      console.log(`[DictateAI] LLM formatted (${mode}, local): ${redact(formatted)}`);
       return { text: formatted, location: 'local', cleaned: true, fallback };
     }
-    console.log(`[DictateAI] Local result rejected (${problem}): "${formatted}" — returning raw text`);
+    console.log(`[DictateAI] Local result rejected (${problem}): ${redact(formatted)} — returning raw text`);
   } catch (err) {
     console.error('[DictateAI] Local formatting failed:', err);
   }

@@ -1,5 +1,6 @@
 import { Notification } from 'electron';
-import { loadConfig, saveConfig, CleanupResult } from './llm-formatter';
+import { loadConfig, saveConfig } from './config';
+import { CleanupResult } from './llm-formatter';
 
 // Calm, rare messages: macOS notifications rather than the pill, which is too
 // small for a sentence and must keep showing dictation state.

@@ -175,6 +175,10 @@ async function doStart(): Promise<boolean> {
     '--model', currentModel,
     '--host', MLX_HOST,
     '--port', String(MLX_PORT),
+    // The default (*) lets any web page in the user's browser call the model
+    // and read the reply. DictateAI talks to it from Node, which sends no
+    // Origin, so allow none: an origin that can never match.
+    '--allowed-origins', 'https://dictateai.invalid',
     '--log-level', 'WARNING',
   ], {
     stdio: ['ignore', 'pipe', 'pipe'],

@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer, shell } from 'electron';
 
+const ALLOWED_LINK_HOSTS = ['openrouter.ai'];
+
 contextBridge.exposeInMainWorld('hub', {
   dictionary: {
     list: () => ipcRenderer.invoke('dictionary:list'),
@@ -33,6 +35,7 @@ contextBridge.exposeInMainWorld('hub', {
   },
   history: {
     list: () => ipcRenderer.invoke('history:list'),
+    clear: () => ipcRenderer.invoke('history:clear'),
   },
   onDictationLog: (callback: (entry: { text: string; app: string; time: string }) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, entry: { text: string; app: string; time: string }) =>
@@ -55,5 +58,13 @@ contextBridge.exposeInMainWorld('hub', {
     ipcRenderer.on('stt:status-changed', handler);
     return () => ipcRenderer.removeListener('stt:status-changed', handler);
   },
-  openExternal: (url: string) => shell.openExternal(url),
+  // Only links the hub actually shows; anything else is ignored.
+  openExternal: (url: string) => {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'https:' && ALLOWED_LINK_HOSTS.includes(parsed.hostname)) {
+        shell.openExternal(parsed.toString());
+      }
+    } catch {}
+  },
 });

@@ -113,28 +113,42 @@ static bool InjectViaKeystrokes(const std::string& text) {
   return true;
 }
 
-// Strategy 3: Clipboard paste — Cmd+V
+// Strategy 3: Clipboard paste — Cmd+V. The user's clipboard (every item and
+// type: images, rich text, files) is saved first and put back afterwards.
+static NSArray<NSPasteboardItem*>* SnapshotPasteboard(NSPasteboard* pb) {
+  NSMutableArray<NSPasteboardItem*>* copies = [NSMutableArray array];
+  for (NSPasteboardItem* item in [pb pasteboardItems]) {
+    NSPasteboardItem* copy = [[NSPasteboardItem alloc] init];
+    for (NSPasteboardType type in [item types]) {
+      NSData* data = [item dataForType:type];
+      if (data) [copy setData:data forType:type];
+    }
+    [copies addObject:copy];
+  }
+  return copies;
+}
+
 static bool InjectViaClipboard(const std::string& text) {
   NSPasteboard* pb = [NSPasteboard generalPasteboard];
+  NSArray<NSPasteboardItem*>* saved = SnapshotPasteboard(pb);
 
-  // Save current clipboard
-  NSArray* oldTypes = [pb types];
-  NSData* oldData = nil;
-  if ([oldTypes containsObject:NSPasteboardTypeString]) {
-    oldData = [pb dataForType:NSPasteboardTypeString];
-  }
-
-  // Set our text
+  // Mark our text transient and concealed so clipboard managers skip it.
   [pb clearContents];
-  [pb setString:[NSString stringWithUTF8String:text.c_str()] forType:NSPasteboardTypeString];
+  NSPasteboardItem* item = [[NSPasteboardItem alloc] init];
+  [item setString:[NSString stringWithUTF8String:text.c_str()] forType:NSPasteboardTypeString];
+  [item setString:@"" forType:@"org.nspasteboard.TransientType"];
+  [item setString:@"" forType:@"org.nspasteboard.ConcealedType"];
+  [pb writeObjects:@[item]];
+  NSInteger ourChange = [pb changeCount];
 
-  // Simulate Cmd+V
   CGEventRef keyDown = CGEventCreateKeyboardEvent(nullptr, kVK_ANSI_V, true);
   CGEventRef keyUp = CGEventCreateKeyboardEvent(nullptr, kVK_ANSI_V, false);
 
   if (!keyDown || !keyUp) {
     if (keyDown) CFRelease(keyDown);
     if (keyUp) CFRelease(keyUp);
+    [pb clearContents];
+    if ([saved count]) [pb writeObjects:saved];
     return false;
   }
 
@@ -145,13 +159,13 @@ static bool InjectViaClipboard(const std::string& text) {
   CFRelease(keyDown);
   CFRelease(keyUp);
 
-  // Restore clipboard after a delay
+  // Restore once the target app has read the paste. Skip it if the user
+  // copied something new in the meantime, so we never overwrite that.
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 500 * NSEC_PER_MSEC),
                  dispatch_get_main_queue(), ^{
-    if (oldData) {
-      [pb clearContents];
-      [pb setData:oldData forType:NSPasteboardTypeString];
-    }
+    if ([pb changeCount] != ourChange) return;
+    [pb clearContents];
+    if ([saved count]) [pb writeObjects:saved];
   });
 
   return true;
@@ -278,7 +292,7 @@ static Napi::Value StartPushToTalk(const Napi::CallbackInfo& info) {
       CFRunLoopAddSource(CFRunLoopGetCurrent(), pttRunLoopSource, kCFRunLoopCommonModes);
       CGEventTapEnable(pttEventTap, true);
 
-      NSLog(@"[DictateAI] Push-to-talk monitor started (hold Right Option)");
+      NSLog(@"[DictateAI] Push-to-talk monitor started");
 
       while (pttRunning) {
         CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.25, false);
