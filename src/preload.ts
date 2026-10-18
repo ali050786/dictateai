@@ -21,4 +21,23 @@ contextBridge.exposeInMainWorld('dictateAI', {
       ipcRenderer.removeListener('dictation:preview', handler);
     };
   },
+  getAudioDevice: () => ipcRenderer.invoke('config:getAudioDevice'),
+  onAudioDeviceChanged: (callback: (deviceId: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, deviceId: string) =>
+      callback(deviceId);
+    ipcRenderer.on('config:audioDeviceChanged', handler);
+    return () => {
+      ipcRenderer.removeListener('config:audioDeviceChanged', handler);
+    };
+  },
+  onHandsfree: (callback: (active: boolean) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, active: boolean) =>
+      callback(active);
+    ipcRenderer.on('dictation:handsfree', handler);
+    return () => {
+      ipcRenderer.removeListener('dictation:handsfree', handler);
+    };
+  },
+  stopRecording: () => ipcRenderer.send('overlay:stopRecording'),
+  setClickable: (clickable: boolean) => ipcRenderer.send('overlay:setClickable', clickable),
 });

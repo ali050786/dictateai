@@ -175,6 +175,35 @@ body {
   padding: 0 18px;
 }
 
+/* --- Close button (hands-free only) --- */
+.close-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 4px;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.flow-bar.recording.handsfree .close-btn {
+  display: flex;
+}
+
 /* Processing spinner dot */
 .flow-bar.processing .label::before,
 .flow-bar.downloading .label::before {

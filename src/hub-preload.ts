@@ -15,6 +15,10 @@ contextBridge.exposeInMainWorld('hub', {
     sttStatus: () => ipcRenderer.invoke('config:sttStatus'),
     getLlmEnabled: () => ipcRenderer.invoke('config:getLlmEnabled'),
     setLlmEnabled: (enabled: boolean) => ipcRenderer.invoke('config:setLlmEnabled', enabled),
+    getShortcut: () => ipcRenderer.invoke('config:getShortcut'),
+    setShortcut: (shortcut: Record<string, unknown>) => ipcRenderer.invoke('config:setShortcut', shortcut),
+    getAudioDevice: () => ipcRenderer.invoke('config:getAudioDevice'),
+    setAudioDevice: (deviceId: string) => ipcRenderer.invoke('config:setAudioDevice', deviceId),
   },
   history: {
     list: () => ipcRenderer.invoke('history:list'),

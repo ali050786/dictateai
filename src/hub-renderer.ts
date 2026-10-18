@@ -7,6 +7,15 @@ interface DictionaryEntry {
   lastUsed: string;
 }
 
+interface ShortcutConfig {
+  code: string;
+  display: string;
+  keyCode: number;
+  flagMask: number;
+  isModifier: boolean;
+  requiredModifiers: number;
+}
+
 interface HubAPI {
   dictionary: {
     list: () => Promise<DictionaryEntry[]>;
@@ -22,6 +31,10 @@ interface HubAPI {
     sttStatus: () => Promise<{ installed: boolean; running: boolean; engine: string; model: string }>;
     getLlmEnabled: () => Promise<boolean>;
     setLlmEnabled: (enabled: boolean) => Promise<boolean>;
+    getShortcut: () => Promise<ShortcutConfig | null>;
+    setShortcut: (shortcut: ShortcutConfig) => Promise<boolean>;
+    getAudioDevice: () => Promise<string>;
+    setAudioDevice: (deviceId: string) => Promise<boolean>;
   };
   history: {
     list: () => Promise<{ text: string; app: string; time: string }[]>;
@@ -187,6 +200,8 @@ const openrouterLink = document.getElementById('openrouter-link')!;
 
 const languageSelect = document.getElementById('language-select') as HTMLSelectElement;
 const llmToggle = document.getElementById('llm-toggle') as HTMLInputElement;
+const micSelect = document.getElementById('mic-select') as HTMLSelectElement;
+const micStatus = document.getElementById('mic-status')!;
 
 async function loadSettings(): Promise<void> {
   const hasKey = await window.hub.config.hasApiKey();
@@ -199,6 +214,8 @@ async function loadSettings(): Promise<void> {
 
   const lang = await window.hub.config.getLanguage();
   languageSelect.value = lang;
+
+  loadMicDevices();
 
   const llmOn = await window.hub.config.getLlmEnabled();
   llmToggle.checked = llmOn;
@@ -223,6 +240,41 @@ async function loadSettings(): Promise<void> {
     sttBadge.className = 'badge badge-blue';
   }
 }
+
+async function loadMicDevices(): Promise<void> {
+  try {
+    await navigator.mediaDevices.getUserMedia({ audio: true }).then(s => {
+      s.getTracks().forEach(t => t.stop());
+    });
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const audioInputs = devices.filter(d => d.kind === 'audioinput');
+
+    const savedDevice = await window.hub.config.getAudioDevice();
+
+    while (micSelect.options.length > 1) micSelect.remove(1);
+
+    audioInputs.forEach(device => {
+      const option = document.createElement('option');
+      option.value = device.deviceId;
+      option.textContent = device.label || `Microphone (${device.deviceId.slice(0, 8)}…)`;
+      micSelect.appendChild(option);
+    });
+
+    micSelect.value = savedDevice || '';
+    const selected = micSelect.selectedOptions[0];
+    micStatus.textContent = selected?.textContent || 'System Default';
+  } catch {
+    micStatus.textContent = 'Microphone access needed';
+  }
+}
+
+micSelect.addEventListener('change', async () => {
+  await window.hub.config.setAudioDevice(micSelect.value);
+  const selected = micSelect.selectedOptions[0];
+  micStatus.textContent = selected?.textContent || 'System Default';
+});
+
+navigator.mediaDevices.addEventListener('devicechange', () => loadMicDevices());
 
 languageSelect.addEventListener('change', async () => {
   await window.hub.config.setLanguage(languageSelect.value);
@@ -338,10 +390,56 @@ const btnSaveShortcut = document.getElementById('btn-save-shortcut')!;
 
 let editingShortcut: 'ptt' | 'handsfree' | null = null;
 let recordedKeyDisplay = '';
+let recordedKeyCode = '';
+let recordedModifiers = { meta: false, ctrl: false, alt: false, shift: false };
 
 const DEFAULT_KEY = 'Right ⌥ Option';
+const DEFAULT_SHORTCUT: ShortcutConfig = {
+  code: 'AltRight', display: DEFAULT_KEY,
+  keyCode: 0x3D, flagMask: 0x00000040, isModifier: true, requiredModifiers: 0,
+};
 
-function loadShortcuts(): void {
+const MODIFIER_LABELS: Record<string, string> = {
+  'AltLeft': 'Left ⌥ Option', 'AltRight': 'Right ⌥ Option',
+  'ControlLeft': 'Left ⌃ Control', 'ControlRight': 'Right ⌃ Control',
+  'MetaLeft': 'Left ⌘ Command', 'MetaRight': 'Right ⌘ Command',
+  'ShiftLeft': 'Left ⇧ Shift', 'ShiftRight': 'Right ⇧ Shift',
+};
+
+const MODIFIER_FLAG_MASKS: Record<string, number> = {
+  'ShiftLeft': 0x00000002, 'ShiftRight': 0x00000004,
+  'ControlLeft': 0x00000001, 'ControlRight': 0x00002000,
+  'AltLeft': 0x00000020, 'AltRight': 0x00000040,
+  'MetaLeft': 0x00000008, 'MetaRight': 0x00000010,
+};
+
+const CODE_TO_MAC_KEYCODE: Record<string, number> = {
+  'KeyA': 0x00, 'KeyS': 0x01, 'KeyD': 0x02, 'KeyF': 0x03,
+  'KeyH': 0x04, 'KeyG': 0x05, 'KeyZ': 0x06, 'KeyX': 0x07,
+  'KeyC': 0x08, 'KeyV': 0x09, 'KeyB': 0x0B, 'KeyQ': 0x0C,
+  'KeyW': 0x0D, 'KeyE': 0x0E, 'KeyR': 0x0F, 'KeyY': 0x10,
+  'KeyT': 0x11, 'KeyO': 0x1F, 'KeyU': 0x20, 'KeyI': 0x22,
+  'KeyP': 0x23, 'KeyL': 0x25, 'KeyJ': 0x26, 'KeyK': 0x28,
+  'KeyN': 0x2D, 'KeyM': 0x2E,
+  'Digit1': 0x12, 'Digit2': 0x13, 'Digit3': 0x14, 'Digit4': 0x15,
+  'Digit5': 0x17, 'Digit6': 0x16, 'Digit7': 0x1A, 'Digit8': 0x1C,
+  'Digit9': 0x19, 'Digit0': 0x1D,
+  'Space': 0x31, 'Backquote': 0x32, 'Minus': 0x1B, 'Equal': 0x18,
+  'BracketLeft': 0x21, 'BracketRight': 0x1E, 'Backslash': 0x2A,
+  'Semicolon': 0x29, 'Quote': 0x27, 'Comma': 0x2B, 'Period': 0x2F,
+  'Slash': 0x2C, 'Enter': 0x24, 'Tab': 0x30, 'Backspace': 0x33,
+  'F1': 0x7A, 'F2': 0x78, 'F3': 0x63, 'F4': 0x76,
+  'F5': 0x60, 'F6': 0x61, 'F7': 0x62, 'F8': 0x64,
+  'F9': 0x65, 'F10': 0x6D, 'F11': 0x67, 'F12': 0x6F,
+  'F13': 0x69, 'F14': 0x6B, 'F15': 0x71, 'F16': 0x6A,
+  'ShiftLeft': 0x38, 'ShiftRight': 0x3C,
+  'ControlLeft': 0x3B, 'ControlRight': 0x3E,
+  'AltLeft': 0x3A, 'AltRight': 0x3D,
+  'MetaLeft': 0x37, 'MetaRight': 0x36,
+  'CapsLock': 0x39,
+};
+
+async function loadShortcuts(): Promise<void> {
   const pttDot = document.getElementById('ptt-status-dot')!;
   const pttText = document.getElementById('ptt-status-text')!;
   const hfDot = document.getElementById('handsfree-status-dot')!;
@@ -351,9 +449,20 @@ function loadShortcuts(): void {
   pttText.textContent = 'Active';
   hfDot.classList.remove('inactive');
   hfText.textContent = 'Active';
+
+  const saved = await window.hub.config.getShortcut();
+  const display = saved?.display || DEFAULT_KEY;
+  document.getElementById('ptt-key-display')!.textContent = display;
+  document.getElementById('handsfree-key-display')!.textContent = display;
 }
 
 function keyEventToLabel(e: KeyboardEvent): string {
+  const code = e.code;
+
+  if (code in MODIFIER_LABELS) {
+    return MODIFIER_LABELS[code];
+  }
+
   const parts: string[] = [];
   if (e.metaKey) parts.push('⌘');
   if (e.ctrlKey) parts.push('⌃');
@@ -361,25 +470,50 @@ function keyEventToLabel(e: KeyboardEvent): string {
   if (e.shiftKey) parts.push('⇧');
 
   const key = e.key;
-  if (!['Meta', 'Control', 'Alt', 'Shift'].includes(key)) {
-    if (key === ' ') parts.push('Space');
-    else if (key === 'ArrowUp') parts.push('↑');
-    else if (key === 'ArrowDown') parts.push('↓');
-    else if (key === 'ArrowLeft') parts.push('←');
-    else if (key === 'ArrowRight') parts.push('→');
-    else if (key === 'Enter') parts.push('Return');
-    else if (key === 'Backspace') parts.push('⌫');
-    else if (key === 'Escape') parts.push('Esc');
-    else if (key === 'Tab') parts.push('⇥');
-    else parts.push(key.length === 1 ? key.toUpperCase() : key);
+  if (key === ' ') parts.push('Space');
+  else if (key === 'ArrowUp') parts.push('↑');
+  else if (key === 'ArrowDown') parts.push('↓');
+  else if (key === 'ArrowLeft') parts.push('←');
+  else if (key === 'ArrowRight') parts.push('→');
+  else if (key === 'Enter') parts.push('Return');
+  else if (key === 'Backspace') parts.push('⌫');
+  else if (key === 'Tab') parts.push('⇥');
+  else if (key === 'CapsLock') parts.push('⇪');
+  else if (!['Meta', 'Control', 'Alt', 'Shift'].includes(key)) {
+    parts.push(key.length === 1 ? key.toUpperCase() : key);
   }
 
   return parts.join(' + ') || 'Press a key…';
 }
 
+function buildShortcutConfig(code: string, modifiers: typeof recordedModifiers, display: string): ShortcutConfig | null {
+  const macKeyCode = CODE_TO_MAC_KEYCODE[code];
+  if (macKeyCode === undefined) return null;
+
+  if (code in MODIFIER_FLAG_MASKS) {
+    return {
+      code, display, keyCode: macKeyCode,
+      flagMask: MODIFIER_FLAG_MASKS[code],
+      isModifier: true, requiredModifiers: 0,
+    };
+  }
+
+  let reqMods = 0;
+  if (modifiers.meta) reqMods |= 0x00100000;
+  if (modifiers.ctrl) reqMods |= 0x00040000;
+  if (modifiers.alt) reqMods |= 0x00080000;
+  if (modifiers.shift) reqMods |= 0x00020000;
+
+  return {
+    code, display, keyCode: macKeyCode,
+    flagMask: 0, isModifier: false, requiredModifiers: reqMods,
+  };
+}
+
 function openShortcutRecorder(mode: 'ptt' | 'handsfree'): void {
   editingShortcut = mode;
   recordedKeyDisplay = '';
+  recordedKeyCode = '';
   shortcutModalTitle.textContent = mode === 'ptt' ? 'Push to talk shortcut' : 'Hands-free shortcut';
   shortcutRecordPrompt.textContent = 'Press a key or combination…';
   shortcutRecordArea.classList.remove('recorded');
@@ -403,6 +537,11 @@ function handleKeyRecord(e: KeyboardEvent): void {
     if (label === 'Press a key…') return;
 
     recordedKeyDisplay = label;
+    recordedKeyCode = e.code;
+    recordedModifiers = {
+      meta: e.metaKey, ctrl: e.ctrlKey, alt: e.altKey, shift: e.shiftKey,
+    };
+
     shortcutRecordPrompt.textContent = label;
     shortcutRecordArea.classList.remove('recording');
     shortcutRecordArea.classList.add('recorded');
@@ -425,22 +564,31 @@ shortcutModal.querySelector('.modal-backdrop')!.addEventListener('click', () => 
   editingShortcut = null;
 });
 
-btnSaveShortcut.addEventListener('click', () => {
-  if (!editingShortcut || !recordedKeyDisplay) return;
+btnSaveShortcut.addEventListener('click', async () => {
+  if (!editingShortcut || !recordedKeyCode) return;
 
-  const displayEl = document.getElementById(
-    editingShortcut === 'ptt' ? 'ptt-key-display' : 'handsfree-key-display'
-  )!;
-  displayEl.textContent = recordedKeyDisplay;
+  const config = buildShortcutConfig(recordedKeyCode, recordedModifiers, recordedKeyDisplay);
+  if (!config) {
+    shortcutRecordPrompt.textContent = 'Unsupported key — try another';
+    shortcutRecordArea.classList.remove('recorded');
+    shortcutRecordArea.classList.add('recording');
+    btnSaveShortcut.setAttribute('disabled', '');
+    return;
+  }
+
+  await window.hub.config.setShortcut(config);
+
+  document.getElementById('ptt-key-display')!.textContent = recordedKeyDisplay;
+  document.getElementById('handsfree-key-display')!.textContent = recordedKeyDisplay;
 
   shortcutModal.classList.add('hidden');
   editingShortcut = null;
 });
 
-document.getElementById('btn-reset-shortcuts')?.addEventListener('click', () => {
+document.getElementById('btn-reset-shortcuts')?.addEventListener('click', async () => {
+  await window.hub.config.setShortcut(DEFAULT_SHORTCUT);
   document.getElementById('ptt-key-display')!.textContent = DEFAULT_KEY;
   document.getElementById('handsfree-key-display')!.textContent = DEFAULT_KEY;
-  loadShortcuts();
 });
 
 // --- Utilities ---

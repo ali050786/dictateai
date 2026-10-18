@@ -155,9 +155,11 @@ static std::thread pttThread;
 static bool pttRunning = false;
 static bool pttKeyDown = false;
 
-// Push-to-talk trigger: Right Option key (single key hold)
-static const CGKeyCode PTT_KEY_CODE = kVK_RightOption;  // 0x3D
-static const CGEventFlags PTT_FLAG = NX_DEVICERALTKEYMASK;  // right-option-specific bit
+// Configurable PTT key — defaults to Right Option
+static CGKeyCode pttKeyCode = kVK_RightOption;         // 0x3D
+static CGEventFlags pttFlagMask = NX_DEVICERALTKEYMASK; // device-specific bit for modifier keys
+static bool pttIsModifierKey = true;                    // true = modifier-only, false = regular key
+static CGEventFlags pttRequiredModifiers = 0;           // for combos like Ctrl+Space
 
 static CGEventRef PttEventCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void* refcon) {
   (void)proxy;
@@ -168,29 +170,56 @@ static CGEventRef PttEventCallback(CGEventTapProxy proxy, CGEventType type, CGEv
     return event;
   }
 
-  // Right Option is a modifier key — it fires kCGEventFlagsChanged, not KeyDown/KeyUp
-  if (type != kCGEventFlagsChanged) return event;
+  if (pttIsModifierKey) {
+    if (type != kCGEventFlagsChanged) return event;
 
-  CGKeyCode keyCode = (CGKeyCode)CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
-  if (keyCode != PTT_KEY_CODE) return event;
+    CGKeyCode keyCode = (CGKeyCode)CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
+    if (keyCode != pttKeyCode) return event;
 
-  CGEventFlags flags = CGEventGetFlags(event);
-  bool rightOptionDown = (flags & PTT_FLAG) != 0;
+    CGEventFlags flags = CGEventGetFlags(event);
+    bool keyIsDown = (flags & pttFlagMask) != 0;
 
-  if (rightOptionDown && !pttKeyDown) {
-    pttKeyDown = true;
-    pttCallback.NonBlockingCall([](Napi::Env env, Napi::Function fn) {
-      fn.Call({Napi::String::New(env, "down")});
-    });
-    return nullptr;  // consume so it doesn't type special characters
-  }
+    if (keyIsDown && !pttKeyDown) {
+      pttKeyDown = true;
+      pttCallback.NonBlockingCall([](Napi::Env env, Napi::Function fn) {
+        fn.Call({Napi::String::New(env, "down")});
+      });
+      return nullptr;
+    }
 
-  if (!rightOptionDown && pttKeyDown) {
-    pttKeyDown = false;
-    pttCallback.NonBlockingCall([](Napi::Env env, Napi::Function fn) {
-      fn.Call({Napi::String::New(env, "up")});
-    });
-    return nullptr;
+    if (!keyIsDown && pttKeyDown) {
+      pttKeyDown = false;
+      pttCallback.NonBlockingCall([](Napi::Env env, Napi::Function fn) {
+        fn.Call({Napi::String::New(env, "up")});
+      });
+      return nullptr;
+    }
+  } else {
+    if (type == kCGEventKeyDown) {
+      CGKeyCode keyCode = (CGKeyCode)CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
+      if (keyCode != pttKeyCode) return event;
+      if (pttRequiredModifiers) {
+        CGEventFlags flags = CGEventGetFlags(event);
+        if ((flags & pttRequiredModifiers) != pttRequiredModifiers) return event;
+      }
+      if (!pttKeyDown) {
+        pttKeyDown = true;
+        pttCallback.NonBlockingCall([](Napi::Env env, Napi::Function fn) {
+          fn.Call({Napi::String::New(env, "down")});
+        });
+        return nullptr;
+      }
+    } else if (type == kCGEventKeyUp) {
+      CGKeyCode keyCode = (CGKeyCode)CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
+      if (keyCode != pttKeyCode) return event;
+      if (pttKeyDown) {
+        pttKeyDown = false;
+        pttCallback.NonBlockingCall([](Napi::Env env, Napi::Function fn) {
+          fn.Call({Napi::String::New(env, "up")});
+        });
+        return nullptr;
+      }
+    }
   }
 
   return event;
@@ -217,7 +246,7 @@ static Napi::Value StartPushToTalk(const Napi::CallbackInfo& info) {
 
   pttThread = std::thread([]() {
     @autoreleasepool {
-      CGEventMask mask = (1 << kCGEventFlagsChanged);
+      CGEventMask mask = (1 << kCGEventFlagsChanged) | (1 << kCGEventKeyDown) | (1 << kCGEventKeyUp);
 
       pttEventTap = CGEventTapCreate(
         kCGSessionEventTap,
@@ -271,6 +300,26 @@ static Napi::Value StopPushToTalk(const Napi::CallbackInfo& info) {
   }
 
   pttCallback.Release();
+  return Napi::Boolean::New(env, true);
+}
+
+static Napi::Value SetPttKey(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+
+  if (info.Length() < 3) {
+    Napi::TypeError::New(env, "Expected (keyCode, flagMask, isModifier, requiredModifiers?)").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  pttKeyCode = (CGKeyCode)info[0].As<Napi::Number>().Uint32Value();
+  pttFlagMask = (CGEventFlags)info[1].As<Napi::Number>().Int64Value();
+  pttIsModifierKey = info[2].As<Napi::Boolean>().Value();
+  pttRequiredModifiers = info.Length() > 3 ? (CGEventFlags)info[3].As<Napi::Number>().Int64Value() : 0;
+  pttKeyDown = false;
+
+  NSLog(@"[DictateAI] PTT key updated: keyCode=%d flagMask=0x%llx isModifier=%d reqMods=0x%llx",
+        pttKeyCode, (unsigned long long)pttFlagMask, pttIsModifierKey, (unsigned long long)pttRequiredModifiers);
+
   return Napi::Boolean::New(env, true);
 }
 
@@ -390,6 +439,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("getFocusedElementInfo", Napi::Function::New(env, GetFocusedElementInfo));
   exports.Set("startPushToTalk", Napi::Function::New(env, StartPushToTalk));
   exports.Set("stopPushToTalk", Napi::Function::New(env, StopPushToTalk));
+  exports.Set("setPttKey", Napi::Function::New(env, SetPttKey));
   return exports;
 }
 

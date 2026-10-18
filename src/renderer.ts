@@ -5,6 +5,11 @@ interface DictateAPI {
   getState: () => Promise<string>;
   onStateChange: (callback: (state: string) => void) => () => void;
   onPreview: (callback: (text: string) => void) => () => void;
+  onHandsfree: (callback: (active: boolean) => void) => () => void;
+  getAudioDevice: () => Promise<string>;
+  onAudioDeviceChanged: (callback: (deviceId: string) => void) => () => void;
+  stopRecording: () => void;
+  setClickable: (clickable: boolean) => void;
 }
 
 declare global {
@@ -21,11 +26,14 @@ let analyserNode: AnalyserNode | null = null;
 let audioReady = false;
 let currentState = 'idle';
 let animFrameId: number | null = null;
+let isHandsfree = false;
+let selectedDeviceId = '';
 
 const flowBar = document.getElementById('flow-bar')!;
 const waveform = document.getElementById('waveform')!;
 const label = document.getElementById('label')!;
 const preview = document.getElementById('preview')!;
+const closeBtn = document.getElementById('close-btn')!;
 const bars = waveform.querySelectorAll<HTMLDivElement>('.bar');
 
 function updateUI(state: string): void {
@@ -35,6 +43,9 @@ function updateUI(state: string): void {
     : state === 'restarting' ? 'downloading'
     : state;
   flowBar.className = `flow-bar ${cssClass}`;
+  if (isHandsfree && state === 'recording') {
+    flowBar.classList.add('handsfree');
+  }
   flowBar.classList.remove('has-audio');
   flowBar.classList.remove('has-preview');
   if (state !== 'recording') {
@@ -175,13 +186,25 @@ async function startAudioCapture(): Promise<void> {
   try {
     await ensureAudioContext();
 
-    mediaStream = await navigator.mediaDevices.getUserMedia({
+    const constraints: MediaStreamConstraints = {
       audio: {
         sampleRate: 16000,
         channelCount: 1,
         echoCancellation: true,
         noiseSuppression: true,
+        ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {}),
       },
+    };
+
+    mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+
+    mediaStream.getAudioTracks().forEach(track => {
+      track.addEventListener('ended', () => {
+        console.warn('[DictateAI] Audio track ended unexpectedly — attempting recovery');
+        if (currentState === 'recording') {
+          attemptAudioRecovery();
+        }
+      });
     });
 
     sourceNode = audioContext!.createMediaStreamSource(mediaStream);
@@ -195,6 +218,32 @@ async function startAudioCapture(): Promise<void> {
     animateWaveform();
   } catch (err) {
     console.error('[DictateAI] Audio capture failed:', err);
+    if (currentState === 'recording') {
+      attemptAudioRecovery();
+    }
+  }
+}
+
+async function attemptAudioRecovery(): Promise<void> {
+  console.log('[DictateAI] Attempting audio recovery…');
+  stopAudioCapture();
+
+  let retries = 3;
+  while (retries > 0 && currentState === 'recording') {
+    await new Promise(r => setTimeout(r, 500));
+    try {
+      await startAudioCapture();
+      console.log('[DictateAI] Audio recovered');
+      return;
+    } catch {
+      retries--;
+      console.warn(`[DictateAI] Recovery attempt failed, ${retries} left`);
+    }
+  }
+
+  if (currentState === 'recording') {
+    console.error('[DictateAI] Audio recovery failed — stopping recording');
+    window.dictateAI.stopRecording();
   }
 }
 
@@ -225,5 +274,46 @@ window.dictateAI.onPreview((text) => {
   if (currentState === 'recording' && text) {
     preview.textContent = text;
     flowBar.classList.add('has-preview');
+  }
+});
+
+window.dictateAI.onHandsfree((active) => {
+  isHandsfree = active;
+  if (active && currentState === 'recording') {
+    flowBar.classList.add('handsfree');
+  } else {
+    flowBar.classList.remove('handsfree');
+  }
+});
+
+closeBtn.addEventListener('mouseenter', () => {
+  window.dictateAI.setClickable(true);
+});
+
+closeBtn.addEventListener('mouseleave', () => {
+  window.dictateAI.setClickable(false);
+});
+
+closeBtn.addEventListener('click', () => {
+  window.dictateAI.stopRecording();
+});
+
+window.dictateAI.getAudioDevice().then(id => {
+  selectedDeviceId = id || '';
+});
+
+window.dictateAI.onAudioDeviceChanged((deviceId) => {
+  selectedDeviceId = deviceId || '';
+  console.log(`[DictateAI] Audio device updated: ${selectedDeviceId || 'system default'}`);
+});
+
+navigator.mediaDevices.addEventListener('devicechange', async () => {
+  console.log('[DictateAI] Audio devices changed');
+  if (currentState === 'recording' && mediaStream) {
+    const tracks = mediaStream.getAudioTracks();
+    const allEnded = tracks.every(t => t.readyState === 'ended');
+    if (allEnded) {
+      attemptAudioRecovery();
+    }
   }
 });

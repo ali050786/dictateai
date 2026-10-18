@@ -6,11 +6,22 @@ import { getCorrectionsPrompt } from './dictionary';
 
 const CONFIG_PATH = path.join(os.homedir(), '.dictateai', 'config.json');
 
+export interface ShortcutConfig {
+  code: string;
+  display: string;
+  keyCode: number;
+  flagMask: number;
+  isModifier: boolean;
+  requiredModifiers: number;
+}
+
 export interface Config {
   openRouterApiKey?: string;
   model?: string;
   language?: string;
   llmEnabled?: boolean;
+  shortcut?: ShortcutConfig;
+  audioDevice?: string;
 }
 
 let cachedConfig: Config | null = null;

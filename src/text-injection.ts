@@ -18,6 +18,7 @@ interface TextInjectionAddon {
   };
   startPushToTalk(callback: (event: 'down' | 'up') => void): boolean;
   stopPushToTalk(): boolean;
+  setPttKey(keyCode: number, flagMask: number, isModifier: boolean, requiredModifiers?: number): boolean;
 }
 
 let addon: TextInjectionAddon | null = null;
@@ -52,6 +53,7 @@ function getAddon(): TextInjectionAddon {
       getFocusedElementInfo: () => ({ available: false }),
       startPushToTalk: () => false,
       stopPushToTalk: () => false,
+      setPttKey: () => false,
     };
   }
 
@@ -86,4 +88,8 @@ export function startPushToTalk(
 
 export function stopPushToTalk(): boolean {
   return getAddon().stopPushToTalk();
+}
+
+export function setPttKey(keyCode: number, flagMask: number, isModifier: boolean, requiredModifiers?: number): boolean {
+  return getAddon().setPttKey(keyCode, flagMask, isModifier, requiredModifiers);
 }

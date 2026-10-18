@@ -14,9 +14,10 @@ import {
   checkAccessibilityPermission,
   startPushToTalk,
   stopPushToTalk,
+  setPttKey,
 } from './text-injection';
 import { transcribe, isModelDownloaded, downloadModel, setLanguage, getLanguage, getModel, startServer, stopServer, isServerRunning, isWhisperKitInstalled, setOnStatusChange } from './whisper-engine';
-import { formatText, hasApiKey, saveApiKey, loadConfig, saveConfig } from './llm-formatter';
+import { formatText, hasApiKey, saveApiKey, loadConfig, saveConfig, ShortcutConfig } from './llm-formatter';
 import { getFocusedElementInfo } from './text-injection';
 import { applyReplacements, detectCorrections, addCorrection, getAllCorrections, removeCorrection } from './dictionary';
 import started from 'electron-squirrel-startup';
@@ -366,6 +367,10 @@ function registerPushToTalk(): void {
       if (handsFreeActive) {
         console.log('[DictateAI] Hands-free: key down — stop recording');
         handsFreeActive = false;
+        if (overlayWindow && !overlayWindow.isDestroyed()) {
+          overlayWindow.webContents.send('dictation:handsfree', false);
+          overlayWindow.setIgnoreMouseEvents(true);
+        }
         stopRecording();
         return;
       }
@@ -398,6 +403,10 @@ function registerPushToTalk(): void {
           console.log('[DictateAI] Double-tap confirmed — hands-free mode');
           handsFreeActive = true;
           startRecording();
+          if (overlayWindow && !overlayWindow.isDestroyed()) {
+            overlayWindow.webContents.send('dictation:handsfree', true);
+            overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+          }
           tapCount = 0;
         }, TRIPLE_TAP_MS);
         return;
@@ -422,6 +431,28 @@ function setupIPC(): void {
   ipcMain.on('audio:chunk', (_event, data: ArrayBuffer) => {
     if (isRecording) {
       audioChunks.push(new Float32Array(data));
+    }
+  });
+
+  ipcMain.on('overlay:stopRecording', () => {
+    if (isRecording) {
+      console.log('[DictateAI] Stop recording from overlay close button');
+      handsFreeActive = false;
+      if (overlayWindow && !overlayWindow.isDestroyed()) {
+        overlayWindow.webContents.send('dictation:handsfree', false);
+        overlayWindow.setIgnoreMouseEvents(true);
+      }
+      stopRecording();
+    }
+  });
+
+  ipcMain.on('overlay:setClickable', (_event, clickable: boolean) => {
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      if (clickable) {
+        overlayWindow.setIgnoreMouseEvents(false);
+      } else {
+        overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+      }
     }
   });
 
@@ -475,6 +506,30 @@ function setupIPC(): void {
     engine: 'WhisperKit',
     model: getModel(),
   }));
+
+  ipcMain.handle('config:getAudioDevice', () => {
+    const config = loadConfig();
+    return config.audioDevice || '';
+  });
+  ipcMain.handle('config:setAudioDevice', (_event, deviceId: string) => {
+    saveConfig({ audioDevice: deviceId });
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.webContents.send('config:audioDeviceChanged', deviceId);
+    }
+    console.log(`[DictateAI] Audio device changed: ${deviceId || 'system default'}`);
+    return true;
+  });
+
+  ipcMain.handle('config:getShortcut', () => {
+    const config = loadConfig();
+    return config.shortcut || null;
+  });
+  ipcMain.handle('config:setShortcut', (_event, shortcut: ShortcutConfig) => {
+    setPttKey(shortcut.keyCode, shortcut.flagMask, shortcut.isModifier, shortcut.requiredModifiers);
+    saveConfig({ shortcut });
+    console.log(`[DictateAI] Shortcut changed to: ${shortcut.display} (code=${shortcut.code})`);
+    return true;
+  });
 }
 
 app.dock?.hide();
@@ -491,6 +546,11 @@ app.whenReady().then(() => {
   }
   if (savedConfig.llmEnabled !== undefined) {
     llmEnabled = savedConfig.llmEnabled;
+  }
+  if (savedConfig.shortcut) {
+    const s = savedConfig.shortcut;
+    setPttKey(s.keyCode, s.flagMask, s.isModifier, s.requiredModifiers);
+    console.log(`[DictateAI] Restored shortcut: ${s.display}`);
   }
 
   setOnStatusChange(() => {
