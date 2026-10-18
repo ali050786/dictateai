@@ -12,6 +12,7 @@ import {
   injectText,
   undoLastInjection,
   checkAccessibilityPermission,
+  isAccessibilityTrusted,
   startPushToTalk,
   stopPushToTalk,
   setPttKey,
@@ -614,7 +615,7 @@ function setupIPC(): void {
     removeApiKey();
     return true;
   });
-  ipcMain.handle('config:hasAccessibility', () => checkAccessibilityPermission());
+  ipcMain.handle('config:hasAccessibility', () => isAccessibilityTrusted());
 
   ipcMain.handle('dictionary:add', (_event, from: string, to: string) => {
     addCorrection(from, to, true);
@@ -791,6 +792,7 @@ app.whenReady().then(() => {
   console.log(
     `[DictateAI] Accessibility permission: ${hasAccess ? 'granted' : 'NEEDS GRANT — check System Settings → Privacy → Accessibility'}`,
   );
+  if (!hasAccess) waitForAccessibility();
 
   if (!isWhisperKitInstalled()) {
     console.error('[DictateAI] WhisperKit CLI not found. Install with: brew install whisperkit-cli');
@@ -812,6 +814,22 @@ app.whenReady().then(() => {
 
   console.log(`[DictateAI] Ready. Hold ${settings().shortcutLabel} to dictate.`);
 });
+
+// The push-to-talk key needs Accessibility. On a fresh install it isn't
+// granted yet, so watch for the grant and start listening then, without
+// asking the user to restart the app.
+function waitForAccessibility(): void {
+  const timer = setInterval(() => {
+    if (!isAccessibilityTrusted()) return;
+    clearInterval(timer);
+    console.log('[DictateAI] Accessibility granted — starting push-to-talk');
+    stopPushToTalk();
+    registerPushToTalk();
+    const shortcut = loadConfig().shortcut;
+    if (shortcut) setPttKey(shortcut.keyCode, shortcut.flagMask, shortcut.isModifier, shortcut.requiredModifiers);
+    if (hubWindow && !hubWindow.isDestroyed()) hubWindow.webContents.send('stt:status-changed');
+  }, 2000);
+}
 
 // Keep the local model loaded only while it can be used: it holds ~4.5 GB.
 function syncLocalLlm(): void {

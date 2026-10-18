@@ -124,3 +124,9 @@ All changes below are committed in `4f00b60` (on top of `fd9c565`).
 9. **State** — `main.ts` uses one `dictation` object (`phase`, `session`, `chunks`, `handsFree`, preview timer) and reads settings from `src/config.ts` (moved out of `llm-formatter.ts`). Older dictations still insert their text but can't change the pill or wipe the new recording's audio; recordings are processed in order. Fixed: empty or too-short recordings left the pill stuck on "Transcribing".
 
 Not verified by hand yet: the state machine under real rapid dictation, and cloud cleanup with the encrypted key.
+
+## Installable app (2026-10-18)
+
+- `npm run make` now also builds `out/make/dmg/arm64/DictateAI-<version>-arm64.dmg` (Forge DMG maker). Bundle ID `io.github.ali050786.dictateai`, menu-bar only (`LSUIElement`), clearer microphone prompt. See README.md for install steps.
+- Fixed for the standalone app: WhisperKit models now live in `~/.dictateai/whisperkit` (its default, `~/Documents/huggingface`, is blocked by macOS for apps without Documents access); push-to-talk starts by itself once Accessibility is granted (polls a non-prompting check); Settings no longer re-triggers the Accessibility prompt; restarting push-to-talk after a failed event tap no longer crashes (joins the old thread).
+- Installed to /Applications on Ali's Mac and running.
