@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DictateAI for Mac</title>
+<title>DictateAI: free, private voice dictation for Mac</title>
+<link rel="canonical" href="https://ali050786.github.io/dictateai/">
 <meta name="description" content="Voice dictation for macOS that runs on your Mac. Hold a key, speak, and clean text appears in any app. Free, open source, private by default.">
 <meta property="og:title" content="DictateAI — speak, and it types. On your Mac.">
 <meta property="og:description" content="Private voice dictation for Apple Silicon Macs. Local speech recognition and local AI cleanup. Free and open source.">
@@ -13,7 +14,16 @@
 <meta property="og:image" content="https://ali050786.github.io/dictateai/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
+<meta property="og:url" content="https://ali050786.github.io/dictateai/">
+<meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "DictateAI", "url": "https://ali050786.github.io/dictateai/",
+ "description": "Voice dictation for macOS that runs on your Mac. Hold a key, speak, and clean text appears in any app. Free, open source, private by default.",
+ "operatingSystem": "macOS (Apple Silicon)", "applicationCategory": "UtilitiesApplication", "softwareVersion": "0.2.2",
+ "downloadUrl": "https://github.com/ali050786/dictateai/releases/latest", "license": "https://opensource.org/licenses/MIT",
+ "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}, "author": {"@type": "Person", "name": "Sikandar Ali"}}
+</script>
 <meta name="theme-color" content="#0a0b0f">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -127,6 +137,13 @@ section { position: relative; padding: 112px 0; scroll-margin-top: 64px; overflo
 .hero h1.done em { text-shadow: 0 0 46px rgba(255,111,97,.45); }
 .hero .lede { margin: 22px auto 32px; font-size: 19px; text-align: center; }
 .hero .btn-ghost { background: rgba(14,15,20,.8); }
+.handoff { margin: 14px 0 0; font-size: 14px; color: var(--ink-2); }
+.handoff-btn { border: 0; background: none; padding: 6px 2px; font: 600 14px Inter, sans-serif; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.trust-note { display: flex; gap: 8px; align-items: flex-start; margin: 14px 0 0; font-size: 13px; color: var(--ink-2); max-width: 360px; }
+.trust-note svg { flex: none; margin-top: 2px; color: var(--accent); }
+.trust-note a, .trust-row a { color: var(--accent); }
+.trust-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; margin: 20px 0 0; font-size: 13px; color: var(--ink-3); }
+.trust-row span::before { content: "✓"; margin-right: 6px; color: var(--good); }
 .cta-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: center; }
 .meta { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; margin-top: 18px; font-size: 13px; color: var(--ink-3); }
 .meta span { display: inline-flex; align-items: center; gap: 6px; }
@@ -323,6 +340,7 @@ section { position: relative; padding: 112px 0; scroll-margin-top: 64px; overflo
 .req dt { color: var(--ink-3); }
 .req dd { margin: 0; text-align: right; font-weight: 500; }
 .steps { counter-reset: s; border-top: 1px solid var(--line); }
+.steps, .step { scroll-margin-top: 88px; }
 .step { position: relative; padding: 24px 12px 24px 64px; border-bottom: 1px solid var(--line); }
 .step::before { counter-increment: s; content: counter(s); position: absolute; left: 12px; top: 22px; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font: 600 14px Inter, sans-serif; color: var(--accent); border: 1px solid rgba(255,111,97,.45); background: rgba(255,111,97,.08); box-shadow: 0 0 20px -6px rgba(255,111,97,.7); }
 .step h3 { font-size: 17px; margin-bottom: 4px; }
@@ -447,10 +465,10 @@ dialog.modal::backdrop { background: rgba(5,6,8,.6); -webkit-backdrop-filter: bl
   <div class="wrap">
     <a href="#" class="brand" aria-label="DictateAI home"><span class="logo"><svg width="20" height="20"><use href="#i-logo"/></svg></span>DictateAI</a>
     <nav class="nav-pill" aria-label="Sections">
+      <a href="#cleanup">AI cleanup</a>
       <a href="#how">How it works</a>
-      <a href="#features">Features</a>
       <a href="#privacy">Privacy</a>
-      <a href="#availability">Availability</a>
+      <a href="#features">Features</a>
       <a href="#install">Install</a>
       <a href="#faq">FAQ</a>
     </nav>
@@ -464,9 +482,10 @@ dialog.modal::backdrop { background: rgba(5,6,8,.6); -webkit-backdrop-filter: bl
   </div>
   <div class="mobile-menu" id="mobileMenu" hidden>
     <nav aria-label="Sections">
+      <a href="#cleanup">AI cleanup</a>
       <a href="#how">How it works</a>
-      <a href="#features">Features</a>
       <a href="#privacy">Privacy</a>
+      <a href="#features">Features</a>
       <a href="#availability">Availability</a>
       <a href="#install">Install</a>
       <a href="#faq">FAQ</a>
@@ -480,18 +499,19 @@ dialog.modal::backdrop { background: rgba(5,6,8,.6); -webkit-backdrop-filter: bl
   <!-- Hero -->
   <section class="hero">
     <div class="wrap hero-copy">
-      <span class="badge"><b>NEW</b> Version 0.2.2: a new look, works offline</span>
+      <span class="badge"><b>NEW</b> Version 0.2.2 works offline once set up</span>
       <h1 class="title"><span class="line"><span class="w">Speak.</span> <span class="w">It</span> <span class="w">types.</span></span> <span class="line"><em class="serif"><span class="w">On</span> <span class="w">your</span> <span class="w">Mac.</span></em></span></h1>
-      <p class="lede">Hold a key, say what you mean, and clean, punctuated text appears in whatever app you're typing in. Speech recognition and AI cleanup run on your Mac, so your words stay there. No word limits, no subscription.</p>
+      <p class="lede">Private voice dictation for Mac. Hold a key, talk, and clean, punctuated text appears in any app, about three times faster than typing. It all runs on your Mac.</p>
       <div class="cta-row">
-          <a class="btn btn-primary btn-lg js-download" href="#install"><svg width="20" height="20"><use href="#i-apple"/></svg>Download for Mac <small>Apple Silicon</small></a>
+          <a class="btn btn-primary btn-lg js-download" href="#install"><svg width="20" height="20"><use href="#i-apple"/></svg>Download free for Mac <small>Apple Silicon</small></a>
           <a class="btn btn-ghost btn-lg" href="https://github.com/ali050786/dictateai"><svg width="18" height="18"><use href="#i-gh"/></svg>View source</a>
         </div>
       <div class="meta">
-          <span><svg><use href="#i-chip"/></svg>M1, M2, M3, M4 and later</span>
-          <span><svg><use href="#i-lock"/></svg>Private by default</span>
+          <span><svg><use href="#i-chip"/></svg>Apple Silicon, M1 or later</span>
+          <span><svg><use href="#i-lock"/></svg>No account needed</span>
           <span><svg><use href="#i-free"/></svg>Free and open source (MIT)</span>
         </div>
+      <p class="handoff" id="handoffRow" hidden>On your phone? <button class="handoff-btn" id="handoff" type="button">Send the link to your Mac</button></p>
     </div>
 
     <div class="stage">
@@ -537,28 +557,12 @@ dialog.modal::backdrop { background: rgba(5,6,8,.6); -webkit-backdrop-filter: bl
     </div>
   </section>
 
-  <!-- How it works -->
-  <section id="how">
-    <div class="wrap">
-      <div class="head">
-        <p class="pill-label">How it works</p>
-        <h2 class="title reveal">One key. Three moves.</h2>
-        <p class="lede reveal">DictateAI sits in your menu bar. There's no window to switch to and nothing to paste. The default key is Right ⌥ Option, and you can change it to any key you like.</p>
-      </div>
-      <div class="cells gestures" style="--cols:3">
-        <div class="reveal"><div class="taps"><span class="tap hold">hold</span></div><h3>Hold to talk</h3><p>Hold the key and speak. Let go, and the text appears where your cursor is.</p></div>
-        <div class="reveal"><div class="taps"><span class="tap pulse">⌥</span><span class="tap pulse">⌥</span></div><h3>Double-tap for hands-free</h3><p>Tap twice to keep listening without holding anything. Tap once more to stop.</p></div>
-        <div class="reveal"><div class="taps"><span class="tap pulse">⌥</span><span class="tap pulse">⌥</span><span class="tap pulse">⌥</span></div><h3>Triple-tap to undo</h3><p>Didn't come out right? Triple-tap and your last dictation is removed.</p></div>
-      </div>
-    </div>
-  </section>
-
   <!-- Cleanup portal -->
-  <section id="cleanup" style="padding-top:24px">
+  <section id="cleanup">
     <div class="wrap">
       <div class="head">
         <p class="pill-label">AI cleanup</p>
-        <h2 class="title reveal">AI cleanup on your Mac</h2>
+        <h2 class="title reveal">Say it messy. Get it clean.</h2>
         <p class="lede reveal">A local model (Qwen 2.5 on Apple's MLX) removes filler words, fixes punctuation and handles "no wait, I mean…". Turn it on in Settings whenever you like.</p>
       </div>
       <div class="ba-tabs" role="tablist" aria-label="Cleanup examples">
@@ -599,29 +603,19 @@ dialog.modal::backdrop { background: rgba(5,6,8,.6); -webkit-backdrop-filter: bl
     </div>
   </section>
 
-  <!-- Features -->
-  <section id="features">
+  <!-- How it works -->
+  <section id="how">
     <div class="wrap">
       <div class="head">
-        <p class="pill-label">Features</p>
-        <h2 class="title reveal">Everything you need to stop typing.</h2>
-        <p class="lede reveal">Built for people who write all day: emails, messages, prompts, docs and code comments.</p>
+        <p class="pill-label">How it works</p>
+        <h2 class="title reveal">One key. Three moves.</h2>
+        <p class="lede reveal">DictateAI sits in your menu bar. There's no window to switch to and nothing to paste. The default key is Right ⌥ Option, and you can change it to any key you like.</p>
       </div>
-      <div class="cells" style="--cols:4">
-        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 7h16M4 12h10M4 17h7"/><path d="M17 15l2 2 3-4"/></svg></div><h3>Types into any app</h3><p>Text goes in at your cursor in native apps, browsers and Electron apps. If an app won't accept typed text, it pastes and then puts your clipboard back, images included.</p></div>
-        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24"><use href="#i-chip"/></svg></div><h3>AI cleanup on your Mac</h3><p>A local model (Qwen 2.5 on Apple's MLX) removes filler words, fixes punctuation and handles "no wait, I mean…". Turn it on in Settings whenever you like.</p></div>
-        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 19V5M4 19h16"/><path d="M8 15l3-4 3 2 5-6"/></svg></div><h3>No word limits</h3><p>Everything runs on your hardware, so there's no monthly cap and no usage meter. Dictate as much as you like.</p></div>
-        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></div><h3>26 languages and auto-detect</h3><p>Speech recognition with Whisper (via WhisperKit). Pick a language or let it detect yours. Hindi stays in Devanagari, Urdu in its own script: cleanup never switches your writing system.</p></div>
-        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M9 8h6"/></svg></div><h3>A dictionary that learns</h3><p>Add names, product terms and jargon yourself, or let DictateAI learn when you fix the same word twice.</p></div>
-        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><h3>History</h3><p>Your last 100 dictations are kept on your Mac. Each is tagged Local or Cloud so you know where it was cleaned. Clear them anytime.</p></div>
-        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg></div><h3>Your shortcut</h3><p>Right ⌥ Option by default. Change the dictation key in Settings to whatever fits your hands.</p></div>
-        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3" y="4" width="18" height="14" rx="2"/><rect x="9" y="14" width="6" height="2" rx="1" fill="currentColor"/></svg></div><h3>A small, quiet pill</h3><p>A slim indicator shows when it's listening and transcribing. Put it in any of six spots along the top or bottom of your screen.</p></div>
-        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M22 9l-6 6M16 9l6 6"/></svg></div><h3>Mutes while you speak</h3><p>Optionally mutes your Mac's audio while you dictate, then restores it. If you'd already muted it, it stays muted.</p></div>
-        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24"><use href="#i-mic"/></svg></div><h3>Pick your microphone</h3><p>Use the built-in mic, AirPods or a USB mic. Short one- or two-word replies are picked up too.</p></div>
-        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M17.5 19a4.5 4.5 0 1 0-1.4-8.8A6 6 0 0 0 4.5 12 3.5 3.5 0 0 0 6 19z"/></svg></div><h3>Optional cloud, your key</h3><p>Prefer a bigger model? Add your own OpenRouter key and pick any model. The key is encrypted in your macOS Keychain, and if the cloud is busy, your Mac takes over.</p></div>
-        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6z"/></svg></div><h3>Open source</h3><p>Every line is on GitHub under the MIT licence. Read it, build it yourself or improve it.</p></div>
+      <div class="cells gestures" style="--cols:3">
+        <div class="reveal"><div class="taps"><span class="tap hold">hold</span></div><h3>Hold to talk</h3><p>Hold the key and speak. Let go, and the text appears where your cursor is.</p></div>
+        <div class="reveal"><div class="taps"><span class="tap pulse">⌥</span><span class="tap pulse">⌥</span></div><h3>Double-tap for hands-free</h3><p>Tap twice to keep listening without holding anything. Tap once more to stop.</p></div>
+        <div class="reveal"><div class="taps"><span class="tap pulse">⌥</span><span class="tap pulse">⌥</span><span class="tap pulse">⌥</span></div><h3>Triple-tap to undo</h3><p>Didn't come out right? Triple-tap and your last dictation is removed.</p></div>
       </div>
-      <div class="langs" id="langs" aria-label="Supported languages"></div>
     </div>
   </section>
 
@@ -688,6 +682,32 @@ dialog.modal::backdrop { background: rgba(5,6,8,.6); -webkit-backdrop-filter: bl
     </div>
   </section>
 
+  <!-- Features -->
+  <section id="features">
+    <div class="wrap">
+      <div class="head">
+        <p class="pill-label">Features</p>
+        <h2 class="title reveal">Everything you need to stop typing.</h2>
+        <p class="lede reveal">Built for people who write all day: emails, messages, prompts, docs and code comments.</p>
+      </div>
+      <div class="cells" style="--cols:4">
+        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 7h16M4 12h10M4 17h7"/><path d="M17 15l2 2 3-4"/></svg></div><h3>Works wherever you type</h3><p>Text goes in at your cursor in native apps, browsers and Electron apps. If an app won't accept typed text, it pastes and then puts your clipboard back, images included.</p></div>
+        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24"><use href="#i-chip"/></svg></div><h3>Clean text, not a transcript</h3><p>A local model (Qwen 2.5 on Apple's MLX) removes filler words, fixes punctuation and handles "no wait, I mean…". Turn it on in Settings whenever you like.</p></div>
+        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 19V5M4 19h16"/><path d="M8 15l3-4 3 2 5-6"/></svg></div><h3>No word limits</h3><p>Everything runs on your hardware, so there's no monthly cap and no usage meter. Dictate as much as you like.</p></div>
+        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></div><h3>26 languages and auto-detect</h3><p>Speech recognition with Whisper (via WhisperKit). Pick a language or let it detect yours. Hindi stays in Devanagari, Urdu in its own script: cleanup never switches your writing system.</p></div>
+        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M9 8h6"/></svg></div><h3>Gets your names right</h3><p>Add names, product terms and jargon yourself, or let DictateAI learn when you fix the same word twice.</p></div>
+        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><h3>Find what you said earlier</h3><p>Your last 100 dictations are kept on your Mac. Each is tagged Local or Cloud so you know where it was cleaned. Clear them anytime.</p></div>
+        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg></div><h3>Any key you like</h3><p>Right ⌥ Option by default. Change the dictation key in Settings to whatever fits your hands.</p></div>
+        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3" y="4" width="18" height="14" rx="2"/><rect x="9" y="14" width="6" height="2" rx="1" fill="currentColor"/></svg></div><h3>Stays out of your way</h3><p>A slim indicator shows when it's listening and transcribing. Put it in any of six spots along the top or bottom of your screen.</p></div>
+        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M22 9l-6 6M16 9l6 6"/></svg></div><h3>Mutes while you speak</h3><p>Optionally mutes your Mac's audio while you dictate, then restores it. If you'd already muted it, it stays muted.</p></div>
+        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24"><use href="#i-mic"/></svg></div><h3>Works with any mic</h3><p>Use the built-in mic, AirPods or a USB mic. Short one- or two-word replies are picked up too.</p></div>
+        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M17.5 19a4.5 4.5 0 1 0-1.4-8.8A6 6 0 0 0 4.5 12 3.5 3.5 0 0 0 6 19z"/></svg></div><h3>Optional cloud, your key</h3><p>Prefer a bigger model? Add your own OpenRouter key and pick any model. The key is encrypted in your macOS Keychain, and if the cloud is busy, your Mac takes over.</p></div>
+        <div class="reveal"><div class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6z"/></svg></div><h3>Open source</h3><p>Every line is on GitHub under the MIT licence. Read it, build it yourself or improve it.</p></div>
+      </div>
+      <div class="langs" id="langs" aria-label="Supported languages"></div>
+    </div>
+  </section>
+
   <!-- Availability -->
   <section id="availability">
     <div class="wrap">
@@ -714,6 +734,7 @@ dialog.modal::backdrop { background: rgba(5,6,8,.6); -webkit-backdrop-filter: bl
         <p class="lede">No Terminal, no extra tools. You're dictating about a minute after you first open it.</p>
         <a class="btn btn-primary btn-lg js-download" id="dl" href="https://github.com/ali050786/dictateai/releases/latest/download/DictateAI-0.2.2-arm64.dmg"><svg width="20" height="20"><use href="#i-down"/></svg>Download DictateAI <small>.dmg · 274 MB</small></a>
         <p class="ver">Version 0.2.2 · Apple Silicon · <a href="https://github.com/ali050786/dictateai/releases">All releases</a></p>
+        <p class="trust-note"><svg width="15" height="15" aria-hidden="true"><use href="#i-lock"/></svg><span>macOS asks you to confirm it once, because it isn't notarized yet. <a href="#step-open">Here's how</a>.</span></p>
         <dl class="req">
           <div><dt>Chip</dt><dd>Apple M1 or later</dd></div>
           <div><dt>App</dt><dd>274 MB</dd></div>
@@ -728,7 +749,7 @@ dialog.modal::backdrop { background: rgba(5,6,8,.6); -webkit-backdrop-filter: bl
           <h3>Download and drag to Applications</h3>
           <p>Open the .dmg and drag DictateAI into your Applications folder. That's the whole install: the speech and AI engines are built in, so there's nothing to set up in Terminal.</p>
         </div>
-        <div class="step reveal">
+        <div class="step reveal" id="step-open">
           <h3>Allow it to open, once</h3>
           <p>Open DictateAI. macOS says it "could not verify" the app: click <b>Done</b>. Then go to System Settings → Privacy &amp; Security, scroll down, and click <b>Open Anyway</b> next to DictateAI. You only do this once.</p>
           <div class="note">Why? DictateAI is free and isn't notarized by Apple yet, so macOS asks you to confirm it yourself. You can read every line of the code on GitHub.</div>
@@ -767,11 +788,11 @@ dialog.modal::backdrop { background: rgba(5,6,8,.6); -webkit-backdrop-filter: bl
       </div>
       <div class="faq">
         <details><summary>Is DictateAI really free?</summary><p>Yes. It's open source under the MIT licence, with no subscription, trial or word limit. The only possible cost is the optional cloud cleanup, which you pay to OpenRouter directly with your own key.</p></details>
-        <details><summary>Does it need the internet?</summary><p>Only to download its models the first time. After that, dictation and cleanup work offline.</p></details>
-        <details><summary>How much space does it use?</summary><p>The app is 274 MB, and the speech model it fetches on first launch is about 500 MB. AI cleanup is optional; turning it on adds a model of 1.7 GB for English, or 4.3 GB for other languages, since a larger model is needed to keep Hindi, Arabic and others in their own script.</p></details>
         <details><summary>How is this different from macOS Dictation?</summary><p>DictateAI adds an AI cleanup step: it removes "um" and "uh", fixes punctuation, handles corrections like "no wait, Thursday", and applies your personal dictionary. It works with a single push-to-talk key in any app and has no time limit.</p></details>
+        <details><summary>Does it need the internet?</summary><p>Only to download its models the first time. After that, dictation and cleanup work offline.</p></details>
         <details><summary>Why does macOS warn me when I open it?</summary><p>The app isn't notarized by Apple yet, which needs a paid developer account. Open it once, click Done on the warning, then click Open Anyway in System Settings → Privacy &amp; Security. macOS remembers your choice.</p></details>
         <details><summary>Why does it need Accessibility access?</summary><p>To notice when you press the dictation key while another app is in front, and to place text at your cursor. It doesn't read your screen, and it doesn't record anything unless you're holding the key or in hands-free mode.</p></details>
+        <details><summary>How much space does it use?</summary><p>The app is 274 MB, and the speech model it fetches on first launch is about 500 MB. AI cleanup is optional; turning it on adds a model of 1.7 GB for English, or 4.3 GB for other languages, since a larger model is needed to keep Hindi, Arabic and others in their own script.</p></details>
         <details><summary>Which languages work?</summary><p>26, including English, Hindi, Urdu, Arabic, Spanish, French, German, Japanese, Chinese and more, plus auto-detect. English uses a faster 3B cleanup model and other languages a 7B model. You can choose a faster or more accurate model in Settings.</p></details>
         <details><summary>Will it work on my Intel Mac?</summary><p>No. The local models rely on Apple Silicon (M1 or later).</p></details>
         <details><summary>What happens if I use the cloud option?</summary><p>Only the transcribed text, never your audio, is sent to the OpenRouter model you choose, using your own key. If the cloud is rate-limited or fails, your Mac cleans the text instead, and you'll get a quiet notice.</p></details>
@@ -800,9 +821,10 @@ dialog.modal::backdrop { background: rgba(5,6,8,.6); -webkit-backdrop-filter: bl
         <p class="calc-note" id="calcNote">Based on typing at 40 words a minute and speaking at 130. Your numbers will vary.</p>
       </div>
       <div class="cta-row">
-        <a class="btn btn-primary btn-lg js-download" href="#install"><svg width="20" height="20"><use href="#i-apple"/></svg>Download for Mac <small>Apple Silicon</small></a>
+        <a class="btn btn-primary btn-lg js-download" href="#install"><svg width="20" height="20"><use href="#i-apple"/></svg>Download free for Mac <small>Apple Silicon</small></a>
         <a class="btn btn-ghost btn-lg" href="https://github.com/ali050786/dictateai"><svg width="18" height="18"><use href="#i-gh"/></svg>Star on GitHub</a>
       </div>
+      <p class="trust-row"><span>No account</span><span>No subscription or word limit</span><span>Your voice stays on your Mac</span><a href="https://github.com/ali050786/dictateai">Read the code</a></p>
     </div>
   </section>
 </main>
@@ -900,6 +922,17 @@ dialog.modal::backdrop { background: rgba(5,6,8,.6); -webkit-backdrop-filter: bl
   document.addEventListener("click", function (e) { if (!menu.hidden && !nav.contains(e.target)) setMenu(false); });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !menu.hidden) { setMenu(false); menuBtn.focus(); } });
   addEventListener("resize", function () { if (innerWidth > 900 && !menu.hidden) setMenu(false); });
+
+  /* ---------- Phone visitors: send the page to their Mac ---------- */
+  var handoffRow = $("#handoffRow"), handoff = $("#handoff");
+  if (matchMedia("(pointer: coarse)").matches && !matchMedia("(hover: hover)").matches && (navigator.share || navigator.clipboard)) {
+    handoffRow.hidden = false;
+    handoff.addEventListener("click", function () {
+      var url = location.href.split("#")[0];
+      if (navigator.share) { navigator.share({ title: document.title, text: "DictateAI: free, private voice dictation for Mac", url: url }).catch(function () {}); return; }
+      navigator.clipboard.writeText(url).then(function () { handoff.textContent = "Link copied. Open it on your Mac."; }, function () { handoff.textContent = url; });
+    });
+  }
 
   /* ---------- Languages ---------- */
   var langs = ["Auto-detect","English","हिन्दी","اردو","العربية","Español","Français","Deutsch","Português","Italiano","日本語","한국어","中文","Русский","Türkçe","Nederlands","Polski","Svenska","Bahasa","ไทย","Tiếng Việt","Українська","বাংলা","தமிழ்","తెలుగు","मराठी"];
