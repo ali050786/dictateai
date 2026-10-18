@@ -24,6 +24,16 @@ export type CloudTier = 'free' | 'paid';
 // Where the injected text was cleaned; 'local' also covers raw text, which
 // never left the Mac either.
 export type CleanupLocation = 'local' | 'cloud';
+// Why a cloud request didn't produce the text; rejected results stay quiet.
+export type CloudFallback = 'rate-limited' | 'cloud-error' | 'rejected';
+
+export interface CleanupResult {
+  text: string;
+  location: CleanupLocation;
+  // False when the raw transcript was returned unchanged.
+  cleaned: boolean;
+  fallback?: CloudFallback;
+}
 
 export interface Config {
   openRouterApiKey?: string;
@@ -36,6 +46,8 @@ export interface Config {
   shortcut?: ShortcutConfig;
   audioDevice?: string;
   pillPosition?: PillPosition;
+  // One-time and once-a-day notices (see notices.ts).
+  notices?: { modelNoteShown?: boolean; fallbackShownOn?: string };
   muteWhileSpeaking?: boolean;
 }
 
@@ -174,9 +186,10 @@ export async function formatText(
   rawText: string,
   mode: FormattingMode = 'dictation',
   context?: { app?: string; role?: string },
-): Promise<{ text: string; location: CleanupLocation }> {
-  const raw = { text: rawText, location: 'local' as const };
-  if (mode === 'raw') return raw;
+): Promise<CleanupResult> {
+  if (mode === 'raw') return { text: rawText, location: 'local', cleaned: false };
+  let fallback: CloudFallback | undefined;
+  const raw = (): CleanupResult => ({ text: rawText, location: 'local', cleaned: false, fallback });
 
   const config = loadConfig();
   const provider = getLlmProvider();
@@ -193,14 +206,17 @@ export async function formatText(
         const problem = checkCleanup(rawText, formatted);
         if (!problem) {
           console.log(`[DictateAI] LLM formatted (${mode}, ${model}): "${formatted}"`);
-          return { text: formatted, location: 'cloud' };
+          return { text: formatted, location: 'cloud', cleaned: true };
         }
+        fallback = 'rejected';
         console.log(`[DictateAI] Cloud result rejected (${problem}): "${formatted}"`);
       } catch (err) {
         if (isRateLimited(err)) {
           cloudPausedUntil = Date.now() + CLOUD_PAUSE_MS;
+          fallback = 'rate-limited';
           console.log('[DictateAI] Cloud rate-limited — using local LLM for the next 15 minutes');
         } else {
+          fallback = 'cloud-error';
           console.error('[DictateAI] Cloud formatting failed:', err);
         }
       }
@@ -213,7 +229,7 @@ export async function formatText(
   const local = getLocalClient();
   if (!local) {
     console.log('[DictateAI] Local LLM not ready — returning raw text');
-    return raw;
+    return raw();
   }
 
   try {
@@ -221,12 +237,12 @@ export async function formatText(
     const problem = checkCleanup(rawText, formatted);
     if (!problem) {
       console.log(`[DictateAI] LLM formatted (${mode}, local): "${formatted}"`);
-      return { text: formatted, location: 'local' };
+      return { text: formatted, location: 'local', cleaned: true, fallback };
     }
     console.log(`[DictateAI] Local result rejected (${problem}): "${formatted}" — returning raw text`);
   } catch (err) {
     console.error('[DictateAI] Local formatting failed:', err);
   }
 
-  return raw;
+  return raw();
 }

@@ -21,6 +21,7 @@ import { exec } from 'child_process';
 import { formatText, hasApiKey, saveApiKey, loadConfig, saveConfig, ShortcutConfig, PillPosition, canFormat, getLlmProvider, LlmProvider, CloudTier, CleanupLocation, getCloudTier, getCloudModel, DEFAULT_PAID_MODEL } from './llm-formatter';
 import { startLocalLlm, stopLocalLlm, isMlxInstalled, isLocalLlmRunning, isLocalLlmStarting, getLocalModel, setOnLocalLlmStatusChange, defaultLocalModelFor } from './local-llm';
 import { getFocusedElementInfo } from './text-injection';
+import { noticeAfterCleanup } from './notices';
 import { applyReplacements, detectCorrections, addCorrection, getAllCorrections, removeCorrection } from './dictionary';
 import started from 'electron-squirrel-startup';
 
@@ -388,6 +389,7 @@ async function processAudio(): Promise<void> {
         });
         console.log(`[DictateAI] LLM cleanup took ${Date.now() - llmStart}ms`);
         finishProcessing(result.text || correctedText, context.app, result.location);
+        noticeAfterCleanup(result, getLocalModel(), loadConfig().language);
       } catch (err) {
         console.error('[DictateAI] LLM formatting failed, using raw:', err);
         finishProcessing(correctedText, context.app);
