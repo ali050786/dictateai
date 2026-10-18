@@ -562,6 +562,11 @@ body {
   font-size: 13px;
 }
 
+.setting-actions {
+  display: flex;
+  gap: 8px;
+}
+
 /* --- Modal --- */
 .modal {
   position: fixed;

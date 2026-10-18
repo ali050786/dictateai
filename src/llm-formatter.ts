@@ -76,6 +76,12 @@ export function saveApiKey(key: string): void {
   saveConfig({ openRouterApiKey: key });
 }
 
+// Drops the key from memory and from config.json (JSON.stringify omits
+// undefined fields).
+export function removeApiKey(): void {
+  saveConfig({ openRouterApiKey: undefined });
+}
+
 export function hasApiKey(): boolean {
   return !!loadConfig().openRouterApiKey;
 }

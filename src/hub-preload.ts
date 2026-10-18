@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('hub', {
   config: {
     hasApiKey: () => ipcRenderer.invoke('config:hasApiKey'),
     setApiKey: (key: string) => ipcRenderer.invoke('config:setApiKey', key),
+    removeApiKey: () => ipcRenderer.invoke('config:removeApiKey'),
     hasAccessibility: () => ipcRenderer.invoke('config:hasAccessibility'),
     getLanguage: () => ipcRenderer.invoke('config:getLanguage'),
     setLanguage: (lang: string) => ipcRenderer.invoke('config:setLanguage', lang),

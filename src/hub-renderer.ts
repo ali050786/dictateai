@@ -25,6 +25,7 @@ interface HubAPI {
   config: {
     hasApiKey: () => Promise<boolean>;
     setApiKey: (key: string) => Promise<boolean>;
+    removeApiKey: () => Promise<boolean>;
     hasAccessibility: () => Promise<boolean>;
     getLanguage: () => Promise<string>;
     setLanguage: (lang: string) => Promise<boolean>;
@@ -210,6 +211,7 @@ inputFrom.addEventListener('keydown', (e) => {
 const apiKeyStatus = document.getElementById('api-key-status')!;
 const accessibilityStatus = document.getElementById('accessibility-status')!;
 const btnChangeKey = document.getElementById('btn-change-key')!;
+const btnRemoveKey = document.getElementById('btn-remove-key')!;
 const apikeyModal = document.getElementById('apikey-modal')!;
 const btnCancelKey = document.getElementById('btn-cancel-key')!;
 const btnSaveKey = document.getElementById('btn-save-key')!;
@@ -229,8 +231,12 @@ const micStatus = document.getElementById('mic-status')!;
 
 async function loadSettings(): Promise<void> {
   const hasKey = await window.hub.config.hasApiKey();
-  apiKeyStatus.textContent = hasKey ? 'Configured ✓' : 'Not set';
+  apiKeyStatus.textContent = hasKey
+    ? 'Saved on this Mac ✓'
+    : 'Not set. Until you add one, cleanup runs on your Mac.';
   apiKeyStatus.style.color = hasKey ? '#059669' : '#dc2626';
+  btnChangeKey.textContent = hasKey ? 'Change' : 'Add key';
+  btnRemoveKey.style.display = hasKey ? '' : 'none';
 
   const hasAccess = await window.hub.config.hasAccessibility();
   accessibilityStatus.textContent = hasAccess ? 'Granted ✓' : 'Not granted — check System Settings → Privacy → Accessibility';
@@ -380,6 +386,8 @@ llmProviderSelect.addEventListener('change', async () => {
     await window.hub.config.setLlmProvider('local');
   } else {
     await window.hub.config.setLlmProvider('cloud', value === 'cloud-paid' ? 'paid' : 'free');
+    // Cloud only ever uses the user's own key; ask for it right away.
+    if (!(await window.hub.config.hasApiKey())) openKeyModal();
   }
   loadLlmStatus();
 });
@@ -397,10 +405,18 @@ window.hub.onLlmStatusChanged(() => {
   loadLlmStatus();
 });
 
-btnChangeKey.addEventListener('click', () => {
+function openKeyModal(): void {
   apiKeyInput.value = '';
   apikeyModal.classList.remove('hidden');
   apiKeyInput.focus();
+}
+
+btnChangeKey.addEventListener('click', openKeyModal);
+
+btnRemoveKey.addEventListener('click', async () => {
+  if (!confirm('Remove your OpenRouter key from this Mac? Cloud cleanup will stop until you add one again.')) return;
+  await window.hub.config.removeApiKey();
+  loadSettings();
 });
 
 btnCancelKey.addEventListener('click', () => {

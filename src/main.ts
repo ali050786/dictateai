@@ -18,7 +18,7 @@ import {
 } from './text-injection';
 import { transcribe, isModelDownloaded, downloadModel, setLanguage, getLanguage, getModel, startServer, stopServer, isServerRunning, isWhisperKitInstalled, setOnStatusChange } from './whisper-engine';
 import { exec } from 'child_process';
-import { formatText, hasApiKey, saveApiKey, loadConfig, saveConfig, ShortcutConfig, PillPosition, canFormat, getLlmProvider, LlmProvider, CloudTier, CleanupLocation, getCloudTier, getCloudModel, DEFAULT_PAID_MODEL } from './llm-formatter';
+import { formatText, hasApiKey, saveApiKey, loadConfig, saveConfig, ShortcutConfig, PillPosition, canFormat, removeApiKey, getLlmProvider, LlmProvider, CloudTier, CleanupLocation, getCloudTier, getCloudModel, DEFAULT_PAID_MODEL } from './llm-formatter';
 import { startLocalLlm, stopLocalLlm, isMlxInstalled, isLocalLlmRunning, isLocalLlmStarting, getLocalModel, setOnLocalLlmStatusChange, defaultLocalModelFor } from './local-llm';
 import { getFocusedElementInfo } from './text-injection';
 import { noticeAfterCleanup } from './notices';
@@ -580,6 +580,10 @@ function setupIPC(): void {
   ipcMain.handle('config:hasApiKey', () => hasApiKey());
   ipcMain.handle('config:setApiKey', (_event, key: string) => {
     saveApiKey(key);
+    return true;
+  });
+  ipcMain.handle('config:removeApiKey', () => {
+    removeApiKey();
     return true;
   });
   ipcMain.handle('config:hasAccessibility', () => checkAccessibilityPermission());
