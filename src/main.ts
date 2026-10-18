@@ -18,11 +18,11 @@ import {
   stopPushToTalk,
   setPttKey,
 } from './text-injection';
-import { transcribe, isModelDownloaded, downloadModel, setLanguage, getLanguage, getModel, startServer, stopServer, isServerRunning, isWhisperKitInstalled, setOnStatusChange } from './whisper-engine';
+import { transcribe, isModelDownloaded, downloadModel, setLanguage, getLanguage, getModel, startServer, stopServer, isServerRunning, isWhisperKitInstalled, setOnStatusChange, getModelDownload } from './whisper-engine';
 import { exec } from 'child_process';
 import { formatText, canFormat, CleanupLocation, getCloudModel, DEFAULT_CLOUD_MODEL } from './llm-formatter';
 import { hasApiKey, saveApiKey, removeApiKey, migrateApiKey, loadConfig, saveConfig, ShortcutConfig, PillPosition, normalizePillPosition, getLlmProvider, LlmProvider } from './config';
-import { startLocalLlm, stopLocalLlm, isMlxInstalled, isLocalLlmRunning, isLocalLlmStarting, getLocalModel, setOnLocalLlmStatusChange, defaultLocalModelFor, localModelOptions } from './local-llm';
+import { startLocalLlm, stopLocalLlm, isMlxInstalled, isLocalLlmRunning, isLocalLlmStarting, getLocalModel, setOnLocalLlmStatusChange, defaultLocalModelFor, localModelOptions, getLocalModelDownload } from './local-llm';
 import { getFocusedElementInfo } from './text-injection';
 import { noticeAfterCleanup, noticeMicrophoneBlocked } from './notices';
 import { addHistory, listHistory, clearHistory } from './history';
@@ -678,6 +678,7 @@ function setupIPC(): void {
     mlxInstalled: isMlxInstalled(),
     running: isLocalLlmRunning(),
     starting: isLocalLlmStarting(),
+    download: getLocalModelDownload(),
     model: getLocalModel(),
     cloudModel: getCloudModel(),
   }));
@@ -699,6 +700,7 @@ function setupIPC(): void {
   ipcMain.handle('config:sttStatus', () => ({
     installed: isWhisperKitInstalled(),
     running: isServerRunning(),
+    download: getModelDownload(),
     engine: 'WhisperKit',
     model: getModel(),
   }));
@@ -822,7 +824,7 @@ app.whenReady().then(async () => {
   if (!hasAccess) waitForAccessibility();
 
   if (!isWhisperKitInstalled()) {
-    console.error('[DictateAI] WhisperKit CLI not found. Install with: brew install whisperkit-cli');
+    console.error('[DictateAI] Speech engine not found. Run scripts/build-engines.sh, or: brew install whisperkit-cli');
   } else {
     if (overlayWindow && !overlayWindow.isDestroyed()) {
       overlayWindow.webContents.send('dictation:state', 'downloading');

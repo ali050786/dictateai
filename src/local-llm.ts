@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as http from 'http';
+import { bundledPath, DownloadWatch, formatBytes } from './engines';
 
 // mlx_lm.server exposes an OpenAI-compatible API, so the formatter can reuse
 // the same client it uses for OpenRouter.
@@ -19,6 +20,14 @@ const DEFAULT_LOCAL_MODEL = MULTILINGUAL_MODEL;
 // dictation waits seconds, so it isn't offered there at all.
 const LARGE_MODEL = 'mlx-community/Qwen2.5-14B-Instruct-4bit';
 const LARGE_MODEL_MIN_RAM_GB = 32;
+
+// Download sizes, for the progress shown while a model downloads on first use.
+const MODEL_BYTES: Record<string, number> = {
+  [ENGLISH_MODEL]: 1_748_000_000,
+  [MULTILINGUAL_MODEL]: 4_296_000_000,
+  [LARGE_MODEL]: 8_310_000_000,
+};
+const HF_HUB_DIR = path.join(process.env.HF_HOME || path.join(os.homedir(), '.cache', 'huggingface'), 'hub');
 
 export function defaultLocalModelFor(language: string | undefined): string {
   return language === 'en' ? ENGLISH_MODEL : MULTILINGUAL_MODEL;
@@ -50,12 +59,27 @@ let usingExternal = false;
 let starting: Promise<boolean> | null = null;
 let currentModel = DEFAULT_LOCAL_MODEL;
 let onStatusChange: (() => void) | null = null;
+let download: DownloadWatch | null = null;
 
 export function setOnLocalLlmStatusChange(cb: () => void): void {
   onStatusChange = cb;
 }
 
-function findMlxServer(): string | null {
+interface MlxCommand {
+  cmd: string;
+  args: string[];
+}
+
+// The Python and mlx-lm bundled in the app; in dev without engines/, an mlx-lm
+// installed with `uv tool install mlx-lm`.
+function findMlxServer(): MlxCommand | null {
+  const python = bundledPath('python', 'bin', 'python3');
+  if (python) return { cmd: python, args: ['-m', 'mlx_lm', 'server'] };
+  const installed = findInstalledMlxServer();
+  return installed ? { cmd: installed, args: [] } : null;
+}
+
+function findInstalledMlxServer(): string | null {
   const candidates = [
     path.join(os.homedir(), '.local', 'bin', 'mlx_lm.server'),
     '/opt/homebrew/bin/mlx_lm.server',
@@ -88,6 +112,12 @@ export function isLocalLlmRunning(): boolean {
 
 export function isLocalLlmStarting(): boolean {
   return starting !== null;
+}
+
+// While the model downloads on first use: how far along, and how big it is.
+export function getLocalModelDownload(): { percent: number; size: string } | null {
+  if (!starting || download?.percent == null) return null;
+  return { percent: download.percent, size: formatBytes(MODEL_BYTES[currentModel] ?? 0) };
 }
 
 function checkServerHealth(): Promise<boolean> {
@@ -149,9 +179,9 @@ export function startLocalLlm(model?: string): Promise<boolean> {
 }
 
 async function doStart(): Promise<boolean> {
-  const cliPath = findMlxServer();
-  if (!cliPath) {
-    console.error('[DictateAI] mlx_lm.server not found. Install with: uv tool install mlx-lm');
+  const server = findMlxServer();
+  if (!server) {
+    console.error('[DictateAI] Cleanup engine not found. Run scripts/build-engines.sh, or: uv tool install mlx-lm');
     return false;
   }
 
@@ -171,7 +201,8 @@ async function doStart(): Promise<boolean> {
 
   console.log(`[DictateAI] Starting local LLM server (model: ${currentModel})...`);
 
-  const proc = spawn(cliPath, [
+  const proc = spawn(server.cmd, [
+    ...server.args,
     '--model', currentModel,
     '--host', MLX_HOST,
     '--port', String(MLX_PORT),
@@ -183,6 +214,9 @@ async function doStart(): Promise<boolean> {
   ], {
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
+    // Writing .pyc files into the app bundle would break its signature, and
+    // packages in the user's own Python must not shadow the bundled ones.
+    env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1', PYTHONNOUSERSITE: '1' },
   });
   serverProcess = proc;
 
@@ -209,7 +243,9 @@ async function doStart(): Promise<boolean> {
   }
 
   console.log('[DictateAI] Local LLM server up — loading model (downloads on first use)...');
-  const warmed = await warmUp();
+  download = new DownloadWatch(HF_HUB_DIR, MODEL_BYTES[currentModel] ?? 4e9, () => onStatusChange?.());
+  download.begin();
+  const warmed = await warmUp().finally(() => download?.end());
   if (serverProcess !== proc) return false;
   if (!warmed) {
     console.error('[DictateAI] Local LLM failed to load the model.');

@@ -17,6 +17,8 @@ interface ShortcutConfig {
   requiredModifiers: number;
 }
 
+interface ModelDownload { percent: number; size: string }
+
 interface HubAPI {
   dictionary: {
     list: () => Promise<DictionaryEntry[]>;
@@ -30,7 +32,7 @@ interface HubAPI {
     hasAccessibility: () => Promise<boolean>;
     getLanguage: () => Promise<string>;
     setLanguage: (lang: string) => Promise<boolean>;
-    sttStatus: () => Promise<{ installed: boolean; running: boolean; engine: string; model: string }>;
+    sttStatus: () => Promise<{ installed: boolean; running: boolean; download: ModelDownload | null; engine: string; model: string }>;
     getLlmEnabled: () => Promise<boolean>;
     setLlmEnabled: (enabled: boolean) => Promise<boolean>;
     getLlmProvider: () => Promise<'local' | 'cloud'>;
@@ -40,6 +42,7 @@ interface HubAPI {
       mlxInstalled: boolean;
       running: boolean;
       starting: boolean;
+      download: ModelDownload | null;
       model: string;
       cloudModel: string;
     }>;
@@ -271,14 +274,23 @@ async function loadSettings(): Promise<void> {
   llmToggle.checked = llmOn;
   await loadLlmStatus();
 
+  await loadSttStatus();
+}
+
+async function loadSttStatus(): Promise<void> {
   const stt = await window.hub.config.sttStatus();
   const sttStatus = document.getElementById('stt-status')!;
   const sttBadge = document.getElementById('stt-badge')!;
   if (!stt.installed) {
-    sttStatus.textContent = 'WhisperKit not installed — run: brew install whisperkit-cli';
+    sttStatus.textContent = 'Speech engine missing — reinstall DictateAI';
     sttStatus.style.color = '#dc2626';
     sttBadge.textContent = 'Missing';
     sttBadge.className = 'badge badge-red';
+  } else if (stt.download) {
+    sttStatus.textContent = `Downloading the speech model, one time only — ${stt.download.percent}% of ${stt.download.size}`;
+    sttStatus.style.color = '';
+    sttBadge.textContent = 'Downloading';
+    sttBadge.className = 'badge badge-blue';
   } else if (stt.running) {
     sttStatus.textContent = `WhisperKit · ${stt.model} model (local)`;
     sttStatus.style.color = '';
@@ -348,7 +360,7 @@ window.hub.onSttRestarting(() => {
 
 window.hub.onSttStatusChanged(() => {
   languageSelect.disabled = false;
-  loadSettings();
+  loadSttStatus();
 });
 
 llmToggle.addEventListener('change', async () => {
@@ -370,13 +382,15 @@ async function loadLlmStatus(): Promise<void> {
     llmModelName.textContent = status.cloudModel;
     if (document.activeElement !== cloudModelInput) cloudModelInput.value = status.cloudModel;
   } else if (!status.mlxInstalled) {
-    llmProviderDesc.textContent = 'mlx-lm not installed — run: uv tool install mlx-lm';
+    llmProviderDesc.textContent = 'Cleanup engine missing — reinstall DictateAI';
     llmProviderDesc.style.color = '#dc2626';
     llmModelName.textContent = '';
   } else {
     const state = status.running
       ? 'ready'
-      : status.starting
+      : status.download
+        ? `downloading the model, one time only — ${status.download.percent}% of ${status.download.size}`
+        : status.starting
         ? 'loading (first run downloads the model)…'
         : llmToggle.checked ? 'stopped' : 'off until AI Text Cleanup is on';
     llmProviderDesc.textContent = `Private, unlimited — ${state}`;
