@@ -7,6 +7,7 @@ import {
   ipcMain,
   nativeImage,
   screen,
+  systemPreferences,
 } from 'electron';
 import {
   injectText,
@@ -23,7 +24,7 @@ import { formatText, canFormat, CleanupLocation, getCloudModel, DEFAULT_CLOUD_MO
 import { hasApiKey, saveApiKey, removeApiKey, migrateApiKey, loadConfig, saveConfig, ShortcutConfig, PillPosition, normalizePillPosition, getLlmProvider, LlmProvider } from './config';
 import { startLocalLlm, stopLocalLlm, isMlxInstalled, isLocalLlmRunning, isLocalLlmStarting, getLocalModel, setOnLocalLlmStatusChange, defaultLocalModelFor, localModelOptions } from './local-llm';
 import { getFocusedElementInfo } from './text-injection';
-import { noticeAfterCleanup } from './notices';
+import { noticeAfterCleanup, noticeMicrophoneBlocked } from './notices';
 import { addHistory, listHistory, clearHistory } from './history';
 import { applyReplacements, detectCorrections, addCorrection, getAllCorrections, removeCorrection } from './dictionary';
 import started from 'electron-squirrel-startup';
@@ -372,6 +373,17 @@ async function processAudio(session: number, chunks: Float32Array[]): Promise<vo
   }
 
   const combined = joinChunks(chunks);
+
+  // Exact digital silence (every sample 0) means macOS is withholding the
+  // microphone; a real quiet room still has noise.
+  if (combined.every((sample) => sample === 0)) {
+    console.log('[DictateAI] Recording is pure silence — microphone access is blocked');
+    sendPillState(session, 'mic-blocked');
+    hidePillLater(session, 2500);
+    noticeMicrophoneBlocked();
+    finishProcessing(session, '');
+    return;
+  }
 
   const durationSec = combined.length / 16000;
   if (durationSec < 0.2) {
@@ -745,10 +757,25 @@ if (!isPrimaryInstance) {
   app.on('second-instance', () => createHubWindow());
 }
 
-app.whenReady().then(() => {
+// Without microphone permission macOS doesn't fail the recording, it feeds
+// silence, so ask explicitly before the overlay opens its audio stream.
+async function ensureMicrophoneAccess(): Promise<void> {
+  const status = systemPreferences.getMediaAccessStatus('microphone');
+  console.log(`[DictateAI] Microphone access: ${status}`);
+  if (status === 'not-determined') {
+    const granted = await systemPreferences.askForMediaAccess('microphone');
+    console.log(`[DictateAI] Microphone access ${granted ? 'granted' : 'denied'}`);
+    if (!granted) noticeMicrophoneBlocked();
+  } else if (status !== 'granted') {
+    noticeMicrophoneBlocked();
+  }
+}
+
+app.whenReady().then(async () => {
   if (!isPrimaryInstance) return;
 
   createTray();
+  await ensureMicrophoneAccess();
   overlayWindow = createOverlayWindow();
   registerPushToTalk();
   setupIPC();

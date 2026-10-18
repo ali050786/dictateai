@@ -39,7 +39,7 @@ const bars = waveform.querySelectorAll<HTMLDivElement>('.bar');
 function updateUI(state: string): void {
   currentState = state;
   const cssClass = ['formatting', 'injecting', 'undo'].includes(state) ? 'processing'
-    : ['error', 'empty'].includes(state) ? 'error'
+    : ['error', 'empty', 'mic-blocked'].includes(state) ? 'error'
     : state === 'restarting' ? 'downloading'
     : state;
   flowBar.className = `flow-bar ${cssClass}`;
@@ -81,6 +81,9 @@ function updateUI(state: string): void {
       break;
     case 'error':
       label.textContent = 'Something went wrong';
+      break;
+    case 'mic-blocked':
+      label.textContent = 'Microphone blocked';
       break;
     case 'idle':
     default:
