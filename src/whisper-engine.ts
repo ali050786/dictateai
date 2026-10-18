@@ -116,7 +116,15 @@ function checkServerHealth(): Promise<boolean> {
   });
 }
 
-export async function startServer(): Promise<boolean> {
+// The downloaded model, if every part of it is there. Starting from this
+// folder skips WhisperKit's check with Hugging Face, which fails offline.
+function localModelFolder(): string | null {
+  const folder = path.join(MODEL_DIR, 'models', 'argmaxinc', 'whisperkit-coreml', `openai_whisper-${currentModel}`);
+  const parts = ['AudioEncoder.mlmodelc', 'MelSpectrogram.mlmodelc', 'TextDecoder.mlmodelc', 'config.json'];
+  return parts.every(part => fs.existsSync(path.join(folder, part))) ? folder : null;
+}
+
+export async function startServer(forceDownload = false): Promise<boolean> {
   if (serverProcess && !serverProcess.killed) {
     const health = await checkServerHealth();
     if (health) {
@@ -133,14 +141,16 @@ export async function startServer(): Promise<boolean> {
     return false;
   }
 
-  console.log(`[DictateAI] Starting WhisperKit server (model: ${currentModel})...`);
+  const localFolder = forceDownload ? null : localModelFolder();
+  console.log(`[DictateAI] Starting WhisperKit server (model: ${currentModel}, ${localFolder ? 'on disk' : 'download if needed'})...`);
 
   const args = [
     'serve',
-    '--model', currentModel,
+    ...(localFolder
+      ? ['--model-path', localFolder]
+      : ['--model', currentModel, '--download-model-path', MODEL_DIR]),
     '--port', String(WHISPERKIT_PORT),
     '--host', WHISPERKIT_HOST,
-    '--download-model-path', MODEL_DIR,
     '--download-tokenizer-path', MODEL_DIR,
   ];
   fs.mkdirSync(MODEL_DIR, { recursive: true });
@@ -181,6 +191,11 @@ export async function startServer(): Promise<boolean> {
   } else {
     console.error('[DictateAI] WhisperKit server failed to start within timeout.');
     stopServer();
+    // A damaged model on disk: let WhisperKit fetch it again.
+    if (localFolder) {
+      console.log('[DictateAI] Retrying WhisperKit with a fresh model download...');
+      return startServer(true);
+    }
   }
 
   onStatusChange?.();
