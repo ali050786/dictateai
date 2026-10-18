@@ -1,7 +1,6 @@
-<!-- Menu-bar template while recording: the voice dot grows. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round">
-  <g transform="translate(-0.4 0)">
-    <path d="M5.6 3.2h4.4M5.6 20.8h4.4M7.8 3.2v17.6"/><path d="M10 3.2a8.8 8.8 0 0 1 0 17.6"/>
-    <circle cx="11.8" cy="12" r="3.3" fill="#000" stroke="none"/>
-  </g>
+<!-- Menu-bar template while recording: the bubble fills in, with the wave cut out. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <defs><mask id="cut"><rect width="24" height="24" fill="#fff"/>
+    <g fill="none" stroke="#000" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5.8 10.5c.65-2.9 1.55-2.9 2.2 0s1.55 2.9 2.2 0c.5-1.6 1.1-1.6 1.6 0H13.6"/><path d="M17 7.4v6.2"/></g></mask></defs>
+  <path d="M6.5 3.5h11a4.5 4.5 0 0 1 4.5 4.5v5a4.5 4.5 0 0 1-4.5 4.5H10.2l-4.4 3.7a.5.5 0 0 1-.8-.46l.55-3.3A4.5 4.5 0 0 1 2 13V8a4.5 4.5 0 0 1 4.5-4.5z" fill="#000" stroke="#000" stroke-width="1.9" stroke-linejoin="round" mask="url(#cut)"/>
 </svg>
