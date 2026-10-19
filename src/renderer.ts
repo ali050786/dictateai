@@ -31,6 +31,9 @@ let isHandsfree = false;
 let selectedDeviceId = '';
 // The recording main.ts is capturing for; every chunk carries it.
 let captureSession = 0;
+// Goes up whenever capture starts or stops. A capture still waiting for the
+// microphone checks it, so one that is no longer wanted never connects.
+let captureGeneration = 0;
 
 const flowBar = document.getElementById('flow-bar')!;
 const waveform = document.getElementById('waveform')!;
@@ -223,8 +226,12 @@ async function ensureAudioContext(): Promise<void> {
 }
 
 async function startAudioCapture(): Promise<void> {
+  // Release any earlier stream first, so only one ever feeds the worklet.
+  stopAudioCapture();
+  const generation = captureGeneration;
   try {
     await ensureAudioContext();
+    if (generation !== captureGeneration) return;
 
     const constraints: MediaStreamConstraints = {
       audio: {
@@ -236,7 +243,14 @@ async function startAudioCapture(): Promise<void> {
       },
     };
 
-    mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    // The recording ended (a quick tap) or capture restarted while the
+    // microphone was opening: close it again instead of recording into nothing.
+    if (generation !== captureGeneration) {
+      stream.getTracks().forEach((t) => t.stop());
+      return;
+    }
+    mediaStream = stream;
 
     mediaStream.getAudioTracks().forEach(track => {
       track.addEventListener('ended', () => {
@@ -254,12 +268,13 @@ async function startAudioCapture(): Promise<void> {
 
     if (audioContext!.state === 'suspended') {
       await audioContext!.resume();
+      if (generation !== captureGeneration) return;
     }
 
     animateWaveform();
   } catch (err) {
     console.error('[DictateAI] Audio capture failed:', err);
-    if (currentState === 'recording') {
+    if (generation === captureGeneration && currentState === 'recording') {
       attemptAudioRecovery();
     }
   }
@@ -268,10 +283,13 @@ async function startAudioCapture(): Promise<void> {
 async function attemptAudioRecovery(): Promise<void> {
   console.log('[DictateAI] Attempting audio recovery…');
   stopAudioCapture();
+  const generation = captureGeneration;
 
   let retries = 3;
   while (retries > 0 && currentState === 'recording') {
     await new Promise(r => setTimeout(r, 500));
+    // The recording stopped, or capture started again, while we waited.
+    if (generation !== captureGeneration) return;
     try {
       await startAudioCapture();
       console.log('[DictateAI] Audio recovered');
@@ -300,6 +318,7 @@ function flushAudioCapture(session: number): void {
 }
 
 function stopAudioCapture(): void {
+  captureGeneration++;
   if (animFrameId) {
     cancelAnimationFrame(animFrameId);
     animFrameId = null;
