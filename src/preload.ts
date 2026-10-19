@@ -38,6 +38,14 @@ contextBridge.exposeInMainWorld('dictateAI', {
       ipcRenderer.removeListener('dictation:handsfree', handler);
     };
   },
+  onCue: (callback: (cue: 'start' | 'stop') => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, cue: 'start' | 'stop') =>
+      callback(cue);
+    ipcRenderer.on('dictation:cue', handler);
+    return () => {
+      ipcRenderer.removeListener('dictation:cue', handler);
+    };
+  },
   stopRecording: () => ipcRenderer.send('overlay:stopRecording'),
   setClickable: (clickable: boolean) => ipcRenderer.send('overlay:setClickable', clickable),
 });

@@ -37,6 +37,23 @@ contextBridge.exposeInMainWorld('hub', {
     list: () => ipcRenderer.invoke('history:list'),
     clear: () => ipcRenderer.invoke('history:clear'),
   },
+  general: {
+    getPlaySounds: () => ipcRenderer.invoke('config:getPlaySounds'),
+    setPlaySounds: (enabled: boolean) => ipcRenderer.invoke('config:setPlaySounds', enabled),
+    getOpenAtLogin: () => ipcRenderer.invoke('config:getOpenAtLogin'),
+    setOpenAtLogin: (enabled: boolean) => ipcRenderer.invoke('config:setOpenAtLogin', enabled),
+    openLoginItems: () => ipcRenderer.invoke('config:openLoginItems'),
+  },
+  // "Paste last transcript" / "Copy last transcript" shortcuts.
+  transcriptShortcuts: {
+    get: () => ipcRenderer.invoke('shortcuts:get'),
+    set: (action: string, index: number | null, accelerator: string) =>
+      ipcRenderer.invoke('shortcuts:set', action, index, accelerator),
+    remove: (action: string, index: number) => ipcRenderer.invoke('shortcuts:remove', action, index),
+    reset: () => ipcRenderer.invoke('shortcuts:reset'),
+    suspend: () => ipcRenderer.invoke('shortcuts:suspend'),
+    resume: () => ipcRenderer.invoke('shortcuts:resume'),
+  },
   onDictationLog: (callback: (entry: { text: string; app: string; time: string }) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, entry: { text: string; app: string; time: string }) =>
       callback(entry);

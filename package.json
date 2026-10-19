@@ -26,6 +26,8 @@
     "lint": "oxlint && oxfmt --check",
     "lint:fix": "oxlint --fix && oxfmt --write",
     "typecheck": "tsc --noEmit",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test test/",
+    "build:sounds": "node scripts/build-sounds.mjs",
     "build:icons": "node scripts/build-icons.mjs"
   },
   "devDependencies": {

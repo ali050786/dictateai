@@ -898,3 +898,122 @@ body {
   background: #1a1a1a;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }
+
+/* --- Last transcript shortcuts (Shortcuts page) --- */
+.binding-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fafafa;
+  border-radius: 12px;
+  padding: 16px 16px 16px 20px;
+  margin-bottom: 12px;
+}
+
+.binding-card-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.binding-card h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.binding-card p {
+  font-size: 12px;
+  color: #888;
+  margin-top: 4px;
+}
+
+.binding-list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.binding {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 10px;
+  padding: 5px 4px 5px 10px;
+}
+
+.binding.unavailable {
+  border-color: #fca5a5;
+}
+
+.binding.unavailable .key-cap {
+  color: #b91c1c;
+  text-decoration: line-through;
+}
+
+.key-cap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  background: #f3f3f3;
+  border: 1px solid #e2e2e2;
+  border-radius: 6px;
+  padding: 3px 7px;
+  font: 500 12px -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #1a1a1a;
+}
+
+.binding-add {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 10px;
+  background: #ececec;
+  color: #555;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.binding-add:hover:not(:disabled) {
+  background: #e2e2e2;
+  color: #1a1a1a;
+}
+
+.binding-add:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.shortcut-record-prompt .key-cap {
+  margin: 0 3px;
+  font-size: 15px;
+  padding: 5px 10px;
+}
+
+.shortcut-record-error {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #dc2626;
+}
+
+.btn-remove-shortcut {
+  margin-right: auto;
+  color: #dc2626;
+}
+
+.link-button[hidden],
+.btn-remove-shortcut[hidden],
+.shortcut-record-error[hidden] {
+  display: none;
+}
+
+.toggle input:disabled + .toggle-slider {
+  opacity: 0.4;
+  cursor: default;
+}

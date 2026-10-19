@@ -1,5 +1,6 @@
 import * as path from 'path';
 import { app } from 'electron';
+import type { FocusFacts } from './focus-target';
 
 declare const __non_webpack_require__: typeof require;
 
@@ -28,6 +29,9 @@ interface TextInjectionAddon {
     width?: number;
     height?: number;
   };
+  getFocusTarget(): FocusFacts & { appError?: number; systemError?: number };
+  copyText(text: string): boolean;
+  getModifierFlags(): number;
 }
 
 let addon: TextInjectionAddon | null = null;
@@ -66,6 +70,9 @@ function getAddon(): TextInjectionAddon {
       stopPushToTalk: () => false,
       setPttKey: () => false,
       getTextCursorPosition: () => ({ available: false }),
+      getFocusTarget: () => ({ focused: false }),
+      copyText: () => false,
+      getModifierFlags: () => 0,
     };
   }
 
@@ -114,4 +121,19 @@ export function setPttKey(keyCode: number, flagMask: number, isModifier: boolean
 
 export function getTextCursorPosition() {
   return getAddon().getTextCursorPosition();
+}
+
+// Facts about the focused element; focus-target.ts decides if it takes text.
+export function getFocusTarget() {
+  return getAddon().getFocusTarget();
+}
+
+// Copies text for the user to paste, hidden from clipboard managers.
+export function copyText(text: string): boolean {
+  return getAddon().copyText(text);
+}
+
+// Modifier keys (⌃ ⌥ ⇧ ⌘) the user is holding down, as CGEventFlags; 0 if none.
+export function getModifierFlags(): number {
+  return getAddon().getModifierFlags();
 }
