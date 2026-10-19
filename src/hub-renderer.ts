@@ -28,10 +28,6 @@ interface ShortcutConfig {
 
 interface ModelDownload { percent: number; size: string }
 
-interface LoginItemState { available: boolean; enabled: boolean; needsApproval: boolean }
-interface TranscriptShortcutState { shortcuts: TranscriptShortcuts; unavailable: string[] }
-type ShortcutSaveResult = { ok: true; state: TranscriptShortcutState } | { ok: false; error: string };
-
 interface HubAPI {
   dictionary: {
     list: () => Promise<DictionaryEntry[]>;
@@ -96,6 +92,10 @@ interface HubAPI {
   onSttStatusChanged: (callback: () => void) => () => void;
   openExternal: (url: string) => void;
 }
+
+interface LoginItemState { available: boolean; enabled: boolean; needsApproval: boolean }
+interface TranscriptShortcutState { shortcuts: TranscriptShortcuts; unavailable: string[] }
+type ShortcutSaveResult = { ok: true; state: TranscriptShortcutState } | { ok: false; error: string };
 
 declare global {
   interface Window {
