@@ -1,7 +1,8 @@
 import './index.css';
 
 interface DictateAPI {
-  sendAudioChunk: (data: ArrayBuffer) => void;
+  sendAudioChunk: (session: number, data: ArrayBuffer, final: boolean) => void;
+  onCapture: (callback: (command: 'start' | 'flush', session: number) => void) => () => void;
   getState: () => Promise<string>;
   onStateChange: (callback: (state: string) => void) => () => void;
   onPreview: (callback: (text: string) => void) => () => void;
@@ -28,6 +29,8 @@ let currentState = 'idle';
 let animFrameId: number | null = null;
 let isHandsfree = false;
 let selectedDeviceId = '';
+// The recording main.ts is capturing for; every chunk carries it.
+let captureSession = 0;
 
 const flowBar = document.getElementById('flow-bar')!;
 const waveform = document.getElementById('waveform')!;
@@ -153,26 +156,52 @@ async function ensureAudioContext(): Promise<void> {
         this._buffer = [];
         this._bufferSize = 0;
         this._targetSize = 8000; // 0.5s at 16kHz
+        // The recording being captured; 0 between recordings, when input
+        // is dropped.
+        this._session = 0;
+        this.port.onmessage = (event) => {
+          const { start, flush } = event.data;
+          if (start !== undefined && start !== this._session) {
+            // A new recording: forget audio left over from the last one.
+            this._buffer = [];
+            this._bufferSize = 0;
+            this._session = start;
+          }
+          if (flush !== undefined) {
+            // The recording stopped: send what's left of it (up to 0.5s) as
+            // its last chunk, even if that's nothing.
+            if (flush !== this._session) {
+              this._buffer = [];
+              this._bufferSize = 0;
+            }
+            this._send(flush, true);
+            this._session = 0;
+          }
+        };
+      }
+
+      _send(session, final) {
+        const combined = new Float32Array(this._bufferSize);
+        let offset = 0;
+        for (const chunk of this._buffer) {
+          combined.set(chunk, offset);
+          offset += chunk.length;
+        }
+        this.port.postMessage({ session, samples: combined.buffer, final }, [combined.buffer]);
+        this._buffer = [];
+        this._bufferSize = 0;
       }
 
       process(inputs) {
         const input = inputs[0];
-        if (!input || !input[0]) return true;
+        if (!input || !input[0] || this._session === 0) return true;
 
         const samples = input[0];
         this._buffer.push(new Float32Array(samples));
         this._bufferSize += samples.length;
 
         if (this._bufferSize >= this._targetSize) {
-          const combined = new Float32Array(this._bufferSize);
-          let offset = 0;
-          for (const chunk of this._buffer) {
-            combined.set(chunk, offset);
-            offset += chunk.length;
-          }
-          this.port.postMessage(combined.buffer, [combined.buffer]);
-          this._buffer = [];
-          this._bufferSize = 0;
+          this._send(this._session, false);
         }
 
         return true;
@@ -184,10 +213,9 @@ async function ensureAudioContext(): Promise<void> {
   );
 
   workletNode = new AudioWorkletNode(audioContext, 'pcm-processor');
-  workletNode.port.onmessage = (event: MessageEvent) => {
-    if (currentState === 'recording') {
-      window.dictateAI.sendAudioChunk(event.data);
-    }
+  workletNode.port.onmessage = (event: MessageEvent<{ session: number; samples: ArrayBuffer; final: boolean }>) => {
+    const { session, samples, final } = event.data;
+    window.dictateAI.sendAudioChunk(session, samples, final);
   };
   workletNode.connect(audioContext.destination);
 
@@ -220,6 +248,7 @@ async function startAudioCapture(): Promise<void> {
     });
 
     sourceNode = audioContext!.createMediaStreamSource(mediaStream);
+    workletNode!.port.postMessage({ start: captureSession });
     sourceNode.connect(analyserNode!);
     sourceNode.connect(workletNode!);
 
@@ -259,6 +288,17 @@ async function attemptAudioRecovery(): Promise<void> {
   }
 }
 
+// The recording stopped. Disconnect the microphone first so nothing newer
+// reaches the worklet, then have it send the part of a chunk it still holds.
+function flushAudioCapture(session: number): void {
+  stopAudioCapture();
+  if (workletNode) {
+    workletNode.port.postMessage({ flush: session });
+  } else {
+    window.dictateAI.sendAudioChunk(session, new ArrayBuffer(0), true);
+  }
+}
+
 function stopAudioCapture(): void {
   if (animFrameId) {
     cancelAnimationFrame(animFrameId);
@@ -278,6 +318,14 @@ function stopAudioCapture(): void {
     bar.style.height = '';
   });
 }
+
+window.dictateAI.onCapture((command, session) => {
+  if (command === 'start') {
+    captureSession = session;
+  } else {
+    flushAudioCapture(session);
+  }
+});
 
 window.dictateAI.onStateChange(updateUI);
 window.dictateAI.getState().then(updateUI);
