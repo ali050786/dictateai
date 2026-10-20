@@ -44,6 +44,11 @@ export interface Config {
   localModel?: string;
   language?: string;
   llmEnabled?: boolean;
+  // A short sound when dictation starts and stops. On unless turned off.
+  playSounds?: boolean;
+  // Global shortcuts for the last dictation, as Electron accelerators
+  // (see accelerator.ts). Missing means the defaults.
+  transcriptShortcuts?: { paste?: string[]; copy?: string[] };
   shortcut?: ShortcutConfig;
   audioDevice?: string;
   pillPosition?: PillPosition;

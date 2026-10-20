@@ -199,6 +199,24 @@
                 <span id="handsfree-status-text">Active</span>
               </div>
             </div>
+
+            <!-- Filled by renderBindings() in hub-renderer.ts -->
+            <div class="binding-card" data-action="paste">
+              <div class="binding-card-text">
+                <h3>Paste last transcript</h3>
+                <p>Paste the last thing you dictated</p>
+              </div>
+              <div class="binding-list" id="bindings-paste"></div>
+              <button type="button" class="binding-add" data-action="paste" title="Add another shortcut" aria-label="Add another shortcut for Paste last transcript">+</button>
+            </div>
+            <div class="binding-card" data-action="copy">
+              <div class="binding-card-text">
+                <h3>Copy last transcript</h3>
+                <p>Copy the last thing you dictated</p>
+              </div>
+              <div class="binding-list" id="bindings-copy"></div>
+              <button type="button" class="binding-add" data-action="copy" title="Add another shortcut" aria-label="Add another shortcut for Copy last transcript">+</button>
+            </div>
           </div>
 
           <!-- Shortcut Recording Modal -->
@@ -210,7 +228,9 @@
               <div class="shortcut-record-area" id="shortcut-record-area">
                 <span class="shortcut-record-prompt" id="shortcut-record-prompt">Press a key…</span>
               </div>
+              <p class="shortcut-record-error" id="shortcut-record-error" role="alert" hidden></p>
               <div class="modal-actions">
+                <button id="btn-remove-shortcut" class="btn-secondary btn-remove-shortcut" hidden>Remove</button>
                 <button id="btn-cancel-shortcut" class="btn-secondary">Cancel</button>
                 <button id="btn-save-shortcut" class="btn-primary" disabled>Save</button>
               </div>
@@ -263,6 +283,27 @@
                 </div>
                 <label class="toggle">
                   <input type="checkbox" id="mute-toggle">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <span class="setting-label">Play sounds</span>
+                  <span class="setting-desc">A soft tone when dictation starts and stops</span>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="sounds-toggle">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <span class="setting-label">Open DictateAI when you log in</span>
+                  <span class="setting-desc" id="login-item-desc">Ready in the menu bar whenever your Mac starts</span>
+                  <button type="button" class="link-button" id="btn-login-items" hidden>Open Login Items in System Settings</button>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="login-item-toggle">
                   <span class="toggle-slider"></span>
                 </label>
               </div>

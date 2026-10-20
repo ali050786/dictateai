@@ -1,4 +1,7 @@
 import './index.css';
+import startCueSrc from '../assets/sounds/start.wav';
+import stopCueSrc from '../assets/sounds/stop.wav';
+import { samplesToSkip } from './cue-timing';
 
 interface DictateAPI {
   sendAudioChunk: (data: ArrayBuffer) => void;
@@ -6,6 +9,7 @@ interface DictateAPI {
   onStateChange: (callback: (state: string) => void) => () => void;
   onPreview: (callback: (text: string) => void) => () => void;
   onHandsfree: (callback: (active: boolean) => void) => () => void;
+  onCue: (callback: (cue: 'start' | 'stop') => void) => () => void;
   getAudioDevice: () => Promise<string>;
   onAudioDeviceChanged: (callback: (deviceId: string) => void) => () => void;
   stopRecording: () => void;
@@ -36,13 +40,74 @@ const preview = document.getElementById('preview')!;
 const closeBtn = document.getElementById('close-btn')!;
 const bars = waveform.querySelectorAll<HTMLDivElement>('.bar');
 
+// --- Start and stop sounds ---
+// Played in this window because it's the one that records: when capture
+// starts it drops whatever audio arrives while the start sound is still
+// playing (samplesToSkip), so the sound is never transcribed. They get
+// their own AudioContext at the speakers' rate; capture runs at 16 kHz.
+const cues = {
+  context: null as AudioContext | null,
+  buffers: {} as Partial<Record<'start' | 'stop', AudioBuffer>>,
+  // performance.now() time the last sound stops being heard.
+  audibleUntil: 0,
+  idleTimer: null as ReturnType<typeof setTimeout> | null,
+};
+
+async function loadCues(): Promise<void> {
+  const context = new AudioContext({ latencyHint: 'interactive' });
+  const sources = { start: startCueSrc, stop: stopCueSrc };
+  for (const name of ['start', 'stop'] as const) {
+    const src = sources[name];
+    const bytes = Uint8Array.from(atob(src.slice(src.indexOf(',') + 1)), (c) => c.charCodeAt(0));
+    cues.buffers[name] = await context.decodeAudioData(bytes.buffer);
+  }
+  cues.context = context;
+  // Idle until the first dictation; a running context keeps the audio
+  // device busy.
+  await context.suspend();
+}
+
+async function playCue(name: 'start' | 'stop'): Promise<void> {
+  const { context } = cues;
+  const buffer = cues.buffers[name];
+  if (!context || !buffer) return;
+  if (cues.idleTimer) {
+    clearTimeout(cues.idleTimer);
+    cues.idleTimer = null;
+  }
+  // A guess until it's playing, in case capture starts first. The stop sound
+  // counts too: the next recording can start while it plays.
+  cues.audibleUntil = Math.max(cues.audibleUntil, performance.now() + buffer.duration * 1000 + 100);
+  if (context.state !== 'running') await context.resume();
+  const source = context.createBufferSource();
+  source.buffer = buffer;
+  source.connect(context.destination);
+  source.start();
+  // outputLatency reads 0 until the device has started; assume 40 ms then.
+  const latency = context.baseLatency + (context.outputLatency || 0.04);
+  cues.audibleUntil = performance.now() + (buffer.duration + latency) * 1000;
+  source.onended = () => {
+    if (cues.idleTimer) clearTimeout(cues.idleTimer);
+    cues.idleTimer = setTimeout(() => {
+      cues.idleTimer = null;
+      context.suspend();
+    }, 3000);
+  };
+}
+
+loadCues().catch((err) => console.error('[DictateAI] Could not load sounds:', err));
+
 function updateUI(fullState: string): void {
-  // 'preparing:42' carries the speech model's download percent.
-  const [state, detail] = fullState.split(':');
+  // 'preparing:42' carries the speech model's download percent, and
+  // 'no-field:⌃⌘V' the paste shortcut.
+  const separator = fullState.indexOf(':');
+  const state = separator < 0 ? fullState : fullState.slice(0, separator);
+  const detail = separator < 0 ? '' : fullState.slice(separator + 1);
   currentState = state;
   const cssClass = ['formatting', 'injecting', 'undo'].includes(state) ? 'processing'
     : ['error', 'empty', 'mic-blocked', 'stt-unavailable'].includes(state) ? 'error'
     : ['restarting', 'preparing'].includes(state) ? 'downloading'
+    : ['no-field', 'copied', 'nothing-yet'].includes(state) ? 'notice'
     : state;
   flowBar.className = `flow-bar ${cssClass}`;
   if (isHandsfree && state === 'recording') {
@@ -57,7 +122,16 @@ function updateUI(fullState: string): void {
   switch (state) {
     case 'recording':
       label.textContent = '';
-      startAudioCapture();
+      startAudioCapture(true);
+      break;
+    case 'no-field':
+      label.textContent = detail ? `No text field. Press ${detail} to paste it.` : 'No text field. Saved in History.';
+      break;
+    case 'copied':
+      label.textContent = 'Copied';
+      break;
+    case 'nothing-yet':
+      label.textContent = 'Nothing dictated yet';
       break;
     case 'processing':
       label.textContent = 'Transcribing';
@@ -153,13 +227,27 @@ async function ensureAudioContext(): Promise<void> {
         this._buffer = [];
         this._bufferSize = 0;
         this._targetSize = 8000; // 0.5s at 16kHz
+        this._skip = 0;
+        // A new recording: forget audio left over from the last one, and
+        // drop the first samples while the start sound is still playing.
+        this.port.onmessage = (event) => {
+          this._buffer = [];
+          this._bufferSize = 0;
+          this._skip = event.data.skip || 0;
+        };
       }
 
       process(inputs) {
         const input = inputs[0];
         if (!input || !input[0]) return true;
 
-        const samples = input[0];
+        let samples = input[0];
+        if (this._skip > 0) {
+          const dropped = Math.min(this._skip, samples.length);
+          this._skip -= dropped;
+          samples = samples.subarray(dropped);
+          if (samples.length === 0) return true;
+        }
         this._buffer.push(new Float32Array(samples));
         this._bufferSize += samples.length;
 
@@ -194,7 +282,8 @@ async function ensureAudioContext(): Promise<void> {
   audioReady = true;
 }
 
-async function startAudioCapture(): Promise<void> {
+// `fresh`: a new recording, rather than recovering the current one.
+async function startAudioCapture(fresh: boolean): Promise<void> {
   try {
     await ensureAudioContext();
 
@@ -220,6 +309,9 @@ async function startAudioCapture(): Promise<void> {
     });
 
     sourceNode = audioContext!.createMediaStreamSource(mediaStream);
+    if (fresh) {
+      workletNode!.port.postMessage({ skip: samplesToSkip(cues.audibleUntil, performance.now(), audioContext!.sampleRate) });
+    }
     sourceNode.connect(analyserNode!);
     sourceNode.connect(workletNode!);
 
@@ -244,7 +336,7 @@ async function attemptAudioRecovery(): Promise<void> {
   while (retries > 0 && currentState === 'recording') {
     await new Promise(r => setTimeout(r, 500));
     try {
-      await startAudioCapture();
+      await startAudioCapture(false);
       console.log('[DictateAI] Audio recovered');
       return;
     } catch {
@@ -278,6 +370,10 @@ function stopAudioCapture(): void {
     bar.style.height = '';
   });
 }
+
+window.dictateAI.onCue((cue) => {
+  playCue(cue).catch((err) => console.error('[DictateAI] Sound failed:', err));
+});
 
 window.dictateAI.onStateChange(updateUI);
 window.dictateAI.getState().then(updateUI);

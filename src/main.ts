@@ -33,6 +33,25 @@ import { addHistory, listHistory, clearHistory } from './history';
 import { applyReplacements, detectCorrections, addCorrection, getAllCorrections, removeCorrection } from './dictionary';
 import started from 'electron-squirrel-startup';
 import { redact } from './log';
+import { getFocusTarget } from './text-injection';
+import { classifyFocus } from './focus-target';
+import { START_CUE_MS, TAP_MS } from './cue-timing';
+import { getLoginItemState, setOpenAtLogin, openLoginItemsSettings } from './login-item';
+import { acceleratorSymbol, TranscriptAction } from './accelerator';
+import {
+  pasteLastTranscript,
+  copyLastTranscript,
+  getTranscriptShortcuts,
+  pasteShortcutSymbol,
+  setLastTranscriptFeedback,
+  registerTranscriptShortcuts,
+  suspendTranscriptShortcuts,
+  resumeTranscriptShortcuts,
+  transcriptShortcutState,
+  setTranscriptShortcut,
+  removeTranscriptShortcut,
+  resetTranscriptShortcuts,
+} from './last-transcript';
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
@@ -64,6 +83,8 @@ const dictation = {
   session: 0,
   chunks: [] as Float32Array[],
   handsFree: false,
+  // When the current recording started (Date.now()), to tell taps from holds.
+  startedAt: 0,
   previewTimer: null as ReturnType<typeof setInterval> | null,
   previewInFlight: false,
 };
@@ -79,6 +100,8 @@ const pillTimers = {
 // True only when we muted system audio ourselves, so we never unmute audio
 // the user had muted.
 let didMuteAudio = false;
+// Muting waits for the start sound to finish (muteSystemAudio).
+let muteTimer: ReturnType<typeof setTimeout> | null = null;
 
 function isRecording(): boolean {
   return dictation.phase === 'recording';
@@ -86,12 +109,13 @@ function isRecording(): boolean {
 
 // Settings are read from config.ts (cached) rather than copied into
 // variables here, so there is one source of truth.
-function settings(): { llmEnabled: boolean; pillPosition: PillPosition; muteWhileSpeaking: boolean; shortcutLabel: string } {
+function settings(): { llmEnabled: boolean; pillPosition: PillPosition; muteWhileSpeaking: boolean; playSounds: boolean; shortcutLabel: string } {
   const config = loadConfig();
   return {
     llmEnabled: config.llmEnabled ?? false,
     pillPosition: normalizePillPosition(config.pillPosition),
     muteWhileSpeaking: config.muteWhileSpeaking ?? false,
+    playSounds: config.playSounds ?? true,
     shortcutLabel: config.shortcut?.display || 'Right ⌥ Option',
   };
 }
@@ -165,8 +189,13 @@ function createHubWindow(): void {
     hubWindow?.show();
   });
 
+  // Settings pauses the last-transcript shortcuts while it records a new
+  // one; never leave them off once the user is elsewhere.
+  hubWindow.on('blur', () => resumeTranscriptShortcuts());
+
   hubWindow.on('closed', () => {
     hubWindow = null;
+    resumeTranscriptShortcuts();
     app.dock?.hide();
   });
 }
@@ -254,6 +283,20 @@ function updateTrayMenu(): void {
       enabled: false,
     },
     { type: 'separator' },
+    // Shown with their shortcuts; the global shortcuts do the work.
+    {
+      label: 'Paste last transcript',
+      accelerator: getTranscriptShortcuts().paste[0],
+      registerAccelerator: false,
+      click: () => pasteLastTranscript(),
+    },
+    {
+      label: 'Copy last transcript',
+      accelerator: getTranscriptShortcuts().copy[0],
+      registerAccelerator: false,
+      click: () => copyLastTranscript(),
+    },
+    { type: 'separator' },
     {
       label: 'Quit DictateAI',
       click: () => app.quit(),
@@ -304,37 +347,62 @@ function toggleRecording(): void {
   }
 }
 
-function muteSystemAudio(): void {
-  if (!settings().muteWhileSpeaking) return;
-  exec('osascript -e "output muted of (get volume settings)"', (err, stdout) => {
-    if (err) {
-      console.error('[DictateAI] Failed to check mute state:', err);
-      return;
-    }
-    if (stdout.trim() === 'true') {
-      didMuteAudio = false;
-      return;
-    }
-    exec('osascript -e "set volume with output muted"', (err2) => {
-      if (err2) {
-        console.error('[DictateAI] Failed to mute audio:', err2);
-        return;
-      }
-      didMuteAudio = true;
-      console.log('[DictateAI] System audio muted');
-    });
-  });
+// The start and stop sounds. The overlay plays them (renderer.ts): it's the
+// window that records, so it can keep the start sound out of the recording.
+function playCue(cue: 'start' | 'stop'): void {
+  if (!settings().playSounds) return;
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.webContents.send('dictation:cue', cue);
+  }
 }
 
-function unmuteSystemAudio(): void {
-  if (!didMuteAudio) return;
+function muteSystemAudio(): void {
+  if (!settings().muteWhileSpeaking) return;
+  const session = dictation.session;
+  // Muting straight away would cut off the start sound.
+  muteTimer = setTimeout(() => {
+    muteTimer = null;
+    exec('osascript -e "output muted of (get volume settings)"', (err, stdout) => {
+      if (err) {
+        console.error('[DictateAI] Failed to check mute state:', err);
+        return;
+      }
+      if (stdout.trim() === 'true') {
+        didMuteAudio = false;
+        return;
+      }
+      exec('osascript -e "set volume with output muted"', (err2) => {
+        if (err2) {
+          console.error('[DictateAI] Failed to mute audio:', err2);
+          return;
+        }
+        didMuteAudio = true;
+        console.log('[DictateAI] System audio muted');
+        // The recording ended while we were muting (a quick press).
+        if (session !== dictation.session || !isRecording()) unmuteSystemAudio();
+      });
+    });
+  }, settings().playSounds ? START_CUE_MS : 0);
+}
+
+// `then` runs once audio is back on (straight away if we never muted it).
+function unmuteSystemAudio(then?: () => void): void {
+  if (muteTimer) {
+    clearTimeout(muteTimer);
+    muteTimer = null;
+  }
+  if (!didMuteAudio) {
+    then?.();
+    return;
+  }
   didMuteAudio = false;
   exec('osascript -e "set volume without output muted"', (err) => {
     if (err) {
       console.error('[DictateAI] Failed to unmute audio:', err);
-      return;
+    } else {
+      console.log('[DictateAI] System audio unmuted');
     }
-    console.log('[DictateAI] System audio unmuted');
+    then?.();
   });
 }
 
@@ -343,7 +411,11 @@ function startRecording(): void {
   dictation.session++;
   dictation.phase = 'recording';
   dictation.chunks = [];
+  dictation.startedAt = Date.now();
   cancelPendingHide();
+  // Sent before the 'recording' state, so the overlay starts the sound
+  // before it opens the microphone.
+  playCue('start');
   muteSystemAudio();
   updateTrayMenu();
   console.log('[DictateAI] Recording started');
@@ -361,9 +433,14 @@ function stopRecording(): void {
   if (!isRecording()) return;
   const session = dictation.session;
   const chunks = dictation.chunks;
+  const heldMs = Date.now() - dictation.startedAt;
   dictation.phase = 'processing';
   dictation.chunks = [];
-  unmuteSystemAudio();
+  // The stop sound waits for audio to be unmuted, or nobody would hear it.
+  // A tap (the start of a double or triple tap) records nothing: no sound.
+  unmuteSystemAudio(() => {
+    if (heldMs >= TAP_MS) playCue('stop');
+  });
   stopPreviewTimer();
   updateTrayMenu();
   console.log(`[DictateAI] Recording stopped — ${chunks.length} chunks collected`);
@@ -555,6 +632,30 @@ function hideOverlayAfterDelay(ms: number): void {
   }, ms);
 }
 
+// Puts the text where the user is typing. If nothing there takes text (the
+// desktop, a file list, a web page with no field selected) or inserting
+// fails, the text isn't pasted into the void: it stays the last transcript
+// (the newest history entry) and the pill says how to paste it.
+function insertText(session: number, text: string): boolean {
+  const focus = getFocusTarget();
+  const verdict = classifyFocus(focus);
+  const where = `${focus.role || 'no focused element'} in ${focus.app || 'unknown app'}`;
+  if (verdict === 'none') {
+    console.log(`[DictateAI] No text field (${where}) — kept for the paste shortcut`);
+  } else {
+    sendPillState(session, 'injecting');
+    const method = injectText(text);
+    console.log(`[DictateAI] Injected via: ${method} (focus: ${verdict}, ${where})`);
+    if (method !== 'failed') {
+      hidePillLater(session, 1200);
+      return true;
+    }
+  }
+  sendPillState(session, `no-field:${pasteShortcutSymbol()}`);
+  hidePillLater(session, 4000);
+  return false;
+}
+
 function finishProcessing(session: number, text: string, appName?: string, location: CleanupLocation = 'local'): void {
   if (session === dictation.session && dictation.phase === 'processing') {
     dictation.phase = 'idle';
@@ -563,11 +664,7 @@ function finishProcessing(session: number, text: string, appName?: string, locat
   if (text) {
     console.log(`[DictateAI] Result: ${redact(text)}`);
 
-    sendPillState(session, 'injecting');
-
-    const method = injectText(text);
-    console.log(`[DictateAI] Injected via: ${method}`);
-    hidePillLater(session, 1200);
+    const inserted = insertText(session, text);
 
     const entry = { text, app: appName || '', time: new Date().toISOString(), location };
     addHistory(entry);
@@ -576,7 +673,7 @@ function finishProcessing(session: number, text: string, appName?: string, locat
 
     // A few seconds later, compare what's in the field with what we inserted
     // to learn the user's corrections (see dictionary.ts).
-    setTimeout(() => {
+    if (inserted) setTimeout(() => {
       try {
         const fieldInfo = getFocusedElementInfo();
         console.log(`[DictateAI] Correction check — available: ${fieldInfo.available}, app: ${fieldInfo.app}, role: ${fieldInfo.role}`);
@@ -879,6 +976,53 @@ function setupIPC(): void {
     console.log(`[DictateAI] Shortcut changed to: ${shortcut.display} (code=${shortcut.code})`);
     return true;
   });
+
+  ipcMain.handle('config:getPlaySounds', () => settings().playSounds);
+  ipcMain.handle('config:setPlaySounds', (_event, enabled: boolean) => {
+    saveConfig({ playSounds: enabled });
+    console.log(`[DictateAI] Play sounds: ${enabled}`);
+    return true;
+  });
+
+  ipcMain.handle('config:getOpenAtLogin', () => getLoginItemState());
+  ipcMain.handle('config:setOpenAtLogin', (_event, enabled: boolean) => setOpenAtLogin(enabled));
+  ipcMain.handle('config:openLoginItems', () => {
+    openLoginItemsSettings();
+    return true;
+  });
+
+  // "Paste last transcript" / "Copy last transcript" shortcuts.
+  const afterShortcutChange = <T extends { ok: boolean }>(result: T): T => {
+    if (result.ok) updateTrayMenu();
+    return result;
+  };
+  ipcMain.handle('shortcuts:get', () => transcriptShortcutState());
+  ipcMain.handle('shortcuts:set', (_event, action: TranscriptAction, index: number | null, accelerator: string) =>
+    afterShortcutChange(setTranscriptShortcut(action, index, accelerator)),
+  );
+  ipcMain.handle('shortcuts:remove', (_event, action: TranscriptAction, index: number) =>
+    afterShortcutChange(removeTranscriptShortcut(action, index)),
+  );
+  ipcMain.handle('shortcuts:reset', () => afterShortcutChange(resetTranscriptShortcuts()));
+  ipcMain.handle('shortcuts:suspend', () => {
+    suspendTranscriptShortcuts();
+    return true;
+  });
+  ipcMain.handle('shortcuts:resume', () => {
+    resumeTranscriptShortcuts();
+    return true;
+  });
+}
+
+// Brief notes in the pill after the last-transcript shortcuts, unless it's
+// busy showing a dictation.
+function showTranscriptFeedback(state: string): void {
+  if (dictation.phase !== 'idle' || !overlayWindow || overlayWindow.isDestroyed()) return;
+  cancelPendingHide();
+  applyOverlayPosition();
+  overlayWindow.webContents.send('dictation:state', state);
+  overlayWindow.showInactive();
+  hideOverlayAfterDelay(1500);
 }
 
 app.dock?.hide();
@@ -940,6 +1084,10 @@ app.whenReady().then(async () => {
     setPttKey(s.keyCode, s.flagMask, s.isModifier, s.requiredModifiers);
     console.log(`[DictateAI] Restored shortcut: ${s.display}`);
   }
+  setLastTranscriptFeedback(showTranscriptFeedback);
+  registerTranscriptShortcuts();
+  const { paste, copy } = getTranscriptShortcuts();
+  console.log(`[DictateAI] Last transcript: paste ${paste.map(acceleratorSymbol).join(', ')} · copy ${copy.map(acceleratorSymbol).join(', ')}`);
   // Saved middle-row positions (removed) are rewritten to their new spot.
   const pillPosition = settings().pillPosition;
   if (savedConfig.pillPosition && pillPosition !== savedConfig.pillPosition) saveConfig({ pillPosition });

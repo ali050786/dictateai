@@ -1,4 +1,13 @@
 import './hub.css';
+import {
+  acceleratorFromKeyPress,
+  acceleratorKeys,
+  MAX_BINDINGS,
+  TranscriptAction,
+  TranscriptShortcuts,
+  TRANSCRIPT_ACTIONS,
+  TRANSCRIPT_ACTION_LABELS,
+} from './accelerator';
 
 interface DictionaryEntry {
   from: string;
@@ -77,12 +86,31 @@ interface HubAPI {
     list: () => Promise<HistoryEntry[]>;
     clear: () => Promise<boolean>;
   };
+  general: {
+    getPlaySounds: () => Promise<boolean>;
+    setPlaySounds: (enabled: boolean) => Promise<boolean>;
+    getOpenAtLogin: () => Promise<LoginItemState>;
+    setOpenAtLogin: (enabled: boolean) => Promise<LoginItemState>;
+    openLoginItems: () => Promise<boolean>;
+  };
+  transcriptShortcuts: {
+    get: () => Promise<TranscriptShortcutState>;
+    set: (action: TranscriptAction, index: number | null, accelerator: string) => Promise<ShortcutSaveResult>;
+    remove: (action: TranscriptAction, index: number) => Promise<ShortcutSaveResult>;
+    reset: () => Promise<ShortcutSaveResult>;
+    suspend: () => Promise<boolean>;
+    resume: () => Promise<boolean>;
+  };
   onDictationLog: (callback: (entry: HistoryEntry) => void) => () => void;
   onLlmStatusChanged: (callback: () => void) => () => void;
   onSttRestarting: (callback: () => void) => () => void;
   onSttStatusChanged: (callback: () => void) => () => void;
   openExternal: (url: string) => void;
 }
+
+interface LoginItemState { available: boolean; enabled: boolean; needsApproval: boolean }
+interface TranscriptShortcutState { shortcuts: TranscriptShortcuts; unavailable: string[] }
+type ShortcutSaveResult = { ok: true; state: TranscriptShortcutState } | { ok: false; error: string };
 
 declare global {
   interface Window {
@@ -263,6 +291,40 @@ muteToggle.addEventListener('change', () => {
   window.hub.config.setMuteWhileSpeaking(muteToggle.checked);
 });
 
+const soundsToggle = document.getElementById('sounds-toggle') as HTMLInputElement;
+soundsToggle.addEventListener('change', () => {
+  window.hub.general.setPlaySounds(soundsToggle.checked);
+});
+
+// Open at login: macOS holds the real setting, so the toggle always shows
+// what it reports back, including after the user changes it in System Settings.
+const loginItemToggle = document.getElementById('login-item-toggle') as HTMLInputElement;
+const loginItemDesc = document.getElementById('login-item-desc')!;
+const btnLoginItems = document.getElementById('btn-login-items')!;
+loginItemToggle.addEventListener('change', async () => {
+  showLoginItem(await window.hub.general.setOpenAtLogin(loginItemToggle.checked));
+});
+btnLoginItems.addEventListener('click', () => window.hub.general.openLoginItems());
+window.addEventListener('focus', async () => {
+  showLoginItem(await window.hub.general.getOpenAtLogin());
+});
+
+function showLoginItem(state: LoginItemState): void {
+  loginItemToggle.checked = state.enabled;
+  loginItemToggle.disabled = !state.available;
+  loginItemDesc.textContent = !state.available
+    ? 'Available in the installed app'
+    : state.needsApproval
+      ? 'Turned off in System Settings → General → Login Items'
+      : 'Ready in the menu bar whenever your Mac starts';
+  btnLoginItems.hidden = !state.needsApproval;
+}
+
+async function loadGeneralToggles(): Promise<void> {
+  soundsToggle.checked = await window.hub.general.getPlaySounds();
+  showLoginItem(await window.hub.general.getOpenAtLogin());
+}
+
 async function loadSettings(): Promise<void> {
   const hasKey = await window.hub.config.hasApiKey();
   apiKeyStatus.textContent = hasKey
@@ -280,6 +342,7 @@ async function loadSettings(): Promise<void> {
   languageSelect.value = lang;
 
   showPillPosition(await window.hub.config.getPillPosition());
+  await loadGeneralToggles();
 
   loadMicDevices();
 
@@ -760,6 +823,7 @@ async function loadShortcuts(): Promise<void> {
 
   const saved = await window.hub.config.getShortcut();
   showShortcut(saved?.display || DEFAULT_KEY);
+  await loadBindings();
 }
 
 // The shortcut appears on the Shortcuts page and in the Dictation hero.
@@ -836,13 +900,17 @@ function openShortcutRecorder(mode: 'ptt' | 'handsfree'): void {
 }
 
 function handleKeyRecord(e: KeyboardEvent): void {
-  if (!shortcutModal.classList.contains('hidden') && editingShortcut) {
+  if (!shortcutModal.classList.contains('hidden') && (editingShortcut || editingBinding)) {
     e.preventDefault();
     e.stopPropagation();
 
     if (e.key === 'Escape' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
-      shortcutModal.classList.add('hidden');
-      editingShortcut = null;
+      closeShortcutModal();
+      return;
+    }
+
+    if (editingBinding) {
+      recordBinding(e);
       return;
     }
 
@@ -867,17 +935,27 @@ document.addEventListener('keydown', handleKeyRecord);
 document.getElementById('btn-edit-ptt')?.addEventListener('click', () => openShortcutRecorder('ptt'));
 document.getElementById('btn-edit-handsfree')?.addEventListener('click', () => openShortcutRecorder('handsfree'));
 
-btnCancelShortcut.addEventListener('click', () => {
-  shortcutModal.classList.add('hidden');
-  editingShortcut = null;
-});
+btnCancelShortcut.addEventListener('click', closeShortcutModal);
 
-shortcutModal.querySelector('.modal-backdrop')!.addEventListener('click', () => {
-  shortcutModal.classList.add('hidden');
-  editingShortcut = null;
-});
+shortcutModal.querySelector('.modal-backdrop')!.addEventListener('click', closeShortcutModal);
 
 btnSaveShortcut.addEventListener('click', async () => {
+  if (editingBinding) {
+    if (!recordedAccelerator) return;
+    const result = await window.hub.transcriptShortcuts.set(editingBinding.action, editingBinding.index, recordedAccelerator);
+    if (!result.ok) {
+      recordedAccelerator = '';
+      shortcutRecordArea.classList.remove('recorded');
+      shortcutRecordArea.classList.add('recording');
+      btnSaveShortcut.setAttribute('disabled', '');
+      showRecordError(result.error);
+      return;
+    }
+    renderBindings(result.state);
+    closeShortcutModal();
+    return;
+  }
+
   if (!editingShortcut || !recordedKeyCode) return;
 
   const config = buildShortcutConfig(recordedKeyCode, recordedModifiers, recordedKeyDisplay);
@@ -900,6 +978,129 @@ btnSaveShortcut.addEventListener('click', async () => {
 document.getElementById('btn-reset-shortcuts')?.addEventListener('click', async () => {
   await window.hub.config.setShortcut(DEFAULT_SHORTCUT);
   showShortcut(DEFAULT_KEY);
+  await window.hub.transcriptShortcuts.reset();
+  await loadBindings();
+});
+
+function closeShortcutModal(): void {
+  shortcutModal.classList.add('hidden');
+  editingShortcut = null;
+  if (editingBinding) {
+    editingBinding = null;
+    window.hub.transcriptShortcuts.resume();
+  }
+  btnRemoveShortcut.hidden = true;
+  showRecordError('');
+}
+
+// --- Last transcript shortcuts ---
+// Rows like "Paste last transcript  [⌃ Ctrl][⌘ Cmd][V] ✎  +". Each action
+// can have up to MAX_BINDINGS shortcuts; the pencil changes one, + adds one.
+const shortcutRecordError = document.getElementById('shortcut-record-error')!;
+const btnRemoveShortcut = document.getElementById('btn-remove-shortcut')!;
+let editingBinding: { action: TranscriptAction; index: number | null } | null = null;
+let recordedAccelerator = '';
+
+const PENCIL_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+</svg>`;
+
+function keyCaps(accelerator: string): HTMLElement[] {
+  return acceleratorKeys(accelerator).map((label) => {
+    const cap = document.createElement('kbd');
+    cap.className = 'key-cap';
+    cap.textContent = label;
+    return cap;
+  });
+}
+
+function renderBindings(state: TranscriptShortcutState): void {
+  for (const action of TRANSCRIPT_ACTIONS) {
+    const bindings = state.shortcuts[action];
+    const rows = bindings.map((accelerator, index) => {
+      const row = document.createElement('div');
+      row.className = 'binding';
+      const taken = state.unavailable.includes(accelerator);
+      if (taken) {
+        row.classList.add('unavailable');
+        row.title = 'Another app is using this shortcut. Choose a different one.';
+      }
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'btn-icon';
+      edit.title = 'Change shortcut';
+      edit.setAttribute('aria-label', `Change shortcut ${acceleratorKeys(accelerator).join(' ')}`);
+      edit.innerHTML = PENCIL_ICON;
+      edit.addEventListener('click', () => openBindingRecorder(action, index, bindings.length));
+      row.append(...keyCaps(accelerator), edit);
+      return row;
+    });
+    document.getElementById(`bindings-${action}`)!.replaceChildren(...rows);
+    const add = document.querySelector<HTMLButtonElement>(`.binding-add[data-action="${action}"]`)!;
+    add.disabled = bindings.length >= MAX_BINDINGS;
+    add.onclick = () => openBindingRecorder(action, null, bindings.length);
+  }
+}
+
+async function loadBindings(): Promise<void> {
+  renderBindings(await window.hub.transcriptShortcuts.get());
+}
+
+function openBindingRecorder(action: TranscriptAction, index: number | null, count: number): void {
+  editingShortcut = null;
+  editingBinding = { action, index };
+  recordedAccelerator = '';
+  shortcutModalTitle.textContent = TRANSCRIPT_ACTION_LABELS[action];
+  shortcutRecordPrompt.textContent = 'Press the new shortcut…';
+  shortcutRecordArea.classList.remove('recorded');
+  shortcutRecordArea.classList.add('recording');
+  showRecordError('');
+  btnSaveShortcut.setAttribute('disabled', '');
+  btnRemoveShortcut.hidden = index === null || count <= 1;
+  shortcutModal.classList.remove('hidden');
+  // Otherwise pressing the current shortcut would paste instead of recording.
+  window.hub.transcriptShortcuts.suspend();
+}
+
+function recordBinding(e: KeyboardEvent): void {
+  const result = acceleratorFromKeyPress(e);
+  if ('pending' in result) {
+    shortcutRecordPrompt.textContent = result.pending ? `${result.pending} …` : 'Press the new shortcut…';
+    return;
+  }
+  if ('error' in result) {
+    recordedAccelerator = '';
+    shortcutRecordPrompt.textContent = 'Press the new shortcut…';
+    shortcutRecordArea.classList.remove('recorded');
+    shortcutRecordArea.classList.add('recording');
+    btnSaveShortcut.setAttribute('disabled', '');
+    showRecordError(result.error);
+    return;
+  }
+  recordedAccelerator = result.accelerator;
+  showRecordError('');
+  shortcutRecordPrompt.replaceChildren(...keyCaps(result.accelerator));
+  shortcutRecordArea.classList.remove('recording');
+  shortcutRecordArea.classList.add('recorded');
+  btnSaveShortcut.removeAttribute('disabled');
+}
+
+function showRecordError(message: string): void {
+  shortcutRecordError.textContent = message;
+  shortcutRecordError.hidden = !message;
+}
+
+btnRemoveShortcut.addEventListener('click', async () => {
+  if (!editingBinding || editingBinding.index === null) return;
+  const result = await window.hub.transcriptShortcuts.remove(editingBinding.action, editingBinding.index);
+  if (result.ok) renderBindings(result.state);
+  closeShortcutModal();
+});
+
+// Main turns the shortcuts back on when this window loses focus.
+window.addEventListener('focus', () => {
+  if (editingBinding) window.hub.transcriptShortcuts.suspend();
 });
 
 // --- Pill Position ---
