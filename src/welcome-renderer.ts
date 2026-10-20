@@ -8,7 +8,7 @@ interface ModelDownload { percent: number; size: string }
 interface WelcomeStatus {
   accessibility: boolean;
   microphone: string;
-  speech: { installed: boolean; running: boolean; failed: boolean; download: ModelDownload | null };
+  speech: { installed: boolean; running: boolean; failed: boolean; download: ModelDownload | null; size: string };
   shortcut: string;
   language: string | null;
   locale: string;
@@ -117,6 +117,7 @@ function renderSpeech(s: WelcomeStatus): void {
   const text = $('speech-text');
 
   $('ready-title').textContent = ready ? "You're ready" : 'Getting ready to listen';
+  $('speech-size').textContent = `${speech.size}, once. After this, dictation works offline.`;
   $('speech-progress').hidden = ready || failed;
   $('speech-error').hidden = !failed;
   if (!speech.installed) {

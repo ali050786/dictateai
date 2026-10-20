@@ -358,10 +358,34 @@
               <h3>AI Model</h3>
               <div class="setting-row">
                 <div class="setting-info">
-                  <span class="setting-label">Speech-to-Text</span>
-                  <span class="setting-desc" id="stt-status">WhisperKit (local, multilingual)</span>
+                  <span class="setting-label">Speech model <span class="badge badge-green" id="stt-badge">Local</span></span>
+                  <span class="setting-desc" id="stt-status">Loading…</span>
+                  <div class="setting-progress" id="stt-progress" role="progressbar" aria-label="Speech model download" aria-valuemin="0" aria-valuemax="100" hidden>
+                    <div class="setting-progress-fill" id="stt-progress-fill"></div>
+                  </div>
                 </div>
-                <span class="badge badge-green" id="stt-badge">Local</span>
+                <select id="speech-select" class="setting-select" aria-label="Speech model">
+                  <option value="auto">Automatic (recommended)</option>
+                  <option value="fast">Faster</option>
+                  <option value="accurate">More accurate</option>
+                </select>
+              </div>
+              <aside class="setting-confirm" id="speech-confirm" hidden>
+                <p id="speech-confirm-text"></p>
+                <div class="setting-actions">
+                  <button type="button" class="btn-secondary btn-sm" id="btn-speech-not-now">Not now</button>
+                  <button type="button" class="btn-primary btn-sm" id="btn-speech-download">Download</button>
+                </div>
+              </aside>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <span class="setting-label">Basic cleanup</span>
+                  <span class="setting-desc">Removes um, uh and repeated words. Instant, no AI.</span>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="basic-cleanup-toggle" />
+                  <span class="toggle-slider"></span>
+                </label>
               </div>
               <div class="setting-row">
                 <div class="setting-info">
