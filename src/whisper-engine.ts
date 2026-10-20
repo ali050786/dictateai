@@ -9,19 +9,68 @@ import { bundledPath, DownloadWatch, formatBytes } from './engines';
 const WHISPERKIT_PORT = 50060;
 const WHISPERKIT_HOST = 'localhost';
 const WHISPERKIT_URL = `http://${WHISPERKIT_HOST}:${WHISPERKIT_PORT}`;
-const DEFAULT_MODEL = 'small';
 // WhisperKit's default download folder is ~/Documents/huggingface, which
 // macOS blocks for apps without Documents access; keep models with our data.
 const MODEL_DIR = path.join(os.homedir(), '.dictateai', 'whisperkit');
-// openai_whisper-small, downloaded the first time the server starts.
-const MODEL_BYTES = 486_500_000;
+
+// Speech models. Small is fast and fine for English. On Hindi, Small
+// translated the speech into (wrong) English, while Large v3 Turbo, a
+// compressed build only ~160 MB bigger, kept it in Devanagari and nearly
+// right: 0.4s vs 1.8s for a sentence, and 0.4s vs 0.7s in English.
+export type SpeechModelKey = 'fast' | 'accurate';
+export type SpeechChoice = 'auto' | SpeechModelKey;
+export const SPEECH_MODELS: Record<SpeechModelKey, { id: string; name: string; bytes: number }> = {
+  fast: { id: 'small', name: 'Whisper Small', bytes: 486_500_000 },
+  accurate: { id: 'large-v3-v20240930_turbo_632MB', name: 'Whisper Large v3 Turbo', bytes: 646_000_000 },
+};
+
+// Automatic: Small for English, Turbo for every other language and for
+// auto-detect (which may hear any language).
+export function speechModelFor(choice: SpeechChoice, language: string): SpeechModelKey {
+  if (choice !== 'auto') return choice;
+  return language === 'en' ? 'fast' : 'accurate';
+}
+
+function modelFolder(id: string): string {
+  return path.join(MODEL_DIR, 'models', 'argmaxinc', 'whisperkit-coreml', `openai_whisper-${id}`);
+}
+
+// The downloaded model, if every part of it is there. Starting from this
+// folder skips WhisperKit's check with Hugging Face, which fails offline.
+function completeModelFolder(id: string): string | null {
+  const folder = modelFolder(id);
+  const parts = ['AudioEncoder.mlmodelc', 'MelSpectrogram.mlmodelc', 'TextDecoder.mlmodelc', 'config.json'];
+  return parts.every(part => fs.existsSync(path.join(folder, part))) ? folder : null;
+}
+
+export function isSpeechModelOnDisk(key: SpeechModelKey): boolean {
+  return completeModelFolder(SPEECH_MODELS[key].id) !== null;
+}
+
+// The model to run: the wanted one if it's on disk; otherwise one already
+// on disk, so a bigger download is never started without asking (Settings
+// offers it); with none on disk (first run), the wanted one, downloaded.
+export function effectiveSpeechModel(choice: SpeechChoice, language: string): SpeechModelKey {
+  const wanted = speechModelFor(choice, language);
+  if (isSpeechModelOnDisk(wanted)) return wanted;
+  const other: SpeechModelKey = wanted === 'fast' ? 'accurate' : 'fast';
+  return isSpeechModelOnDisk(other) ? other : wanted;
+}
+
+function keyForId(id: string): SpeechModelKey {
+  return id === SPEECH_MODELS.accurate.id ? 'accurate' : 'fast';
+}
 
 let serverProcess: ChildProcess | null = null;
 let currentLanguage = 'auto';
-let currentModel = DEFAULT_MODEL;
+let currentModel = SPEECH_MODELS.fast.id;
 let serverReady = false;
 let onStatusChange: (() => void) | null = null;
-const download = new DownloadWatch(MODEL_DIR, MODEL_BYTES, () => onStatusChange?.());
+const notify = () => onStatusChange?.();
+// The server's own first-run download, and a model being fetched in the
+// background while the current one keeps serving.
+let download = new DownloadWatch(MODEL_DIR, SPEECH_MODELS.fast.bytes, notify);
+let preparing: { key: SpeechModelKey; watch: DownloadWatch; done: Promise<boolean> } | null = null;
 
 export function setOnStatusChange(cb: () => void): void {
   onStatusChange = cb;
@@ -54,17 +103,79 @@ export function isWhisperKitInstalled(): boolean {
   return findWhisperKitCLI() !== null;
 }
 
-// While the speech model downloads on first run: how far along, and how big it is.
+// While a speech model downloads: how far along, and how big it is.
 export function getModelDownload(): { percent: number; size: string } | null {
-  return download.percent == null ? null : { percent: download.percent, size: formatBytes(MODEL_BYTES) };
+  if (download.percent != null) {
+    return { percent: download.percent, size: formatBytes(SPEECH_MODELS[keyForId(currentModel)].bytes) };
+  }
+  if (preparing?.watch.percent != null) {
+    return { percent: preparing.watch.percent, size: formatBytes(SPEECH_MODELS[preparing.key].bytes) };
+  }
+  return null;
 }
 
-export function setLanguage(lang: string): void {
-  const changed = currentLanguage !== lang;
+export function getPreparingSpeechModel(): SpeechModelKey | null {
+  return preparing?.key ?? null;
+}
+
+// Language and model for the server; restarts it when either changes.
+export function configureSpeech(lang: string, key: SpeechModelKey): void {
+  const id = SPEECH_MODELS[key].id;
+  const changed = currentLanguage !== lang || currentModel !== id;
   currentLanguage = lang;
-  if (changed && serverReady) {
+  currentModel = id;
+  if (changed && (serverReady || serverProcess)) {
     restartServer();
   }
+}
+
+export function getSpeechModel(): SpeechModelKey {
+  return keyForId(currentModel);
+}
+
+// Downloads a model (and loads it once, so its first real use is quick)
+// with a one-off transcription of silence, while the server keeps running
+// on the current model. Resolves true once the model is complete on disk.
+export function prepareSpeechModel(key: SpeechModelKey): Promise<boolean> {
+  if (isSpeechModelOnDisk(key)) return Promise.resolve(true);
+  if (preparing?.key === key) return preparing.done;
+  const cliPath = findWhisperKitCLI();
+  if (!cliPath) return Promise.resolve(false);
+
+  const { id, bytes } = SPEECH_MODELS[key];
+  const silence = path.join(os.tmpdir(), 'dictateai-silence.wav');
+  fs.writeFileSync(silence, float32ToWav(new Float32Array(16000), 16000));
+  fs.mkdirSync(MODEL_DIR, { recursive: true });
+
+  const watch = new DownloadWatch(MODEL_DIR, bytes, notify);
+  watch.begin();
+  console.log(`[DictateAI] Downloading speech model ${id} in the background...`);
+  const proc = spawn(cliPath, [
+    'transcribe',
+    '--model', id,
+    '--download-model-path', MODEL_DIR,
+    '--download-tokenizer-path', MODEL_DIR,
+    '--audio-path', silence,
+  ], { stdio: ['ignore', 'ignore', 'pipe'] });
+  proc.stderr?.on('data', (data: Buffer) => {
+    const line = data.toString().trim();
+    if (line) console.log(`[WhisperKit] ${line}`);
+  });
+
+  const done = new Promise<boolean>((resolve) => {
+    const finish = (ok: boolean) => {
+      watch.end();
+      preparing = null;
+      console.log(`[DictateAI] Speech model ${id} ${ok ? 'ready' : 'download failed'}`);
+      notify();
+      resolve(ok);
+    };
+    proc.on('exit', (code) => finish(code === 0 && isSpeechModelOnDisk(key)));
+    proc.on('error', () => finish(false));
+  });
+  preparing = { key, watch, done };
+  notify();
+  return done;
 }
 
 export async function restartServer(): Promise<boolean> {
@@ -116,14 +227,6 @@ function checkServerHealth(): Promise<boolean> {
   });
 }
 
-// The downloaded model, if every part of it is there. Starting from this
-// folder skips WhisperKit's check with Hugging Face, which fails offline.
-function localModelFolder(): string | null {
-  const folder = path.join(MODEL_DIR, 'models', 'argmaxinc', 'whisperkit-coreml', `openai_whisper-${currentModel}`);
-  const parts = ['AudioEncoder.mlmodelc', 'MelSpectrogram.mlmodelc', 'TextDecoder.mlmodelc', 'config.json'];
-  return parts.every(part => fs.existsSync(path.join(folder, part))) ? folder : null;
-}
-
 export async function startServer(forceDownload = false): Promise<boolean> {
   if (serverProcess && !serverProcess.killed) {
     const health = await checkServerHealth();
@@ -141,7 +244,7 @@ export async function startServer(forceDownload = false): Promise<boolean> {
     return false;
   }
 
-  const localFolder = forceDownload ? null : localModelFolder();
+  const localFolder = forceDownload ? null : completeModelFolder(currentModel);
   console.log(`[DictateAI] Starting WhisperKit server (model: ${currentModel}, ${localFolder ? 'on disk' : 'download if needed'})...`);
 
   const args = [
@@ -182,6 +285,8 @@ export async function startServer(forceDownload = false): Promise<boolean> {
 
   console.log('[DictateAI] Waiting for WhisperKit server to be ready...');
   // The first start downloads the model, which can take a while on a slow connection.
+  download.end();
+  download = new DownloadWatch(MODEL_DIR, SPEECH_MODELS[keyForId(currentModel)].bytes, notify);
   download.begin();
   const ready = await waitForServer(30 * 60_000).finally(() => download.end());
 

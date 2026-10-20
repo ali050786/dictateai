@@ -20,7 +20,8 @@ import {
   stopPushToTalk,
   setPttKey,
 } from './text-injection';
-import { transcribe, isModelDownloaded, downloadModel, setLanguage, getLanguage, getModel, startServer, stopServer, isServerRunning, isWhisperKitInstalled, setOnStatusChange, getModelDownload, whenServerReady } from './whisper-engine';
+import { transcribe, getLanguage, startServer, stopServer, isServerRunning, isWhisperKitInstalled, setOnStatusChange, getModelDownload, whenServerReady, configureSpeech, effectiveSpeechModel, speechModelFor, isSpeechModelOnDisk, prepareSpeechModel, getPreparingSpeechModel, getSpeechModel, SPEECH_MODELS, SpeechChoice } from './whisper-engine';
+import { basicCleanup } from './basic-cleanup';
 import { exec } from 'child_process';
 import * as path from 'path';
 import { formatText, canFormat, CleanupLocation, getCloudModel, DEFAULT_CLOUD_MODEL } from './llm-formatter';
@@ -617,7 +618,10 @@ async function processAudio(session: number, chunks: Float32Array[]): Promise<vo
       return;
     }
 
-    const correctedText = applyReplacements(rawText);
+    // Basic cleanup (no AI, instant) runs first, so the dictionary and any AI
+    // cleanup see the text without fillers.
+    const tidied = loadConfig().basicCleanup === false ? rawText : basicCleanup(rawText);
+    const correctedText = applyReplacements(tidied);
     const context = getFocusedElementInfo();
 
     if (settings().llmEnabled && canFormat()) {
@@ -923,13 +927,28 @@ function setupIPC(): void {
     return true;
   });
 
-  ipcMain.handle('config:sttStatus', () => ({
-    installed: isWhisperKitInstalled(),
-    running: isServerRunning(),
-    download: getModelDownload(),
-    engine: 'WhisperKit',
-    model: getModel(),
-  }));
+  ipcMain.handle('config:sttStatus', () => speechStatus());
+  ipcMain.handle('config:setSpeechChoice', (_event, choice: SpeechChoice) => {
+    if (!['auto', 'fast', 'accurate'].includes(choice)) return false;
+    saveConfig({ speechModel: choice === 'auto' ? undefined : choice });
+    applySpeech();
+    sendToPages('stt:status-changed');
+    return true;
+  });
+  // The user agreed to download the model their choice and language want.
+  ipcMain.handle('config:downloadSpeech', () => {
+    const lang = loadConfig().language ?? 'auto';
+    prepareSpeechModel(speechModelFor(speechChoice(), lang)).then((ok) => {
+      if (ok) applySpeech();
+      sendToPages('stt:status-changed');
+    });
+    return true;
+  });
+  ipcMain.handle('config:getBasicCleanup', () => loadConfig().basicCleanup ?? true);
+  ipcMain.handle('config:setBasicCleanup', (_event, enabled: boolean) => {
+    saveConfig({ basicCleanup: enabled ? undefined : false });
+    return true;
+  });
 
   // --- Welcome window ---
   ipcMain.handle('welcome:status', () => ({
@@ -940,6 +959,7 @@ function setupIPC(): void {
       running: isServerRunning(),
       failed: speechFailed,
       download: getModelDownload(),
+      size: formatBytes(SPEECH_MODELS[getSpeechModel()].bytes),
     },
     shortcut: settings().shortcutLabel,
     language: loadConfig().language ?? null,
@@ -1112,9 +1132,7 @@ app.whenReady().then(async () => {
 
   migrateApiKey();
   const savedConfig = loadConfig();
-  if (savedConfig.language) {
-    setLanguage(savedConfig.language);
-  }
+  applySpeech();
   // "Cloud, free" (openrouter/free) was removed for being slow. Move those
   // users to local rather than onto paid credits they never chose.
   if (savedConfig.cloudTier !== undefined) {
@@ -1184,13 +1202,47 @@ function startSpeech(): void {
   });
 }
 
+function speechChoice(): SpeechChoice {
+  return loadConfig().speechModel ?? 'auto';
+}
+
+// Points the speech server at the model for the current choice and
+// language. A model that isn't on disk yet is only used once downloaded
+// (Settings asks first), except on first run when there is none at all.
+function applySpeech(): void {
+  const lang = loadConfig().language ?? 'auto';
+  configureSpeech(lang, effectiveSpeechModel(speechChoice(), lang));
+}
+
+function speechStatus() {
+  const lang = loadConfig().language ?? 'auto';
+  const choice = speechChoice();
+  const wanted = speechModelFor(choice, lang);
+  const active = getSpeechModel();
+  const bytes = SPEECH_MODELS[wanted].bytes;
+  const freeBytes = freeDiskBytes(path.join(os.homedir(), '.dictateai'));
+  return {
+    installed: isWhisperKitInstalled(),
+    running: isServerRunning(),
+    download: getModelDownload(),
+    choice,
+    language: lang,
+    wanted: { key: wanted, name: SPEECH_MODELS[wanted].name, size: formatBytes(bytes), onDisk: isSpeechModelOnDisk(wanted) },
+    active: { key: active, name: SPEECH_MODELS[active].name },
+    preparing: getPreparingSpeechModel(),
+    free: freeBytes == null ? null : formatBytes(freeBytes),
+    enoughSpace: freeBytes == null || freeBytes >= bytes + 1e9,
+    sizes: { fast: formatBytes(SPEECH_MODELS.fast.bytes), accurate: formatBytes(SPEECH_MODELS.accurate.bytes) },
+  };
+}
+
 function applyLanguage(lang: string, downloadCleanup: boolean): void {
-  setLanguage(lang);
   const plan = cleanupPlan(lang);
   saveConfig({
     language: lang,
     cleanupDownloadDeclined: !downloadCleanup && !plan.downloaded ? plan.model : undefined,
   });
+  applySpeech();
   syncLocalLlm();
   sendToPages('stt:restarting');
   if (overlayWindow && !overlayWindow.isDestroyed()) {

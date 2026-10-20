@@ -28,7 +28,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test test/",
     "build:sounds": "node scripts/build-sounds.mjs",
-    "build:icons": "node scripts/build-icons.mjs"
+    "build:icons": "node scripts/build-icons.mjs",
+    "test:cleanup": "node --no-warnings scripts/test-basic-cleanup.mjs"
   },
   "devDependencies": {
     "@electron-forge/cli": "^8.0.1",

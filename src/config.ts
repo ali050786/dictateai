@@ -43,6 +43,10 @@ export interface Config {
   cloudTier?: 'free' | 'paid';
   localModel?: string;
   language?: string;
+  // Speech model: 'auto' (missing) picks by language; see whisper-engine.ts.
+  speechModel?: 'auto' | 'fast' | 'accurate';
+  // Removes fillers and repeated words without AI. On unless turned off.
+  basicCleanup?: boolean;
   llmEnabled?: boolean;
   // A short sound when dictation starts and stops. On unless turned off.
   playSounds?: boolean;

@@ -39,6 +39,20 @@ interface CleanupPlan {
   declined: boolean;
 }
 
+interface SpeechStatus {
+  installed: boolean;
+  running: boolean;
+  download: ModelDownload | null;
+  choice: 'auto' | 'fast' | 'accurate';
+  language: string;
+  wanted: { key: 'fast' | 'accurate'; name: string; size: string; onDisk: boolean };
+  active: { key: 'fast' | 'accurate'; name: string };
+  preparing: 'fast' | 'accurate' | null;
+  free: string | null;
+  enoughSpace: boolean;
+  sizes: { fast: string; accurate: string };
+}
+
 interface HubAPI {
   dictionary: {
     list: () => Promise<DictionaryEntry[]>;
@@ -54,7 +68,11 @@ interface HubAPI {
     setLanguage: (lang: string, downloadCleanup?: boolean) => Promise<boolean>;
     cleanupPlan: (lang: string) => Promise<CleanupPlan>;
     downloadCleanup: () => Promise<boolean>;
-    sttStatus: () => Promise<{ installed: boolean; running: boolean; download: ModelDownload | null; engine: string; model: string }>;
+    sttStatus: () => Promise<SpeechStatus>;
+    setSpeechChoice: (choice: 'auto' | 'fast' | 'accurate') => Promise<boolean>;
+    downloadSpeech: () => Promise<boolean>;
+    getBasicCleanup: () => Promise<boolean>;
+    setBasicCleanup: (enabled: boolean) => Promise<boolean>;
     getLlmEnabled: () => Promise<boolean>;
     setLlmEnabled: (enabled: boolean) => Promise<boolean>;
     getLlmProvider: () => Promise<'local' | 'cloud'>;
@@ -356,32 +374,95 @@ async function loadSettings(): Promise<void> {
   await loadSttStatus();
 }
 
+const speechSelect = document.getElementById('speech-select') as HTMLSelectElement;
+const speechConfirm = document.getElementById('speech-confirm')!;
+const speechConfirmText = document.getElementById('speech-confirm-text')!;
+const btnSpeechDownload = document.getElementById('btn-speech-download') as HTMLButtonElement;
+const sttProgress = document.getElementById('stt-progress')!;
+const sttProgressFill = document.getElementById('stt-progress-fill')!;
+// "Not now" for a model, until the choice or language changes.
+let speechDismissed = '';
+
 async function loadSttStatus(): Promise<void> {
   const stt = await window.hub.config.sttStatus();
   const sttStatus = document.getElementById('stt-status')!;
   const sttBadge = document.getElementById('stt-badge')!;
+  const badge = (text: string, color: string) => {
+    sttBadge.textContent = text;
+    sttBadge.className = `badge badge-${color}`;
+  };
+  speechSelect.value = stt.choice;
+  for (const option of speechSelect.options) {
+    if (option.value === 'fast') option.textContent = `Faster · ${stt.sizes.fast}`;
+    if (option.value === 'accurate') option.textContent = `More accurate · ${stt.sizes.accurate}`;
+  }
+  sttStatus.style.color = '';
+  sttProgress.hidden = true;
+
+  const downloading = stt.download || stt.preparing;
+  const needsDownload = !stt.wanted.onDisk && stt.active.key !== stt.wanted.key && !stt.preparing;
+  const dismissKey = `${stt.wanted.key}:${stt.language}`;
+  speechConfirm.hidden = !(needsDownload && stt.installed && speechDismissed !== dismissKey);
+  if (!speechConfirm.hidden) {
+    const lang = stt.language === 'auto' ? 'Other languages' : languageName(stt.language);
+    const why = stt.wanted.key === 'accurate'
+      ? `${stt.choice === 'auto' ? `${lang} ${stt.language === 'auto' ? 'are' : 'is'} transcribed` : 'Dictation is transcribed'} much more accurately with ${stt.wanted.name}`
+      : `${stt.wanted.name} is faster for English`;
+    btnSpeechDownload.disabled = !stt.enoughSpace;
+    speechConfirmText.textContent = stt.enoughSpace
+      ? `${why} (${stt.wanted.size}, once). Dictation keeps working while it downloads.`
+      : `${why}. It needs ${stt.wanted.size} plus room to spare; you have ${stt.free} free.`;
+  }
+
   if (!stt.installed) {
     sttStatus.textContent = 'Speech engine missing — reinstall DictateAI';
     sttStatus.style.color = '#dc2626';
-    sttBadge.textContent = 'Missing';
-    sttBadge.className = 'badge badge-red';
-  } else if (stt.download) {
-    sttStatus.textContent = `Downloading the speech model, one time only — ${stt.download.percent}% of ${stt.download.size}`;
-    sttStatus.style.color = '';
-    sttBadge.textContent = 'Downloading';
-    sttBadge.className = 'badge badge-blue';
+    badge('Missing', 'red');
+  } else if (downloading) {
+    const name = stt.preparing ? stt.wanted.name : stt.active.name;
+    if (stt.download) {
+      sttStatus.textContent = `Downloading ${name}, one time only — ${stt.download.percent}% of ${stt.download.size}`;
+      sttProgress.hidden = false;
+      sttProgress.setAttribute('aria-valuenow', String(stt.download.percent));
+      sttProgressFill.style.width = `${stt.download.percent}%`;
+    } else {
+      sttStatus.textContent = `Downloading ${name}…`;
+    }
+    badge('Downloading', 'blue');
   } else if (stt.running) {
-    sttStatus.textContent = `WhisperKit · ${stt.model} model (local)`;
-    sttStatus.style.color = '';
-    sttBadge.textContent = 'Running';
-    sttBadge.className = 'badge badge-green';
+    sttStatus.textContent = needsDownload
+      ? `Using ${stt.active.name} until ${stt.wanted.name} is downloaded`
+      : `${stt.active.name} · on your Mac`;
+    badge('Ready', 'green');
   } else {
-    sttStatus.textContent = `WhisperKit · ${stt.model} — starting…`;
-    sttStatus.style.color = '';
-    sttBadge.textContent = 'Starting';
-    sttBadge.className = 'badge badge-blue';
+    sttStatus.textContent = `${stt.active.name} — starting…`;
+    badge('Starting', 'blue');
   }
 }
+
+speechSelect.addEventListener('change', async () => {
+  speechDismissed = '';
+  await window.hub.config.setSpeechChoice(speechSelect.value as 'auto' | 'fast' | 'accurate');
+  loadSttStatus();
+});
+
+btnSpeechDownload.addEventListener('click', async () => {
+  speechConfirm.hidden = true;
+  await window.hub.config.downloadSpeech();
+  loadSttStatus();
+});
+
+document.getElementById('btn-speech-not-now')!.addEventListener('click', async () => {
+  const stt = await window.hub.config.sttStatus();
+  speechDismissed = `${stt.wanted.key}:${stt.language}`;
+  speechConfirm.hidden = true;
+});
+
+const basicCleanupToggle = document.getElementById('basic-cleanup-toggle') as HTMLInputElement;
+window.hub.config.getBasicCleanup().then((on) => { basicCleanupToggle.checked = on; });
+basicCleanupToggle.addEventListener('change', () => {
+  window.hub.config.setBasicCleanup(basicCleanupToggle.checked);
+});
 
 async function loadMicDevices(): Promise<void> {
   try {
