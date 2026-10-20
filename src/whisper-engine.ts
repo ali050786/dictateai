@@ -110,8 +110,12 @@ export function setOnSpeechModelReady(cb: (key: SpeechModelKey) => void): void {
   onModelReady = cb;
 }
 
+// Set between a crash and the automatic restart.
+let restartPending = false;
+let crashRestarts: number[] = [];
+
 export function isServerStarting(): boolean {
-  return serverProcess !== null && !serverReady;
+  return (serverProcess !== null && !serverReady) || restartPending;
 }
 
 export function didServerFail(): boolean {
@@ -340,9 +344,27 @@ export async function startServer(forceDownload = false): Promise<boolean> {
   const proc = serverProcess;
   proc.on('exit', (code) => {
     console.log(`[DictateAI] WhisperKit server exited (code: ${code})`);
+    // stopServer() clears serverProcess first, so a deliberate stop ends here.
     if (serverProcess !== proc) return;
+    const wasReady = serverReady;
     serverReady = false;
     serverProcess = null;
+    // It stopped on its own after working: start it again, a few times at most.
+    if (wasReady) {
+      const now = Date.now();
+      crashRestarts = crashRestarts.filter(t => now - t < 10 * 60_000);
+      if (crashRestarts.length < 3) {
+        crashRestarts.push(now);
+        restartPending = true;
+        console.log('[DictateAI] WhisperKit stopped unexpectedly — restarting');
+        setTimeout(() => {
+          restartPending = false;
+          if (!serverProcess) void startServer();
+        }, 2000);
+      } else {
+        lastStartFailed = true;
+      }
+    }
     notify();
   });
 
@@ -403,7 +425,8 @@ export async function whenServerReady(timeoutMs: number): Promise<boolean> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     if (isServerRunning()) return true;
-    if (!serverProcess) return false;
+    // Not starting, and no restart on the way after a crash.
+    if (!serverProcess && !restartPending) return false;
     await new Promise(r => setTimeout(r, 250));
   }
   return isServerRunning();
