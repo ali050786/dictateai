@@ -69,7 +69,8 @@
           <div class="page-body">
             <div class="hero-card">
               <h2>Voice to text, anywhere.</h2>
-              <p>Hold <kbd id="hero-key">Right ⌥ Option</kbd> and speak. Your words appear in any text field, cleaned up by AI.</p>
+              <p>Hold <kbd id="hero-key">Right ⌥ Option</kbd> and speak. Your words appear in any text field<span id="hero-cleanup-on">, cleaned up by AI</span>.</p>
+              <button type="button" class="hero-link" id="btn-hero-cleanup" hidden>Turn on AI cleanup →</button>
             </div>
             <div class="section-header">
               <h3>Recent Dictations</h3>
@@ -303,6 +304,13 @@
                   <option value="mr">Marathi (मराठी)</option>
                 </select>
               </div>
+              <aside class="setting-confirm" id="lang-confirm" hidden>
+                <p id="lang-confirm-text"></p>
+                <div class="setting-actions">
+                  <button type="button" class="btn-secondary btn-sm" id="btn-lang-not-now">Not now</button>
+                  <button type="button" class="btn-primary btn-sm" id="btn-lang-download">Download</button>
+                </div>
+              </aside>
             </div>
 
             <div class="settings-section">
@@ -317,7 +325,11 @@
               <div class="setting-row">
                 <div class="setting-info">
                   <span class="setting-label">AI Text Cleanup</span>
-                  <span class="setting-desc">Polish text with LLM after injection (slower)</span>
+                  <span class="setting-desc" id="llm-desc">Removes ums, fixes punctuation.</span>
+                  <div class="setting-progress" id="llm-progress" role="progressbar" aria-label="Cleanup model download" aria-valuemin="0" aria-valuemax="100" hidden>
+                    <div class="setting-progress-fill" id="llm-progress-fill"></div>
+                  </div>
+                  <button type="button" class="link-button" id="btn-llm-action" hidden></button>
                 </div>
                 <label class="toggle">
                   <input type="checkbox" id="llm-toggle" />
