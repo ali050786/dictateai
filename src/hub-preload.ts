@@ -14,7 +14,9 @@ contextBridge.exposeInMainWorld('hub', {
     removeApiKey: () => ipcRenderer.invoke('config:removeApiKey'),
     hasAccessibility: () => ipcRenderer.invoke('config:hasAccessibility'),
     getLanguage: () => ipcRenderer.invoke('config:getLanguage'),
-    setLanguage: (lang: string) => ipcRenderer.invoke('config:setLanguage', lang),
+    setLanguage: (lang: string, downloadCleanup = true) => ipcRenderer.invoke('config:setLanguage', lang, downloadCleanup),
+    cleanupPlan: (lang: string) => ipcRenderer.invoke('config:cleanupPlan', lang),
+    downloadCleanup: () => ipcRenderer.invoke('config:downloadCleanup'),
     sttStatus: () => ipcRenderer.invoke('config:sttStatus'),
     getLlmEnabled: () => ipcRenderer.invoke('config:getLlmEnabled'),
     setLlmEnabled: (enabled: boolean) => ipcRenderer.invoke('config:setLlmEnabled', enabled),
@@ -36,6 +38,23 @@ contextBridge.exposeInMainWorld('hub', {
   history: {
     list: () => ipcRenderer.invoke('history:list'),
     clear: () => ipcRenderer.invoke('history:clear'),
+  },
+  general: {
+    getPlaySounds: () => ipcRenderer.invoke('config:getPlaySounds'),
+    setPlaySounds: (enabled: boolean) => ipcRenderer.invoke('config:setPlaySounds', enabled),
+    getOpenAtLogin: () => ipcRenderer.invoke('config:getOpenAtLogin'),
+    setOpenAtLogin: (enabled: boolean) => ipcRenderer.invoke('config:setOpenAtLogin', enabled),
+    openLoginItems: () => ipcRenderer.invoke('config:openLoginItems'),
+  },
+  // "Paste last transcript" / "Copy last transcript" shortcuts.
+  transcriptShortcuts: {
+    get: () => ipcRenderer.invoke('shortcuts:get'),
+    set: (action: string, index: number | null, accelerator: string) =>
+      ipcRenderer.invoke('shortcuts:set', action, index, accelerator),
+    remove: (action: string, index: number) => ipcRenderer.invoke('shortcuts:remove', action, index),
+    reset: () => ipcRenderer.invoke('shortcuts:reset'),
+    suspend: () => ipcRenderer.invoke('shortcuts:suspend'),
+    resume: () => ipcRenderer.invoke('shortcuts:resume'),
   },
   onDictationLog: (callback: (entry: { text: string; app: string; time: string }) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, entry: { text: string; app: string; time: string }) =>

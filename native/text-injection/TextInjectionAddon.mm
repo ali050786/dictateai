@@ -128,18 +128,23 @@ static NSArray<NSPasteboardItem*>* SnapshotPasteboard(NSPasteboard* pb) {
   return copies;
 }
 
+// Puts dictated text on the clipboard marked concealed, so clipboard managers
+// skip it, and for this Mac only, so Universal Clipboard doesn't send it to
+// other devices. `transient`: we put the user's clipboard back shortly.
+static NSInteger WritePrivateString(NSPasteboard* pb, const std::string& text, bool transient) {
+  [pb prepareForNewContentsWithOptions:NSPasteboardContentsCurrentHostOnly];
+  NSPasteboardItem* item = [[NSPasteboardItem alloc] init];
+  [item setString:[NSString stringWithUTF8String:text.c_str()] forType:NSPasteboardTypeString];
+  if (transient) [item setString:@"" forType:@"org.nspasteboard.TransientType"];
+  [item setString:@"" forType:@"org.nspasteboard.ConcealedType"];
+  [pb writeObjects:@[item]];
+  return [pb changeCount];
+}
+
 static bool InjectViaClipboard(const std::string& text) {
   NSPasteboard* pb = [NSPasteboard generalPasteboard];
   NSArray<NSPasteboardItem*>* saved = SnapshotPasteboard(pb);
-
-  // Mark our text transient and concealed so clipboard managers skip it.
-  [pb clearContents];
-  NSPasteboardItem* item = [[NSPasteboardItem alloc] init];
-  [item setString:[NSString stringWithUTF8String:text.c_str()] forType:NSPasteboardTypeString];
-  [item setString:@"" forType:@"org.nspasteboard.TransientType"];
-  [item setString:@"" forType:@"org.nspasteboard.ConcealedType"];
-  [pb writeObjects:@[item]];
-  NSInteger ourChange = [pb changeCount];
+  NSInteger ourChange = WritePrivateString(pb, text, true);
 
   CGEventRef keyDown = CGEventCreateKeyboardEvent(nullptr, kVK_ANSI_V, true);
   CGEventRef keyUp = CGEventCreateKeyboardEvent(nullptr, kVK_ANSI_V, false);
@@ -526,6 +531,106 @@ static Napi::Value CheckAccessibilityPermission(const Napi::CallbackInfo& info) 
   return Napi::Boolean::New(env, trusted);
 }
 
+// --- Where would the text go? ---
+// Reports facts about the focused element; src/focus-target.ts decides
+// whether it takes text. A busy app can stall Accessibility calls, so these
+// give up quickly instead of freezing the main thread.
+static const float kFocusQueryTimeout = 0.3f;
+
+static NSString* CopyStringAttribute(AXUIElementRef element, CFStringRef attribute) {
+  CFTypeRef value = nullptr;
+  if (AXUIElementCopyAttributeValue(element, attribute, &value) != kAXErrorSuccess || !value) return nil;
+  NSString* string = CFGetTypeID(value) == CFStringGetTypeID() ? [(__bridge NSString*)value copy] : nil;
+  CFRelease(value);
+  return string;
+}
+
+static bool IsAttributeSettable(AXUIElementRef element, CFStringRef attribute) {
+  Boolean settable = false;
+  return AXUIElementIsAttributeSettable(element, attribute, &settable) == kAXErrorSuccess && settable;
+}
+
+static bool HasAttributeValue(AXUIElementRef element, CFStringRef attribute) {
+  CFTypeRef value = nullptr;
+  if (AXUIElementCopyAttributeValue(element, attribute, &value) != kAXErrorSuccess || !value) return false;
+  CFRelease(value);
+  return true;
+}
+
+static Napi::Value GetFocusTarget(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  Napi::Object result = Napi::Object::New(env);
+
+  AXUIElementRef focused = nullptr;
+
+  // Ask the frontmost app, the one that receives typing. The system-wide
+  // focus can point elsewhere: with a Finder window in front it reported the
+  // desktop.
+  NSRunningApplication* front = [[NSWorkspace sharedWorkspace] frontmostApplication];
+  if (front) {
+    if (front.localizedName) result.Set("app", Napi::String::New(env, [front.localizedName UTF8String]));
+    if (front.bundleIdentifier) result.Set("bundleId", Napi::String::New(env, [front.bundleIdentifier UTF8String]));
+    AXUIElementRef appElement = AXUIElementCreateApplication(front.processIdentifier);
+    AXUIElementSetMessagingTimeout(appElement, kFocusQueryTimeout);
+    AXError appErr = AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute, (CFTypeRef*)&focused);
+    result.Set("appError", (int)appErr);
+    if (appErr != kAXErrorSuccess) focused = nullptr;
+    CFRelease(appElement);
+  }
+
+  if (!focused) {
+    AXUIElementRef systemWide = AXUIElementCreateSystemWide();
+    AXUIElementSetMessagingTimeout(systemWide, kFocusQueryTimeout);
+    AXError err = AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute, (CFTypeRef*)&focused);
+    CFRelease(systemWide);
+    result.Set("systemError", (int)err);
+    if (err != kAXErrorSuccess) focused = nullptr;
+  }
+
+  result.Set("focused", focused != nullptr);
+  if (!focused) return result;
+
+  AXUIElementSetMessagingTimeout(focused, kFocusQueryTimeout);
+  NSString* role = CopyStringAttribute(focused, kAXRoleAttribute);
+  NSString* subrole = CopyStringAttribute(focused, kAXSubroleAttribute);
+  if (role) result.Set("role", Napi::String::New(env, [role UTF8String]));
+  if (subrole) result.Set("subrole", Napi::String::New(env, [subrole UTF8String]));
+  result.Set("selectedTextSettable", IsAttributeSettable(focused, kAXSelectedTextAttribute));
+  // Web content (Chromium, WebKit) marks anything inside a contenteditable.
+  result.Set("editableAncestor", HasAttributeValue(focused, CFSTR("AXEditableAncestor")));
+  // Electron apps keep their page's Accessibility tree switched off until a
+  // screen reader asks, and then report a bare, childless web area as focused
+  // even while the user is typing in it.
+  CFIndex children = 0;
+  if (AXUIElementGetAttributeValueCount(focused, kAXChildrenAttribute, &children) != kAXErrorSuccess) children = -1;
+  result.Set("children", (double)children);
+
+  CFRelease(focused);
+  return result;
+}
+
+// Copies dictated text for the user to paste themselves. Stays on the
+// clipboard, unlike the paste fallback's.
+static Napi::Value CopyText(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsString()) {
+    Napi::TypeError::New(env, "String argument expected").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  std::string text = info[0].As<Napi::String>().Utf8Value();
+  if (text.empty()) return Napi::Boolean::New(env, false);
+  WritePrivateString([NSPasteboard generalPasteboard], text, false);
+  return Napi::Boolean::New(env, true);
+}
+
+// Modifier keys the user is physically holding (CGEventFlags). A shortcut
+// fires while its keys are still down; typing then would add those modifiers.
+static Napi::Value GetModifierFlags(const Napi::CallbackInfo& info) {
+  CGEventFlags flags = CGEventSourceFlagsState(kCGEventSourceStateHIDSystemState);
+  return Napi::Number::New(info.Env(), (double)(flags & (kCGEventFlagMaskShift | kCGEventFlagMaskControl |
+                                                         kCGEventFlagMaskAlternate | kCGEventFlagMaskCommand)));
+}
+
 static Napi::Value GetFocusedElementInfo(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   Napi::Object result = Napi::Object::New(env);
@@ -589,6 +694,9 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("stopPushToTalk", Napi::Function::New(env, StopPushToTalk));
   exports.Set("setPttKey", Napi::Function::New(env, SetPttKey));
   exports.Set("getTextCursorPosition", Napi::Function::New(env, GetTextCursorPosition));
+  exports.Set("getFocusTarget", Napi::Function::New(env, GetFocusTarget));
+  exports.Set("copyText", Napi::Function::New(env, CopyText));
+  exports.Set("getModifierFlags", Napi::Function::New(env, GetModifierFlags));
   return exports;
 }
 

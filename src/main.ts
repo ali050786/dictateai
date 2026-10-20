@@ -7,8 +7,10 @@ import {
   ipcMain,
   nativeImage,
   screen,
+  shell,
   systemPreferences,
 } from 'electron';
+import * as os from 'os';
 import {
   injectText,
   undoLastInjection,
@@ -23,18 +25,40 @@ import { exec } from 'child_process';
 import * as path from 'path';
 import { formatText, canFormat, CleanupLocation, getCloudModel, DEFAULT_CLOUD_MODEL } from './llm-formatter';
 import { hasApiKey, saveApiKey, removeApiKey, migrateApiKey, loadConfig, saveConfig, ShortcutConfig, PillPosition, normalizePillPosition, getLlmProvider, LlmProvider } from './config';
-import { startLocalLlm, stopLocalLlm, isMlxInstalled, isLocalLlmRunning, isLocalLlmStarting, getLocalModel, setOnLocalLlmStatusChange, defaultLocalModelFor, localModelOptions, getLocalModelDownload } from './local-llm';
+import { startLocalLlm, stopLocalLlm, isMlxInstalled, isLocalLlmRunning, isLocalLlmStarting, getLocalModel, setOnLocalLlmStatusChange, defaultLocalModelFor, localModelOptions, getLocalModelDownload, didLocalLlmFail, isLocalModelDownloaded, localModelBytes, localModelCacheDir } from './local-llm';
+import { formatBytes, freeDiskBytes } from './engines';
 import { getFocusedElementInfo } from './text-injection';
-import { noticeAfterCleanup, noticeMicrophoneBlocked } from './notices';
+import { noticeAfterCleanup, noticeMicrophoneBlocked, noticeCleanupReady } from './notices';
 import { addHistory, listHistory, clearHistory } from './history';
 import { applyReplacements, detectCorrections, addCorrection, getAllCorrections, removeCorrection } from './dictionary';
 import started from 'electron-squirrel-startup';
 import { redact } from './log';
+import { getFocusTarget } from './text-injection';
+import { classifyFocus } from './focus-target';
+import { START_CUE_MS, TAP_MS } from './cue-timing';
+import { getLoginItemState, setOpenAtLogin, openLoginItemsSettings } from './login-item';
+import { acceleratorSymbol, TranscriptAction } from './accelerator';
+import {
+  pasteLastTranscript,
+  copyLastTranscript,
+  getTranscriptShortcuts,
+  pasteShortcutSymbol,
+  setLastTranscriptFeedback,
+  registerTranscriptShortcuts,
+  suspendTranscriptShortcuts,
+  resumeTranscriptShortcuts,
+  transcriptShortcutState,
+  setTranscriptShortcut,
+  removeTranscriptShortcut,
+  resetTranscriptShortcuts,
+} from './last-transcript';
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 declare const HUB_WINDOW_WEBPACK_ENTRY: string;
 declare const HUB_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
+declare const WELCOME_WINDOW_WEBPACK_ENTRY: string;
+declare const WELCOME_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 
 if (started) {
   app.quit();
@@ -43,6 +67,12 @@ if (started) {
 let tray: Tray | null = null;
 let overlayWindow: BrowserWindow | null = null;
 let hubWindow: BrowserWindow | null = null;
+let welcomeWindow: BrowserWindow | null = null;
+// The speech engine didn't start (usually the model download stopped).
+let speechFailed = false;
+// The cleanup model is being fetched for the first time, so tell the user
+// once it's ready (notices.ts).
+let cleanupReadyNoticePending = false;
 
 // What the dictation pipeline is doing. `session` goes up with every
 // recording: async work from an older session still inserts its text, but
@@ -53,6 +83,8 @@ const dictation = {
   session: 0,
   chunks: [] as Float32Array[],
   handsFree: false,
+  // When the current recording started (Date.now()), to tell taps from holds.
+  startedAt: 0,
   previewTimer: null as ReturnType<typeof setInterval> | null,
   previewInFlight: false,
 };
@@ -74,6 +106,8 @@ const pillTimers = {
 // True only when we muted system audio ourselves, so we never unmute audio
 // the user had muted.
 let didMuteAudio = false;
+// Muting waits for the start sound to finish (muteSystemAudio).
+let muteTimer: ReturnType<typeof setTimeout> | null = null;
 
 function isRecording(): boolean {
   return dictation.phase === 'recording';
@@ -81,12 +115,13 @@ function isRecording(): boolean {
 
 // Settings are read from config.ts (cached) rather than copied into
 // variables here, so there is one source of truth.
-function settings(): { llmEnabled: boolean; pillPosition: PillPosition; muteWhileSpeaking: boolean; shortcutLabel: string } {
+function settings(): { llmEnabled: boolean; pillPosition: PillPosition; muteWhileSpeaking: boolean; playSounds: boolean; shortcutLabel: string } {
   const config = loadConfig();
   return {
     llmEnabled: config.llmEnabled ?? false,
     pillPosition: normalizePillPosition(config.pillPosition),
     muteWhileSpeaking: config.muteWhileSpeaking ?? false,
+    playSounds: config.playSounds ?? true,
     shortcutLabel: config.shortcut?.display || 'Right ⌥ Option',
   };
 }
@@ -160,10 +195,61 @@ function createHubWindow(): void {
     hubWindow?.show();
   });
 
+  // Settings pauses the last-transcript shortcuts while it records a new
+  // one; never leave them off once the user is elsewhere.
+  hubWindow.on('blur', () => resumeTranscriptShortcuts());
+
   hubWindow.on('closed', () => {
     hubWindow = null;
+    resumeTranscriptShortcuts();
     app.dock?.hide();
   });
+}
+
+// First launch: permissions, the speech model, and the AI cleanup offer
+// (welcome.html). Reopened from the menu bar.
+function createWelcomeWindow(): void {
+  if (welcomeWindow && !welcomeWindow.isDestroyed()) {
+    welcomeWindow.show();
+    welcomeWindow.focus();
+    return;
+  }
+
+  welcomeWindow = new BrowserWindow({
+    width: 520,
+    height: 440,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 16, y: 18 },
+    backgroundColor: '#ffffff',
+    show: false,
+    webPreferences: {
+      preload: WELCOME_WINDOW_PRELOAD_WEBPACK_ENTRY,
+    },
+  });
+
+  lockDownWebContents(welcomeWindow);
+  welcomeWindow.loadURL(WELCOME_WINDOW_WEBPACK_ENTRY);
+
+  welcomeWindow.once('ready-to-show', () => {
+    // A menu-bar app isn't frontmost when it launches.
+    app.focus({ steal: true });
+    welcomeWindow?.show();
+  });
+
+  welcomeWindow.on('closed', () => {
+    welcomeWindow = null;
+  });
+}
+
+// Pages that show engine status: the hub, and the Welcome window.
+function sendToPages(channel: string, ...args: unknown[]): void {
+  for (const win of [hubWindow, welcomeWindow]) {
+    if (win && !win.isDestroyed()) win.webContents.send(channel, ...args);
+  }
 }
 
 // Menu-bar icons from assets/tray (scripts/build-icons.mjs). Template images,
@@ -192,6 +278,7 @@ function updateTrayMenu(): void {
       label: 'Open DictateAI',
       click: () => createHubWindow(),
     },
+    { label: 'Welcome & Setup…', click: () => createWelcomeWindow() },
     { type: 'separator' },
     {
       label: isRecording() ? '⏹ Stop Recording' : '🎙 Start Recording',
@@ -200,6 +287,20 @@ function updateTrayMenu(): void {
     {
       label: `Hold ${settings().shortcutLabel} to dictate`,
       enabled: false,
+    },
+    { type: 'separator' },
+    // Shown with their shortcuts; the global shortcuts do the work.
+    {
+      label: 'Paste last transcript',
+      accelerator: getTranscriptShortcuts().paste[0],
+      registerAccelerator: false,
+      click: () => pasteLastTranscript(),
+    },
+    {
+      label: 'Copy last transcript',
+      accelerator: getTranscriptShortcuts().copy[0],
+      registerAccelerator: false,
+      click: () => copyLastTranscript(),
     },
     { type: 'separator' },
     {
@@ -252,37 +353,62 @@ function toggleRecording(): void {
   }
 }
 
-function muteSystemAudio(): void {
-  if (!settings().muteWhileSpeaking) return;
-  exec('osascript -e "output muted of (get volume settings)"', (err, stdout) => {
-    if (err) {
-      console.error('[DictateAI] Failed to check mute state:', err);
-      return;
-    }
-    if (stdout.trim() === 'true') {
-      didMuteAudio = false;
-      return;
-    }
-    exec('osascript -e "set volume with output muted"', (err2) => {
-      if (err2) {
-        console.error('[DictateAI] Failed to mute audio:', err2);
-        return;
-      }
-      didMuteAudio = true;
-      console.log('[DictateAI] System audio muted');
-    });
-  });
+// The start and stop sounds. The overlay plays them (renderer.ts): it's the
+// window that records, so it can keep the start sound out of the recording.
+function playCue(cue: 'start' | 'stop'): void {
+  if (!settings().playSounds) return;
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.webContents.send('dictation:cue', cue);
+  }
 }
 
-function unmuteSystemAudio(): void {
-  if (!didMuteAudio) return;
+function muteSystemAudio(): void {
+  if (!settings().muteWhileSpeaking) return;
+  const session = dictation.session;
+  // Muting straight away would cut off the start sound.
+  muteTimer = setTimeout(() => {
+    muteTimer = null;
+    exec('osascript -e "output muted of (get volume settings)"', (err, stdout) => {
+      if (err) {
+        console.error('[DictateAI] Failed to check mute state:', err);
+        return;
+      }
+      if (stdout.trim() === 'true') {
+        didMuteAudio = false;
+        return;
+      }
+      exec('osascript -e "set volume with output muted"', (err2) => {
+        if (err2) {
+          console.error('[DictateAI] Failed to mute audio:', err2);
+          return;
+        }
+        didMuteAudio = true;
+        console.log('[DictateAI] System audio muted');
+        // The recording ended while we were muting (a quick press).
+        if (session !== dictation.session || !isRecording()) unmuteSystemAudio();
+      });
+    });
+  }, settings().playSounds ? START_CUE_MS : 0);
+}
+
+// `then` runs once audio is back on (straight away if we never muted it).
+function unmuteSystemAudio(then?: () => void): void {
+  if (muteTimer) {
+    clearTimeout(muteTimer);
+    muteTimer = null;
+  }
+  if (!didMuteAudio) {
+    then?.();
+    return;
+  }
   didMuteAudio = false;
   exec('osascript -e "set volume without output muted"', (err) => {
     if (err) {
       console.error('[DictateAI] Failed to unmute audio:', err);
-      return;
+    } else {
+      console.log('[DictateAI] System audio unmuted');
     }
-    console.log('[DictateAI] System audio unmuted');
+    then?.();
   });
 }
 
@@ -291,7 +417,11 @@ function startRecording(): void {
   dictation.session++;
   dictation.phase = 'recording';
   dictation.chunks = [];
+  dictation.startedAt = Date.now();
   cancelPendingHide();
+  // Sent before the 'recording' state, so the overlay starts the sound
+  // before it opens the microphone.
+  playCue('start');
   muteSystemAudio();
   updateTrayMenu();
   console.log('[DictateAI] Recording started');
@@ -310,9 +440,14 @@ function stopRecording(): void {
   if (!isRecording()) return;
   const session = dictation.session;
   const chunks = dictation.chunks;
+  const heldMs = Date.now() - dictation.startedAt;
   dictation.phase = 'processing';
   dictation.chunks = [];
-  unmuteSystemAudio();
+  // The stop sound waits for audio to be unmuted, or nobody would hear it.
+  // A tap (the start of a double or triple tap) records nothing: no sound.
+  unmuteSystemAudio(() => {
+    if (heldMs >= TAP_MS) playCue('stop');
+  });
   stopPreviewTimer();
   updateTrayMenu();
   console.log(`[DictateAI] Recording stopped — ${chunks.length} chunks collected`);
@@ -532,6 +667,30 @@ function hideOverlayAfterDelay(ms: number): void {
   }, ms);
 }
 
+// Puts the text where the user is typing. If nothing there takes text (the
+// desktop, a file list, a web page with no field selected) or inserting
+// fails, the text isn't pasted into the void: it stays the last transcript
+// (the newest history entry) and the pill says how to paste it.
+function insertText(session: number, text: string): boolean {
+  const focus = getFocusTarget();
+  const verdict = classifyFocus(focus);
+  const where = `${focus.role || 'no focused element'} in ${focus.app || 'unknown app'}`;
+  if (verdict === 'none') {
+    console.log(`[DictateAI] No text field (${where}) — kept for the paste shortcut`);
+  } else {
+    sendPillState(session, 'injecting');
+    const method = injectText(text);
+    console.log(`[DictateAI] Injected via: ${method} (focus: ${verdict}, ${where})`);
+    if (method !== 'failed') {
+      hidePillLater(session, 1200);
+      return true;
+    }
+  }
+  sendPillState(session, `no-field:${pasteShortcutSymbol()}`);
+  hidePillLater(session, 4000);
+  return false;
+}
+
 function finishProcessing(session: number, text: string, appName?: string, location: CleanupLocation = 'local'): void {
   if (session === dictation.session && dictation.phase === 'processing') {
     dictation.phase = 'idle';
@@ -540,22 +699,16 @@ function finishProcessing(session: number, text: string, appName?: string, locat
   if (text) {
     console.log(`[DictateAI] Result: ${redact(text)}`);
 
-    sendPillState(session, 'injecting');
-
-    const method = injectText(text);
-    console.log(`[DictateAI] Injected via: ${method}`);
-    hidePillLater(session, 1200);
+    const inserted = insertText(session, text);
 
     const entry = { text, app: appName || '', time: new Date().toISOString(), location };
     addHistory(entry);
 
-    if (hubWindow && !hubWindow.isDestroyed()) {
-      hubWindow.webContents.send('dictation:log', entry);
-    }
+    sendToPages('dictation:log', entry);
 
     // A few seconds later, compare what's in the field with what we inserted
     // to learn the user's corrections (see dictionary.ts).
-    setTimeout(() => {
+    if (inserted) setTimeout(() => {
       try {
         const fieldInfo = getFocusedElementInfo();
         console.log(`[DictateAI] Correction check — available: ${fieldInfo.available}, app: ${fieldInfo.app}, role: ${fieldInfo.role}`);
@@ -719,21 +872,22 @@ function setupIPC(): void {
   });
 
   ipcMain.handle('config:getLanguage', () => getLanguage());
-  ipcMain.handle('config:setLanguage', async (_event, lang: string) => {
-    setLanguage(lang);
-    saveConfig({ language: lang });
+  // downloadCleanup: false when the user said "Not now" to the cleanup model
+  // the new language needs; it then waits until they ask for it.
+  ipcMain.handle('config:setLanguage', async (_event, lang: string, downloadCleanup = true) => {
+    applyLanguage(lang, downloadCleanup);
+    return true;
+  });
+  ipcMain.handle('config:cleanupPlan', (_event, lang: string) => cleanupPlan(lang));
+  ipcMain.handle('config:downloadCleanup', () => {
+    saveConfig({ cleanupDownloadDeclined: undefined });
     syncLocalLlm();
-    if (hubWindow && !hubWindow.isDestroyed()) {
-      hubWindow.webContents.send('stt:restarting');
-    }
-    if (overlayWindow && !overlayWindow.isDestroyed()) {
-      overlayWindow.webContents.send('dictation:state', 'restarting');
-    }
     return true;
   });
   ipcMain.handle('config:getLlmEnabled', () => settings().llmEnabled);
   ipcMain.handle('config:setLlmEnabled', (_event, enabled: boolean) => {
-    saveConfig({ llmEnabled: enabled });
+    // Turning it on is the explicit choice; the size was shown next to it.
+    saveConfig(enabled ? { llmEnabled: true, cleanupDownloadDeclined: undefined } : { llmEnabled: false });
     syncLocalLlm();
     return true;
   });
@@ -749,8 +903,10 @@ function setupIPC(): void {
     running: isLocalLlmRunning(),
     starting: isLocalLlmStarting(),
     download: getLocalModelDownload(),
+    failed: didLocalLlmFail(),
     model: getLocalModel(),
     cloudModel: getCloudModel(),
+    plan: cleanupPlan(getLanguage()),
   }));
   ipcMain.handle('config:getLocalModelChoice', () => ({
     choice: loadConfig().localModel || 'auto',
@@ -774,6 +930,53 @@ function setupIPC(): void {
     engine: 'WhisperKit',
     model: getModel(),
   }));
+
+  // --- Welcome window ---
+  ipcMain.handle('welcome:status', () => ({
+    accessibility: isAccessibilityTrusted(),
+    microphone: systemPreferences.getMediaAccessStatus('microphone'),
+    speech: {
+      installed: isWhisperKitInstalled(),
+      running: isServerRunning(),
+      failed: speechFailed,
+      download: getModelDownload(),
+    },
+    shortcut: settings().shortcutLabel,
+    language: loadConfig().language ?? null,
+    locale: app.getLocale().split('-')[0].toLowerCase(),
+    llmEnabled: settings().llmEnabled,
+  }));
+  ipcMain.handle('welcome:openAccessibility', () => {
+    // Prompting also adds DictateAI to the list in System Settings.
+    checkAccessibilityPermission();
+    shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility');
+    return true;
+  });
+  ipcMain.handle('welcome:allowMicrophone', async () => {
+    if (systemPreferences.getMediaAccessStatus('microphone') === 'not-determined') {
+      return systemPreferences.askForMediaAccess('microphone');
+    }
+    // Denied once: macOS won't ask again, only System Settings can change it.
+    shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone');
+    return false;
+  });
+  ipcMain.handle('welcome:retrySpeech', () => {
+    startSpeech();
+    return true;
+  });
+  ipcMain.handle('welcome:finish', (_event, lang: string, enableCleanup: boolean) => {
+    if (lang && lang !== loadConfig().language) applyLanguage(lang, true);
+    if (enableCleanup) {
+      saveConfig({ llmEnabled: true, cleanupDownloadDeclined: undefined });
+      syncLocalLlm();
+    }
+    welcomeWindow?.close();
+    return true;
+  });
+  ipcMain.handle('welcome:close', () => {
+    welcomeWindow?.close();
+    return true;
+  });
 
   ipcMain.handle('config:getAudioDevice', () => {
     const config = loadConfig();
@@ -816,6 +1019,53 @@ function setupIPC(): void {
     console.log(`[DictateAI] Shortcut changed to: ${shortcut.display} (code=${shortcut.code})`);
     return true;
   });
+
+  ipcMain.handle('config:getPlaySounds', () => settings().playSounds);
+  ipcMain.handle('config:setPlaySounds', (_event, enabled: boolean) => {
+    saveConfig({ playSounds: enabled });
+    console.log(`[DictateAI] Play sounds: ${enabled}`);
+    return true;
+  });
+
+  ipcMain.handle('config:getOpenAtLogin', () => getLoginItemState());
+  ipcMain.handle('config:setOpenAtLogin', (_event, enabled: boolean) => setOpenAtLogin(enabled));
+  ipcMain.handle('config:openLoginItems', () => {
+    openLoginItemsSettings();
+    return true;
+  });
+
+  // "Paste last transcript" / "Copy last transcript" shortcuts.
+  const afterShortcutChange = <T extends { ok: boolean }>(result: T): T => {
+    if (result.ok) updateTrayMenu();
+    return result;
+  };
+  ipcMain.handle('shortcuts:get', () => transcriptShortcutState());
+  ipcMain.handle('shortcuts:set', (_event, action: TranscriptAction, index: number | null, accelerator: string) =>
+    afterShortcutChange(setTranscriptShortcut(action, index, accelerator)),
+  );
+  ipcMain.handle('shortcuts:remove', (_event, action: TranscriptAction, index: number) =>
+    afterShortcutChange(removeTranscriptShortcut(action, index)),
+  );
+  ipcMain.handle('shortcuts:reset', () => afterShortcutChange(resetTranscriptShortcuts()));
+  ipcMain.handle('shortcuts:suspend', () => {
+    suspendTranscriptShortcuts();
+    return true;
+  });
+  ipcMain.handle('shortcuts:resume', () => {
+    resumeTranscriptShortcuts();
+    return true;
+  });
+}
+
+// Brief notes in the pill after the last-transcript shortcuts, unless it's
+// busy showing a dictation.
+function showTranscriptFeedback(state: string): void {
+  if (dictation.phase !== 'idle' || !overlayWindow || overlayWindow.isDestroyed()) return;
+  cancelPendingHide();
+  applyOverlayPosition();
+  overlayWindow.webContents.send('dictation:state', state);
+  overlayWindow.showInactive();
+  hideOverlayAfterDelay(1500);
 }
 
 app.dock?.hide();
@@ -847,7 +1097,15 @@ app.whenReady().then(async () => {
   if (!isPrimaryInstance) return;
 
   createTray();
-  await ensureMicrophoneAccess();
+  // On first launch the Welcome window explains each permission before
+  // macOS asks for it.
+  // Someone updating from an older version with everything already set up
+  // has nothing left to do in it.
+  const alreadySetUp = settings().llmEnabled && isAccessibilityTrusted()
+    && systemPreferences.getMediaAccessStatus('microphone') === 'granted';
+  if (!loadConfig().welcomeShown && alreadySetUp) saveConfig({ welcomeShown: true });
+  const firstLaunch = !loadConfig().welcomeShown;
+  if (!firstLaunch) await ensureMicrophoneAccess();
   overlayWindow = createOverlayWindow();
   registerPushToTalk();
   setupIPC();
@@ -869,25 +1127,27 @@ app.whenReady().then(async () => {
     setPttKey(s.keyCode, s.flagMask, s.isModifier, s.requiredModifiers);
     console.log(`[DictateAI] Restored shortcut: ${s.display}`);
   }
+  setLastTranscriptFeedback(showTranscriptFeedback);
+  registerTranscriptShortcuts();
+  const { paste, copy } = getTranscriptShortcuts();
+  console.log(`[DictateAI] Last transcript: paste ${paste.map(acceleratorSymbol).join(', ')} · copy ${copy.map(acceleratorSymbol).join(', ')}`);
   // Saved middle-row positions (removed) are rewritten to their new spot.
   const pillPosition = settings().pillPosition;
   if (savedConfig.pillPosition && pillPosition !== savedConfig.pillPosition) saveConfig({ pillPosition });
   console.log(`[DictateAI] Pill position: ${pillPosition} · mute while speaking: ${settings().muteWhileSpeaking}`);
 
   setOnLocalLlmStatusChange(() => {
-    if (hubWindow && !hubWindow.isDestroyed()) {
-      hubWindow.webContents.send('llm:status-changed');
+    if (cleanupReadyNoticePending && isLocalLlmRunning()) {
+      cleanupReadyNoticePending = false;
+      noticeCleanupReady();
     }
+    sendToPages('llm:status-changed');
   });
   syncLocalLlm();
 
-  setOnStatusChange(() => {
-    if (hubWindow && !hubWindow.isDestroyed()) {
-      hubWindow.webContents.send('stt:status-changed');
-    }
-  });
+  setOnStatusChange(() => sendToPages('stt:status-changed'));
 
-  const hasAccess = checkAccessibilityPermission();
+  const hasAccess = firstLaunch ? isAccessibilityTrusted() : checkAccessibilityPermission();
   console.log(
     `[DictateAI] Accessibility permission: ${hasAccess ? 'granted' : 'NEEDS GRANT — check System Settings → Privacy → Accessibility'}`,
   );
@@ -899,20 +1159,64 @@ app.whenReady().then(async () => {
     if (overlayWindow && !overlayWindow.isDestroyed()) {
       overlayWindow.webContents.send('dictation:state', 'downloading');
     }
-    startServer().then((ok) => {
-      if (ok) {
-        console.log('[DictateAI] WhisperKit server ready.');
-      } else {
-        console.error('[DictateAI] WhisperKit server failed to start.');
-      }
-      if (hubWindow && !hubWindow.isDestroyed()) {
-        hubWindow.webContents.send('stt:status-changed');
-      }
-    });
+    startSpeech();
+  }
+
+  if (firstLaunch) {
+    saveConfig({ welcomeShown: true });
+    createWelcomeWindow();
   }
 
   console.log(`[DictateAI] Ready. Hold ${settings().shortcutLabel} to dictate.`);
 });
+
+function startSpeech(): void {
+  speechFailed = false;
+  sendToPages('stt:status-changed');
+  startServer().then((ok) => {
+    speechFailed = !ok;
+    if (ok) {
+      console.log('[DictateAI] WhisperKit server ready.');
+    } else {
+      console.error('[DictateAI] WhisperKit server failed to start.');
+    }
+    sendToPages('stt:status-changed');
+  });
+}
+
+function applyLanguage(lang: string, downloadCleanup: boolean): void {
+  setLanguage(lang);
+  const plan = cleanupPlan(lang);
+  saveConfig({
+    language: lang,
+    cleanupDownloadDeclined: !downloadCleanup && !plan.downloaded ? plan.model : undefined,
+  });
+  syncLocalLlm();
+  sendToPages('stt:restarting');
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.webContents.send('dictation:state', 'restarting');
+  }
+}
+
+// The cleanup model a language would use, and what fetching it costs. The
+// size is shown before every download (Welcome, Settings, language change).
+function cleanupPlan(lang: string) {
+  const model = loadConfig().localModel || defaultLocalModelFor(lang);
+  const bytes = localModelBytes(model);
+  const downloaded = isLocalModelDownloaded(model);
+  const freeBytes = freeDiskBytes(localModelCacheDir());
+  return {
+    model,
+    size: formatBytes(bytes),
+    downloaded,
+    free: freeBytes == null ? null : formatBytes(freeBytes),
+    // Room for the model plus 2 GB, so the download never fills the disk.
+    enoughSpace: downloaded || freeBytes == null || freeBytes >= bytes + 2e9,
+    // The larger model holds about 4.3 GB of memory while loaded.
+    lowMemory: bytes > 3e9 && os.totalmem() < 12 * 1024 ** 3,
+    declined: loadConfig().cleanupDownloadDeclined === model && !downloaded,
+  };
+}
 
 // The push-to-talk key needs Accessibility. On a fresh install it isn't
 // granted yet, so watch for the grant and start listening then, without
@@ -926,7 +1230,7 @@ function waitForAccessibility(): void {
     registerPushToTalk();
     const shortcut = loadConfig().shortcut;
     if (shortcut) setPttKey(shortcut.keyCode, shortcut.flagMask, shortcut.isModifier, shortcut.requiredModifiers);
-    if (hubWindow && !hubWindow.isDestroyed()) hubWindow.webContents.send('stt:status-changed');
+    sendToPages('stt:status-changed');
   }, 2000);
 }
 
@@ -934,7 +1238,15 @@ function waitForAccessibility(): void {
 function syncLocalLlm(): void {
   if (settings().llmEnabled && getLlmProvider() === 'local') {
     const config = loadConfig();
-    startLocalLlm(config.localModel || defaultLocalModelFor(config.language));
+    const model = config.localModel || defaultLocalModelFor(config.language);
+    const downloaded = isLocalModelDownloaded(model);
+    // "Not now" to this model's download: dictation stays plain text.
+    if (config.cleanupDownloadDeclined === model && !downloaded) {
+      stopLocalLlm();
+      return;
+    }
+    if (!downloaded && !config.notices?.cleanupReadyShown) cleanupReadyNoticePending = true;
+    startLocalLlm(model);
   } else {
     stopLocalLlm();
   }

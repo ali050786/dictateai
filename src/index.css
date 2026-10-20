@@ -91,6 +91,21 @@ body {
   display: none;
 }
 
+/* Notice: "No text field. Press ⌃⌘V to paste it.", "Copied". Sized to the text. */
+.flow-bar.notice {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  width: auto;
+  max-width: 236px;
+  height: 34px;
+  padding: 0 14px;
+  background: rgba(20, 20, 22, 0.92);
+}
+
+.flow-bar.notice .waveform {
+  display: none;
+}
+
 /* --- Waveform bars --- */
 .waveform {
   display: flex;

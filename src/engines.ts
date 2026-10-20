@@ -71,3 +71,15 @@ export class DownloadWatch {
 export function formatBytes(bytes: number): string {
   return bytes >= 1e9 ? `${(bytes / 1e9).toFixed(1)} GB` : `${Math.round(bytes / 1e6)} MB`;
 }
+
+// Free space on the disk that holds `dir` (or its nearest existing parent).
+export function freeDiskBytes(dir: string): number | null {
+  let p = dir;
+  while (!fs.existsSync(p) && path.dirname(p) !== p) p = path.dirname(p);
+  try {
+    const stats = fs.statfsSync(p);
+    return stats.bavail * stats.bsize;
+  } catch {
+    return null;
+  }
+}
