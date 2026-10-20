@@ -44,12 +44,22 @@ export interface Config {
   localModel?: string;
   language?: string;
   llmEnabled?: boolean;
+  // A short sound when dictation starts and stops. On unless turned off.
+  playSounds?: boolean;
+  // Global shortcuts for the last dictation, as Electron accelerators
+  // (see accelerator.ts). Missing means the defaults.
+  transcriptShortcuts?: { paste?: string[]; copy?: string[] };
   shortcut?: ShortcutConfig;
   audioDevice?: string;
   pillPosition?: PillPosition;
   // One-time and once-a-day notices (see notices.ts).
-  notices?: { modelNoteShown?: boolean; fallbackShownOn?: string };
+  notices?: { modelNoteShown?: boolean; fallbackShownOn?: string; cleanupReadyShown?: boolean };
   muteWhileSpeaking?: boolean;
+  // Set once the Welcome window has opened, so it opens on first launch only.
+  welcomeShown?: boolean;
+  // A cleanup model the user chose not to download yet (after changing
+  // language). It isn't fetched until they ask; dictation stays plain text.
+  cleanupDownloadDeclined?: string;
 }
 
 let cachedConfig: Config | null = null;

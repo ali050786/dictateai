@@ -69,7 +69,8 @@
           <div class="page-body">
             <div class="hero-card">
               <h2>Voice to text, anywhere.</h2>
-              <p>Hold <kbd id="hero-key">Right ⌥ Option</kbd> and speak. Your words appear in any text field, cleaned up by AI.</p>
+              <p>Hold <kbd id="hero-key">Right ⌥ Option</kbd> and speak. Your words appear in any text field<span id="hero-cleanup-on">, cleaned up by AI</span>.</p>
+              <button type="button" class="hero-link" id="btn-hero-cleanup" hidden>Turn on AI cleanup →</button>
             </div>
             <div class="section-header">
               <h3>Recent Dictations</h3>
@@ -198,6 +199,24 @@
                 <span id="handsfree-status-text">Active</span>
               </div>
             </div>
+
+            <!-- Filled by renderBindings() in hub-renderer.ts -->
+            <div class="binding-card" data-action="paste">
+              <div class="binding-card-text">
+                <h3>Paste last transcript</h3>
+                <p>Paste the last thing you dictated</p>
+              </div>
+              <div class="binding-list" id="bindings-paste"></div>
+              <button type="button" class="binding-add" data-action="paste" title="Add another shortcut" aria-label="Add another shortcut for Paste last transcript">+</button>
+            </div>
+            <div class="binding-card" data-action="copy">
+              <div class="binding-card-text">
+                <h3>Copy last transcript</h3>
+                <p>Copy the last thing you dictated</p>
+              </div>
+              <div class="binding-list" id="bindings-copy"></div>
+              <button type="button" class="binding-add" data-action="copy" title="Add another shortcut" aria-label="Add another shortcut for Copy last transcript">+</button>
+            </div>
           </div>
 
           <!-- Shortcut Recording Modal -->
@@ -209,7 +228,9 @@
               <div class="shortcut-record-area" id="shortcut-record-area">
                 <span class="shortcut-record-prompt" id="shortcut-record-prompt">Press a key…</span>
               </div>
+              <p class="shortcut-record-error" id="shortcut-record-error" role="alert" hidden></p>
               <div class="modal-actions">
+                <button id="btn-remove-shortcut" class="btn-secondary btn-remove-shortcut" hidden>Remove</button>
                 <button id="btn-cancel-shortcut" class="btn-secondary">Cancel</button>
                 <button id="btn-save-shortcut" class="btn-primary" disabled>Save</button>
               </div>
@@ -265,6 +286,27 @@
                   <span class="toggle-slider"></span>
                 </label>
               </div>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <span class="setting-label">Play sounds</span>
+                  <span class="setting-desc">A soft tone when dictation starts and stops</span>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="sounds-toggle">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <span class="setting-label">Open DictateAI when you log in</span>
+                  <span class="setting-desc" id="login-item-desc">Ready in the menu bar whenever your Mac starts</span>
+                  <button type="button" class="link-button" id="btn-login-items" hidden>Open Login Items in System Settings</button>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="login-item-toggle">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
             </div>
 
             <div class="settings-section">
@@ -303,6 +345,13 @@
                   <option value="mr">Marathi (मराठी)</option>
                 </select>
               </div>
+              <aside class="setting-confirm" id="lang-confirm" hidden>
+                <p id="lang-confirm-text"></p>
+                <div class="setting-actions">
+                  <button type="button" class="btn-secondary btn-sm" id="btn-lang-not-now">Not now</button>
+                  <button type="button" class="btn-primary btn-sm" id="btn-lang-download">Download</button>
+                </div>
+              </aside>
             </div>
 
             <div class="settings-section">
@@ -317,7 +366,11 @@
               <div class="setting-row">
                 <div class="setting-info">
                   <span class="setting-label">AI Text Cleanup</span>
-                  <span class="setting-desc">Polish text with LLM after injection (slower)</span>
+                  <span class="setting-desc" id="llm-desc">Removes ums, fixes punctuation.</span>
+                  <div class="setting-progress" id="llm-progress" role="progressbar" aria-label="Cleanup model download" aria-valuemin="0" aria-valuemax="100" hidden>
+                    <div class="setting-progress-fill" id="llm-progress-fill"></div>
+                  </div>
+                  <button type="button" class="link-button" id="btn-llm-action" hidden></button>
                 </div>
                 <label class="toggle">
                   <input type="checkbox" id="llm-toggle" />

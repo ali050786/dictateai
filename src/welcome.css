@@ -1,0 +1,347 @@
+/* Same look as hub.css: system font, near-black primary, soft grey rows. */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  background: #fff;
+  color: #1a1a1a;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  height: 100vh;
+}
+
+#welcome {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.titlebar {
+  height: 44px;
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+}
+
+.step {
+  display: none;
+  flex: 1;
+  flex-direction: column;
+  padding: 4px 36px 0;
+  overflow-y: auto;
+}
+
+.step.active {
+  display: flex;
+}
+
+h1 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 18px;
+}
+
+/* --- Step 1 --- */
+.perm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.perm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  background: #fafafa;
+  border-radius: 2px;
+}
+
+.perm-row:first-child { border-radius: 10px 10px 2px 2px; }
+.perm-row:last-child { border-radius: 2px 2px 10px 10px; }
+
+.perm-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.perm-label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.perm-desc {
+  font-size: 13px;
+  color: #888;
+  line-height: 1.4;
+}
+
+.perm-action {
+  flex-shrink: 0;
+}
+
+.perm-ok {
+  font-size: 13px;
+  font-weight: 500;
+  color: #059669;
+  white-space: nowrap;
+}
+
+.note {
+  font-size: 13px;
+  color: #888;
+  margin-top: 16px;
+  line-height: 1.5;
+}
+
+/* --- Step 2 --- */
+.progress {
+  height: 6px;
+  background: #f0f0f0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0;
+  background: #1a1a1a;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+/* No percent yet (the download hasn't started showing up on disk). */
+.progress.indeterminate .progress-fill {
+  width: 30%;
+  animation: slide 1.4s ease-in-out infinite;
+}
+
+@keyframes slide {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(340%); }
+}
+
+.progress-text {
+  font-size: 14px;
+  margin-top: 12px;
+}
+
+.small {
+  font-size: 12px;
+  color: #888;
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+.small.success {
+  color: #059669;
+  font-size: 13px;
+}
+
+.small.warn {
+  color: #d97706;
+}
+
+.error-text {
+  font-size: 14px;
+  color: #dc2626;
+  margin-bottom: 10px;
+}
+
+.try-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #555;
+  margin: 4px 0 8px;
+}
+
+#try-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+#try-input:focus {
+  border-color: #1a1a1a;
+}
+
+/* --- Step 3 --- */
+.before-after {
+  background: #fafafa;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.before {
+  color: #999;
+  text-decoration: line-through;
+  text-decoration-color: rgba(0, 0, 0, 0.2);
+}
+
+.after {
+  color: #1a1a1a;
+  font-weight: 500;
+}
+
+.lang-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  margin-bottom: 14px;
+}
+
+.size-line {
+  font-size: 13px;
+  color: #555;
+  line-height: 1.5;
+}
+
+.size-line.error {
+  color: #dc2626;
+}
+
+.setting-select {
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  background: #fff;
+  color: #1a1a1a;
+  cursor: pointer;
+  outline: none;
+  min-width: 190px;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 32px;
+}
+
+.setting-select:focus {
+  border-color: #1a1a1a;
+}
+
+/* --- Footer --- */
+footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 36px 22px;
+  flex-shrink: 0;
+}
+
+.dots {
+  display: flex;
+  gap: 6px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ddd;
+  transition: background 0.2s;
+}
+
+.dot.active {
+  background: #1a1a1a;
+}
+
+.footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-primary,
+.btn-secondary {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.btn-primary {
+  background: #1a1a1a;
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #333;
+}
+
+.btn-primary:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.btn-secondary {
+  background: #f0f0f0;
+  color: #1a1a1a;
+}
+
+.btn-secondary:hover {
+  background: #e5e5e5;
+}
+
+.btn-sm {
+  padding: 5px 12px;
+  font-size: 13px;
+}
+
+.link-button {
+  padding: 0 8px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: #007aff;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+button:focus-visible,
+select:focus-visible {
+  outline: 2px solid #007aff;
+  outline-offset: 2px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}

@@ -1,4 +1,13 @@
 import './hub.css';
+import {
+  acceleratorFromKeyPress,
+  acceleratorKeys,
+  MAX_BINDINGS,
+  TranscriptAction,
+  TranscriptShortcuts,
+  TRANSCRIPT_ACTIONS,
+  TRANSCRIPT_ACTION_LABELS,
+} from './accelerator';
 
 interface DictionaryEntry {
   from: string;
@@ -19,6 +28,17 @@ interface ShortcutConfig {
 
 interface ModelDownload { percent: number; size: string }
 
+// The cleanup model a language would use, and what fetching it costs.
+interface CleanupPlan {
+  model: string;
+  size: string;
+  downloaded: boolean;
+  free: string | null;
+  enoughSpace: boolean;
+  lowMemory: boolean;
+  declined: boolean;
+}
+
 interface HubAPI {
   dictionary: {
     list: () => Promise<DictionaryEntry[]>;
@@ -31,7 +51,9 @@ interface HubAPI {
     removeApiKey: () => Promise<boolean>;
     hasAccessibility: () => Promise<boolean>;
     getLanguage: () => Promise<string>;
-    setLanguage: (lang: string) => Promise<boolean>;
+    setLanguage: (lang: string, downloadCleanup?: boolean) => Promise<boolean>;
+    cleanupPlan: (lang: string) => Promise<CleanupPlan>;
+    downloadCleanup: () => Promise<boolean>;
     sttStatus: () => Promise<{ installed: boolean; running: boolean; download: ModelDownload | null; engine: string; model: string }>;
     getLlmEnabled: () => Promise<boolean>;
     setLlmEnabled: (enabled: boolean) => Promise<boolean>;
@@ -43,8 +65,10 @@ interface HubAPI {
       running: boolean;
       starting: boolean;
       download: ModelDownload | null;
+      failed: boolean;
       model: string;
       cloudModel: string;
+      plan: CleanupPlan;
     }>;
     setCloudModel: (model: string) => Promise<boolean>;
     getLocalModelChoice: () => Promise<{ choice: string; options: { id: string; label: string; detail: string }[] }>;
@@ -62,12 +86,31 @@ interface HubAPI {
     list: () => Promise<HistoryEntry[]>;
     clear: () => Promise<boolean>;
   };
+  general: {
+    getPlaySounds: () => Promise<boolean>;
+    setPlaySounds: (enabled: boolean) => Promise<boolean>;
+    getOpenAtLogin: () => Promise<LoginItemState>;
+    setOpenAtLogin: (enabled: boolean) => Promise<LoginItemState>;
+    openLoginItems: () => Promise<boolean>;
+  };
+  transcriptShortcuts: {
+    get: () => Promise<TranscriptShortcutState>;
+    set: (action: TranscriptAction, index: number | null, accelerator: string) => Promise<ShortcutSaveResult>;
+    remove: (action: TranscriptAction, index: number) => Promise<ShortcutSaveResult>;
+    reset: () => Promise<ShortcutSaveResult>;
+    suspend: () => Promise<boolean>;
+    resume: () => Promise<boolean>;
+  };
   onDictationLog: (callback: (entry: HistoryEntry) => void) => () => void;
   onLlmStatusChanged: (callback: () => void) => () => void;
   onSttRestarting: (callback: () => void) => () => void;
   onSttStatusChanged: (callback: () => void) => () => void;
   openExternal: (url: string) => void;
 }
+
+interface LoginItemState { available: boolean; enabled: boolean; needsApproval: boolean }
+interface TranscriptShortcutState { shortcuts: TranscriptShortcuts; unavailable: string[] }
+type ShortcutSaveResult = { ok: true; state: TranscriptShortcutState } | { ok: false; error: string };
 
 declare global {
   interface Window {
@@ -248,6 +291,40 @@ muteToggle.addEventListener('change', () => {
   window.hub.config.setMuteWhileSpeaking(muteToggle.checked);
 });
 
+const soundsToggle = document.getElementById('sounds-toggle') as HTMLInputElement;
+soundsToggle.addEventListener('change', () => {
+  window.hub.general.setPlaySounds(soundsToggle.checked);
+});
+
+// Open at login: macOS holds the real setting, so the toggle always shows
+// what it reports back, including after the user changes it in System Settings.
+const loginItemToggle = document.getElementById('login-item-toggle') as HTMLInputElement;
+const loginItemDesc = document.getElementById('login-item-desc')!;
+const btnLoginItems = document.getElementById('btn-login-items')!;
+loginItemToggle.addEventListener('change', async () => {
+  showLoginItem(await window.hub.general.setOpenAtLogin(loginItemToggle.checked));
+});
+btnLoginItems.addEventListener('click', () => window.hub.general.openLoginItems());
+window.addEventListener('focus', async () => {
+  showLoginItem(await window.hub.general.getOpenAtLogin());
+});
+
+function showLoginItem(state: LoginItemState): void {
+  loginItemToggle.checked = state.enabled;
+  loginItemToggle.disabled = !state.available;
+  loginItemDesc.textContent = !state.available
+    ? 'Available in the installed app'
+    : state.needsApproval
+      ? 'Turned off in System Settings → General → Login Items'
+      : 'Ready in the menu bar whenever your Mac starts';
+  btnLoginItems.hidden = !state.needsApproval;
+}
+
+async function loadGeneralToggles(): Promise<void> {
+  soundsToggle.checked = await window.hub.general.getPlaySounds();
+  showLoginItem(await window.hub.general.getOpenAtLogin());
+}
+
 async function loadSettings(): Promise<void> {
   const hasKey = await window.hub.config.hasApiKey();
   apiKeyStatus.textContent = hasKey
@@ -265,6 +342,7 @@ async function loadSettings(): Promise<void> {
   languageSelect.value = lang;
 
   showPillPosition(await window.hub.config.getPillPosition());
+  await loadGeneralToggles();
 
   loadMicDevices();
 
@@ -272,6 +350,7 @@ async function loadSettings(): Promise<void> {
 
   const llmOn = await window.hub.config.getLlmEnabled();
   llmToggle.checked = llmOn;
+  showHeroCleanup(llmOn);
   await loadLlmStatus();
 
   await loadSttStatus();
@@ -339,8 +418,21 @@ micSelect.addEventListener('change', async () => {
 
 navigator.mediaDevices.addEventListener('devicechange', () => loadMicDevices());
 
+// Spoken name for the confirm line: "Hindi (हिन्दी)" → "Hindi".
+function languageName(lang: string): string {
+  if (lang === 'auto') return 'Other languages';
+  const option = [...languageSelect.options].find(o => o.value === lang);
+  return option?.textContent?.replace(/\s*\(.*\)$/, '') || lang;
+}
+
 languageSelect.addEventListener('change', async () => {
-  await window.hub.config.setLanguage(languageSelect.value);
+  const lang = languageSelect.value;
+  // A language that needs a cleanup model not on this Mac asks first, with
+  // the size, instead of starting a multi-GB download silently.
+  const [plan, llm] = await Promise.all([window.hub.config.cleanupPlan(lang), window.hub.config.llmStatus()]);
+  const askFirst = llmToggle.checked && llm.provider === 'local' && !plan.downloaded;
+  await window.hub.config.setLanguage(lang, !askFirst);
+  showLanguageConfirm(askFirst ? { lang, plan } : null);
   languageSelect.disabled = true;
   const sttStatus = document.getElementById('stt-status')!;
   const sttBadge = document.getElementById('stt-badge')!;
@@ -363,13 +455,113 @@ window.hub.onSttStatusChanged(() => {
   loadSttStatus();
 });
 
-llmToggle.addEventListener('change', async () => {
-  await window.hub.config.setLlmEnabled(llmToggle.checked);
+const langConfirm = document.getElementById('lang-confirm')!;
+const langConfirmText = document.getElementById('lang-confirm-text')!;
+const btnLangDownload = document.getElementById('btn-lang-download') as HTMLButtonElement;
+
+function showLanguageConfirm(pending: { lang: string; plan: CleanupPlan } | null): void {
+  langConfirm.hidden = !pending;
+  if (!pending) return;
+  const { lang, plan } = pending;
+  const name = languageName(lang);
+  const need = lang === 'en'
+    ? `English uses a smaller cleanup model (${plan.size}, once).`
+    : `${name} ${lang === 'auto' ? 'need' : 'needs'} the larger cleanup model (${plan.size}, once).`;
+  btnLangDownload.disabled = !plan.enoughSpace;
+  langConfirmText.textContent = plan.enoughSpace
+    ? `${need} Download now?`
+    : `${need} You have ${plan.free} free; it needs ${plan.size} plus room to spare.`;
+}
+
+btnLangDownload.addEventListener('click', async () => {
+  showLanguageConfirm(null);
+  await window.hub.config.downloadCleanup();
   loadLlmStatus();
 });
 
+// Not now: speech already switched; cleanup waits and dictation is plain text.
+document.getElementById('btn-lang-not-now')!.addEventListener('click', () => {
+  showLanguageConfirm(null);
+  loadLlmStatus();
+});
+
+llmToggle.addEventListener('change', async () => {
+  await window.hub.config.setLlmEnabled(llmToggle.checked);
+  showHeroCleanup(llmToggle.checked);
+  if (llmToggle.checked) showLanguageConfirm(null);
+  loadLlmStatus();
+});
+
+// --- AI Text Cleanup description: size before, progress during, retry after ---
+const llmDesc = document.getElementById('llm-desc')!;
+const llmProgress = document.getElementById('llm-progress')!;
+const llmProgressFill = document.getElementById('llm-progress-fill')!;
+const btnLlmAction = document.getElementById('btn-llm-action') as HTMLButtonElement;
+let llmAction: (() => Promise<unknown>) | null = null;
+
+function showLlmDesc(
+  text: string,
+  options: { percent?: number; action?: { label: string; run: () => Promise<unknown> } } = {},
+): void {
+  llmDesc.textContent = text;
+  llmProgress.hidden = options.percent === undefined;
+  if (options.percent !== undefined) {
+    llmProgressFill.style.width = `${options.percent}%`;
+    llmProgress.setAttribute('aria-valuenow', String(options.percent));
+  }
+  btnLlmAction.hidden = !options.action;
+  btnLlmAction.textContent = options.action?.label ?? '';
+  llmAction = options.action?.run ?? null;
+}
+
+btnLlmAction.addEventListener('click', async () => {
+  await llmAction?.();
+  loadLlmStatus();
+});
+
+type LlmStatus = Awaited<ReturnType<HubAPI['config']['llmStatus']>>;
+
+function renderCleanupDesc(status: LlmStatus): void {
+  const { plan } = status;
+  const what = 'Removes ums, fixes punctuation.';
+  const downloadNow = { label: 'Download', run: () => window.hub.config.downloadCleanup() };
+  if (!llmToggle.checked) {
+    if (status.provider === 'cloud') showLlmDesc(`${what} Uses your OpenRouter key.`);
+    else if (plan.downloaded) showLlmDesc(`${what} Runs on your Mac.`);
+    else showLlmDesc(`${what} Downloads ${plan.size} once.`);
+    return;
+  }
+  if (status.provider === 'cloud') {
+    showLlmDesc('In the cloud · your OpenRouter key');
+  } else if (status.running) {
+    showLlmDesc('On your Mac · private and unlimited');
+  } else if (status.download) {
+    // Cancel keeps the partial files, so turning it on again resumes.
+    showLlmDesc(`Downloading — ${status.download.percent}% of ${plan.size}`, {
+      percent: status.download.percent,
+      action: {
+        label: 'Cancel',
+        run: async () => {
+          llmToggle.checked = false;
+          showHeroCleanup(false);
+          await window.hub.config.setLlmEnabled(false);
+        },
+      },
+    });
+  } else if (status.starting) {
+    showLlmDesc(plan.downloaded ? 'Getting ready…' : `Starting the download (${plan.size})…`);
+  } else if (status.failed) {
+    showLlmDesc('Download stopped. Check your connection.', { action: { label: 'Try again', run: () => window.hub.config.downloadCleanup() } });
+  } else if (plan.declined) {
+    showLlmDesc(`Needs the ${plan.size} cleanup model. Until then, dictation is plain text.`, { action: downloadNow });
+  } else {
+    showLlmDesc(`${what} Stopped.`);
+  }
+}
+
 async function loadLlmStatus(): Promise<void> {
   const status = await window.hub.config.llmStatus();
+  renderCleanupDesc(status);
   const isCloud = status.provider === 'cloud';
   llmProviderSelect.value = status.provider;
   apiKeyRow.style.display = isCloud ? '' : 'none';
@@ -386,12 +578,11 @@ async function loadLlmStatus(): Promise<void> {
     llmProviderDesc.style.color = '#dc2626';
     llmModelName.textContent = '';
   } else {
+    // Download progress shows under the AI Text Cleanup toggle.
     const state = status.running
       ? 'ready'
-      : status.download
-        ? `downloading the model, one time only — ${status.download.percent}% of ${status.download.size}`
-        : status.starting
-        ? 'loading (first run downloads the model)…'
+      : status.starting
+        ? 'getting ready…'
         : llmToggle.checked ? 'stopped' : 'off until AI Text Cleanup is on';
     llmProviderDesc.textContent = `Private, unlimited — ${state}`;
     llmProviderDesc.style.color = status.running ? '#059669' : '';
@@ -488,6 +679,18 @@ apiKeyInput.addEventListener('keydown', (e) => {
 openrouterLink.addEventListener('click', (e) => {
   e.preventDefault();
   window.hub.openExternal('https://openrouter.ai/keys');
+});
+
+// --- Dictation hero: mentions AI only when cleanup is on ---
+function showHeroCleanup(on: boolean): void {
+  document.getElementById('hero-cleanup-on')!.hidden = !on;
+  document.getElementById('btn-hero-cleanup')!.hidden = on;
+}
+
+document.getElementById('btn-hero-cleanup')!.addEventListener('click', () => {
+  document.querySelector<HTMLButtonElement>('.nav-item[data-page="settings"]')!.click();
+  llmToggle.closest('.setting-row')!.scrollIntoView({ block: 'center' });
+  llmToggle.focus();
 });
 
 // --- Dictation History ---
@@ -620,6 +823,7 @@ async function loadShortcuts(): Promise<void> {
 
   const saved = await window.hub.config.getShortcut();
   showShortcut(saved?.display || DEFAULT_KEY);
+  await loadBindings();
 }
 
 // The shortcut appears on the Shortcuts page and in the Dictation hero.
@@ -696,13 +900,17 @@ function openShortcutRecorder(mode: 'ptt' | 'handsfree'): void {
 }
 
 function handleKeyRecord(e: KeyboardEvent): void {
-  if (!shortcutModal.classList.contains('hidden') && editingShortcut) {
+  if (!shortcutModal.classList.contains('hidden') && (editingShortcut || editingBinding)) {
     e.preventDefault();
     e.stopPropagation();
 
     if (e.key === 'Escape' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
-      shortcutModal.classList.add('hidden');
-      editingShortcut = null;
+      closeShortcutModal();
+      return;
+    }
+
+    if (editingBinding) {
+      recordBinding(e);
       return;
     }
 
@@ -727,17 +935,27 @@ document.addEventListener('keydown', handleKeyRecord);
 document.getElementById('btn-edit-ptt')?.addEventListener('click', () => openShortcutRecorder('ptt'));
 document.getElementById('btn-edit-handsfree')?.addEventListener('click', () => openShortcutRecorder('handsfree'));
 
-btnCancelShortcut.addEventListener('click', () => {
-  shortcutModal.classList.add('hidden');
-  editingShortcut = null;
-});
+btnCancelShortcut.addEventListener('click', closeShortcutModal);
 
-shortcutModal.querySelector('.modal-backdrop')!.addEventListener('click', () => {
-  shortcutModal.classList.add('hidden');
-  editingShortcut = null;
-});
+shortcutModal.querySelector('.modal-backdrop')!.addEventListener('click', closeShortcutModal);
 
 btnSaveShortcut.addEventListener('click', async () => {
+  if (editingBinding) {
+    if (!recordedAccelerator) return;
+    const result = await window.hub.transcriptShortcuts.set(editingBinding.action, editingBinding.index, recordedAccelerator);
+    if (!result.ok) {
+      recordedAccelerator = '';
+      shortcutRecordArea.classList.remove('recorded');
+      shortcutRecordArea.classList.add('recording');
+      btnSaveShortcut.setAttribute('disabled', '');
+      showRecordError(result.error);
+      return;
+    }
+    renderBindings(result.state);
+    closeShortcutModal();
+    return;
+  }
+
   if (!editingShortcut || !recordedKeyCode) return;
 
   const config = buildShortcutConfig(recordedKeyCode, recordedModifiers, recordedKeyDisplay);
@@ -760,6 +978,129 @@ btnSaveShortcut.addEventListener('click', async () => {
 document.getElementById('btn-reset-shortcuts')?.addEventListener('click', async () => {
   await window.hub.config.setShortcut(DEFAULT_SHORTCUT);
   showShortcut(DEFAULT_KEY);
+  await window.hub.transcriptShortcuts.reset();
+  await loadBindings();
+});
+
+function closeShortcutModal(): void {
+  shortcutModal.classList.add('hidden');
+  editingShortcut = null;
+  if (editingBinding) {
+    editingBinding = null;
+    window.hub.transcriptShortcuts.resume();
+  }
+  btnRemoveShortcut.hidden = true;
+  showRecordError('');
+}
+
+// --- Last transcript shortcuts ---
+// Rows like "Paste last transcript  [⌃ Ctrl][⌘ Cmd][V] ✎  +". Each action
+// can have up to MAX_BINDINGS shortcuts; the pencil changes one, + adds one.
+const shortcutRecordError = document.getElementById('shortcut-record-error')!;
+const btnRemoveShortcut = document.getElementById('btn-remove-shortcut')!;
+let editingBinding: { action: TranscriptAction; index: number | null } | null = null;
+let recordedAccelerator = '';
+
+const PENCIL_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+</svg>`;
+
+function keyCaps(accelerator: string): HTMLElement[] {
+  return acceleratorKeys(accelerator).map((label) => {
+    const cap = document.createElement('kbd');
+    cap.className = 'key-cap';
+    cap.textContent = label;
+    return cap;
+  });
+}
+
+function renderBindings(state: TranscriptShortcutState): void {
+  for (const action of TRANSCRIPT_ACTIONS) {
+    const bindings = state.shortcuts[action];
+    const rows = bindings.map((accelerator, index) => {
+      const row = document.createElement('div');
+      row.className = 'binding';
+      const taken = state.unavailable.includes(accelerator);
+      if (taken) {
+        row.classList.add('unavailable');
+        row.title = 'Another app is using this shortcut. Choose a different one.';
+      }
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'btn-icon';
+      edit.title = 'Change shortcut';
+      edit.setAttribute('aria-label', `Change shortcut ${acceleratorKeys(accelerator).join(' ')}`);
+      edit.innerHTML = PENCIL_ICON;
+      edit.addEventListener('click', () => openBindingRecorder(action, index, bindings.length));
+      row.append(...keyCaps(accelerator), edit);
+      return row;
+    });
+    document.getElementById(`bindings-${action}`)!.replaceChildren(...rows);
+    const add = document.querySelector<HTMLButtonElement>(`.binding-add[data-action="${action}"]`)!;
+    add.disabled = bindings.length >= MAX_BINDINGS;
+    add.onclick = () => openBindingRecorder(action, null, bindings.length);
+  }
+}
+
+async function loadBindings(): Promise<void> {
+  renderBindings(await window.hub.transcriptShortcuts.get());
+}
+
+function openBindingRecorder(action: TranscriptAction, index: number | null, count: number): void {
+  editingShortcut = null;
+  editingBinding = { action, index };
+  recordedAccelerator = '';
+  shortcutModalTitle.textContent = TRANSCRIPT_ACTION_LABELS[action];
+  shortcutRecordPrompt.textContent = 'Press the new shortcut…';
+  shortcutRecordArea.classList.remove('recorded');
+  shortcutRecordArea.classList.add('recording');
+  showRecordError('');
+  btnSaveShortcut.setAttribute('disabled', '');
+  btnRemoveShortcut.hidden = index === null || count <= 1;
+  shortcutModal.classList.remove('hidden');
+  // Otherwise pressing the current shortcut would paste instead of recording.
+  window.hub.transcriptShortcuts.suspend();
+}
+
+function recordBinding(e: KeyboardEvent): void {
+  const result = acceleratorFromKeyPress(e);
+  if ('pending' in result) {
+    shortcutRecordPrompt.textContent = result.pending ? `${result.pending} …` : 'Press the new shortcut…';
+    return;
+  }
+  if ('error' in result) {
+    recordedAccelerator = '';
+    shortcutRecordPrompt.textContent = 'Press the new shortcut…';
+    shortcutRecordArea.classList.remove('recorded');
+    shortcutRecordArea.classList.add('recording');
+    btnSaveShortcut.setAttribute('disabled', '');
+    showRecordError(result.error);
+    return;
+  }
+  recordedAccelerator = result.accelerator;
+  showRecordError('');
+  shortcutRecordPrompt.replaceChildren(...keyCaps(result.accelerator));
+  shortcutRecordArea.classList.remove('recording');
+  shortcutRecordArea.classList.add('recorded');
+  btnSaveShortcut.removeAttribute('disabled');
+}
+
+function showRecordError(message: string): void {
+  shortcutRecordError.textContent = message;
+  shortcutRecordError.hidden = !message;
+}
+
+btnRemoveShortcut.addEventListener('click', async () => {
+  if (!editingBinding || editingBinding.index === null) return;
+  const result = await window.hub.transcriptShortcuts.remove(editingBinding.action, editingBinding.index);
+  if (result.ok) renderBindings(result.state);
+  closeShortcutModal();
+});
+
+// Main turns the shortcuts back on when this window loses focus.
+window.addEventListener('focus', () => {
+  if (editingBinding) window.hub.transcriptShortcuts.suspend();
 });
 
 // --- Pill Position ---

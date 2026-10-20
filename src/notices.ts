@@ -47,6 +47,15 @@ export function noticeAfterCleanup(result: CleanupResult, localModel: string, la
   }
 }
 
+// Once ever: the cleanup model finished downloading and loaded. It stands in
+// for the "Cleanup runs on your Mac" note, which would say the same thing.
+export function noticeCleanupReady(): void {
+  const notices = loadConfig().notices ?? {};
+  if (notices.cleanupReadyShown) return;
+  notify('AI cleanup is ready.', 'Your dictations are now cleaned up on your Mac.');
+  saveConfig({ notices: { ...notices, cleanupReadyShown: true, modelNoteShown: true } });
+}
+
 const MICROPHONE_SETTINGS = 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone';
 let microphoneNoticeShown = false;
 
