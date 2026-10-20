@@ -28,6 +28,17 @@ interface ShortcutConfig {
 
 interface ModelDownload { percent: number; size: string }
 
+// The cleanup model a language would use, and what fetching it costs.
+interface CleanupPlan {
+  model: string;
+  size: string;
+  downloaded: boolean;
+  free: string | null;
+  enoughSpace: boolean;
+  lowMemory: boolean;
+  declined: boolean;
+}
+
 interface HubAPI {
   dictionary: {
     list: () => Promise<DictionaryEntry[]>;
@@ -40,7 +51,9 @@ interface HubAPI {
     removeApiKey: () => Promise<boolean>;
     hasAccessibility: () => Promise<boolean>;
     getLanguage: () => Promise<string>;
-    setLanguage: (lang: string) => Promise<boolean>;
+    setLanguage: (lang: string, downloadCleanup?: boolean) => Promise<boolean>;
+    cleanupPlan: (lang: string) => Promise<CleanupPlan>;
+    downloadCleanup: () => Promise<boolean>;
     sttStatus: () => Promise<{ installed: boolean; running: boolean; download: ModelDownload | null; engine: string; model: string }>;
     getLlmEnabled: () => Promise<boolean>;
     setLlmEnabled: (enabled: boolean) => Promise<boolean>;
@@ -52,8 +65,10 @@ interface HubAPI {
       running: boolean;
       starting: boolean;
       download: ModelDownload | null;
+      failed: boolean;
       model: string;
       cloudModel: string;
+      plan: CleanupPlan;
     }>;
     setCloudModel: (model: string) => Promise<boolean>;
     getLocalModelChoice: () => Promise<{ choice: string; options: { id: string; label: string; detail: string }[] }>;
@@ -335,6 +350,7 @@ async function loadSettings(): Promise<void> {
 
   const llmOn = await window.hub.config.getLlmEnabled();
   llmToggle.checked = llmOn;
+  showHeroCleanup(llmOn);
   await loadLlmStatus();
 
   await loadSttStatus();
@@ -402,8 +418,21 @@ micSelect.addEventListener('change', async () => {
 
 navigator.mediaDevices.addEventListener('devicechange', () => loadMicDevices());
 
+// Spoken name for the confirm line: "Hindi (हिन्दी)" → "Hindi".
+function languageName(lang: string): string {
+  if (lang === 'auto') return 'Other languages';
+  const option = [...languageSelect.options].find(o => o.value === lang);
+  return option?.textContent?.replace(/\s*\(.*\)$/, '') || lang;
+}
+
 languageSelect.addEventListener('change', async () => {
-  await window.hub.config.setLanguage(languageSelect.value);
+  const lang = languageSelect.value;
+  // A language that needs a cleanup model not on this Mac asks first, with
+  // the size, instead of starting a multi-GB download silently.
+  const [plan, llm] = await Promise.all([window.hub.config.cleanupPlan(lang), window.hub.config.llmStatus()]);
+  const askFirst = llmToggle.checked && llm.provider === 'local' && !plan.downloaded;
+  await window.hub.config.setLanguage(lang, !askFirst);
+  showLanguageConfirm(askFirst ? { lang, plan } : null);
   languageSelect.disabled = true;
   const sttStatus = document.getElementById('stt-status')!;
   const sttBadge = document.getElementById('stt-badge')!;
@@ -426,13 +455,113 @@ window.hub.onSttStatusChanged(() => {
   loadSttStatus();
 });
 
-llmToggle.addEventListener('change', async () => {
-  await window.hub.config.setLlmEnabled(llmToggle.checked);
+const langConfirm = document.getElementById('lang-confirm')!;
+const langConfirmText = document.getElementById('lang-confirm-text')!;
+const btnLangDownload = document.getElementById('btn-lang-download') as HTMLButtonElement;
+
+function showLanguageConfirm(pending: { lang: string; plan: CleanupPlan } | null): void {
+  langConfirm.hidden = !pending;
+  if (!pending) return;
+  const { lang, plan } = pending;
+  const name = languageName(lang);
+  const need = lang === 'en'
+    ? `English uses a smaller cleanup model (${plan.size}, once).`
+    : `${name} ${lang === 'auto' ? 'need' : 'needs'} the larger cleanup model (${plan.size}, once).`;
+  btnLangDownload.disabled = !plan.enoughSpace;
+  langConfirmText.textContent = plan.enoughSpace
+    ? `${need} Download now?`
+    : `${need} You have ${plan.free} free; it needs ${plan.size} plus room to spare.`;
+}
+
+btnLangDownload.addEventListener('click', async () => {
+  showLanguageConfirm(null);
+  await window.hub.config.downloadCleanup();
   loadLlmStatus();
 });
 
+// Not now: speech already switched; cleanup waits and dictation is plain text.
+document.getElementById('btn-lang-not-now')!.addEventListener('click', () => {
+  showLanguageConfirm(null);
+  loadLlmStatus();
+});
+
+llmToggle.addEventListener('change', async () => {
+  await window.hub.config.setLlmEnabled(llmToggle.checked);
+  showHeroCleanup(llmToggle.checked);
+  if (llmToggle.checked) showLanguageConfirm(null);
+  loadLlmStatus();
+});
+
+// --- AI Text Cleanup description: size before, progress during, retry after ---
+const llmDesc = document.getElementById('llm-desc')!;
+const llmProgress = document.getElementById('llm-progress')!;
+const llmProgressFill = document.getElementById('llm-progress-fill')!;
+const btnLlmAction = document.getElementById('btn-llm-action') as HTMLButtonElement;
+let llmAction: (() => Promise<unknown>) | null = null;
+
+function showLlmDesc(
+  text: string,
+  options: { percent?: number; action?: { label: string; run: () => Promise<unknown> } } = {},
+): void {
+  llmDesc.textContent = text;
+  llmProgress.hidden = options.percent === undefined;
+  if (options.percent !== undefined) {
+    llmProgressFill.style.width = `${options.percent}%`;
+    llmProgress.setAttribute('aria-valuenow', String(options.percent));
+  }
+  btnLlmAction.hidden = !options.action;
+  btnLlmAction.textContent = options.action?.label ?? '';
+  llmAction = options.action?.run ?? null;
+}
+
+btnLlmAction.addEventListener('click', async () => {
+  await llmAction?.();
+  loadLlmStatus();
+});
+
+type LlmStatus = Awaited<ReturnType<HubAPI['config']['llmStatus']>>;
+
+function renderCleanupDesc(status: LlmStatus): void {
+  const { plan } = status;
+  const what = 'Removes ums, fixes punctuation.';
+  const downloadNow = { label: 'Download', run: () => window.hub.config.downloadCleanup() };
+  if (!llmToggle.checked) {
+    if (status.provider === 'cloud') showLlmDesc(`${what} Uses your OpenRouter key.`);
+    else if (plan.downloaded) showLlmDesc(`${what} Runs on your Mac.`);
+    else showLlmDesc(`${what} Downloads ${plan.size} once.`);
+    return;
+  }
+  if (status.provider === 'cloud') {
+    showLlmDesc('In the cloud · your OpenRouter key');
+  } else if (status.running) {
+    showLlmDesc('On your Mac · private and unlimited');
+  } else if (status.download) {
+    // Cancel keeps the partial files, so turning it on again resumes.
+    showLlmDesc(`Downloading — ${status.download.percent}% of ${plan.size}`, {
+      percent: status.download.percent,
+      action: {
+        label: 'Cancel',
+        run: async () => {
+          llmToggle.checked = false;
+          showHeroCleanup(false);
+          await window.hub.config.setLlmEnabled(false);
+        },
+      },
+    });
+  } else if (status.starting) {
+    showLlmDesc(plan.downloaded ? 'Getting ready…' : `Starting the download (${plan.size})…`);
+  } else if (status.failed) {
+    showLlmDesc('Download stopped. Check your connection.', { action: { label: 'Try again', run: () => window.hub.config.downloadCleanup() } });
+  } else if (plan.declined) {
+    showLlmDesc(`Needs the ${plan.size} cleanup model. Until then, dictation is plain text.`, { action: downloadNow });
+  } else {
+    showLlmDesc(`${what} Stopped.`);
+  }
+}
+
 async function loadLlmStatus(): Promise<void> {
   const status = await window.hub.config.llmStatus();
+  renderCleanupDesc(status);
   const isCloud = status.provider === 'cloud';
   llmProviderSelect.value = status.provider;
   apiKeyRow.style.display = isCloud ? '' : 'none';
@@ -449,12 +578,11 @@ async function loadLlmStatus(): Promise<void> {
     llmProviderDesc.style.color = '#dc2626';
     llmModelName.textContent = '';
   } else {
+    // Download progress shows under the AI Text Cleanup toggle.
     const state = status.running
       ? 'ready'
-      : status.download
-        ? `downloading the model, one time only — ${status.download.percent}% of ${status.download.size}`
-        : status.starting
-        ? 'loading (first run downloads the model)…'
+      : status.starting
+        ? 'getting ready…'
         : llmToggle.checked ? 'stopped' : 'off until AI Text Cleanup is on';
     llmProviderDesc.textContent = `Private, unlimited — ${state}`;
     llmProviderDesc.style.color = status.running ? '#059669' : '';
@@ -551,6 +679,18 @@ apiKeyInput.addEventListener('keydown', (e) => {
 openrouterLink.addEventListener('click', (e) => {
   e.preventDefault();
   window.hub.openExternal('https://openrouter.ai/keys');
+});
+
+// --- Dictation hero: mentions AI only when cleanup is on ---
+function showHeroCleanup(on: boolean): void {
+  document.getElementById('hero-cleanup-on')!.hidden = !on;
+  document.getElementById('btn-hero-cleanup')!.hidden = on;
+}
+
+document.getElementById('btn-hero-cleanup')!.addEventListener('click', () => {
+  document.querySelector<HTMLButtonElement>('.nav-item[data-page="settings"]')!.click();
+  llmToggle.closest('.setting-row')!.scrollIntoView({ block: 'center' });
+  llmToggle.focus();
 });
 
 // --- Dictation History ---

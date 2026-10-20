@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' ws://localhost:*; base-uri 'none'; form-action 'none'; script-src 'self'" />
+    <title>Welcome to DictateAI</title>
+  </head>
+  <body>
+    <div id="welcome">
+      <div class="titlebar"></div>
+
+      <!-- Step 1: Permissions -->
+      <section class="step active" id="step-permissions" aria-labelledby="perm-title">
+        <h1 id="perm-title">Two quick permissions</h1>
+        <div class="perm-list">
+          <div class="perm-row">
+            <div class="perm-info">
+              <span class="perm-label">Accessibility</span>
+              <span class="perm-desc">So your dictation key works in every app, and text lands where your cursor is.</span>
+            </div>
+            <div class="perm-action" id="perm-accessibility">
+              <button type="button" class="btn-secondary btn-sm" id="btn-accessibility">Open Settings</button>
+              <span class="perm-ok" hidden>✓ Allowed</span>
+            </div>
+          </div>
+          <div class="perm-row">
+            <div class="perm-info">
+              <span class="perm-label">Microphone</span>
+              <span class="perm-desc">Only while you hold the key.</span>
+            </div>
+            <div class="perm-action" id="perm-microphone">
+              <button type="button" class="btn-secondary btn-sm" id="btn-microphone">Allow</button>
+              <span class="perm-ok" hidden>✓ Allowed</span>
+            </div>
+          </div>
+        </div>
+        <p class="note">DictateAI never records unless you're holding the key or in hands-free mode.</p>
+      </section>
+
+      <!-- Step 2: Getting ready -->
+      <section class="step" id="step-ready" aria-labelledby="ready-title">
+        <h1 id="ready-title">Getting ready to listen</h1>
+        <div id="speech-progress">
+          <div class="progress" role="progressbar" aria-label="Speech model download" aria-valuemin="0" aria-valuemax="100" id="speech-bar">
+            <div class="progress-fill" id="speech-fill"></div>
+          </div>
+          <p class="progress-text" id="speech-text">Getting ready…</p>
+          <p class="small" id="speech-size">500 MB, once. After this, dictation works offline.</p>
+        </div>
+        <div id="speech-error" hidden>
+          <p class="error-text">The download stopped. Check your connection.</p>
+          <button type="button" class="btn-secondary btn-sm" id="btn-retry-speech">Try again</button>
+        </div>
+        <div id="try-it" hidden>
+          <label class="try-label" for="try-input">Try it</label>
+          <textarea id="try-input" rows="3" placeholder="Hold Right ⌥ Option and say something."></textarea>
+          <p class="small success" id="try-success" hidden>That's it. It works the same in any app.</p>
+        </div>
+        <p class="sr-only" aria-live="polite" id="speech-live"></p>
+      </section>
+
+      <!-- Step 3: AI cleanup offer -->
+      <section class="step" id="step-cleanup" aria-labelledby="cleanup-title">
+        <h1 id="cleanup-title">Clean up your words with AI</h1>
+        <div class="before-after">
+          <p class="before">“um so I think we should uh ship it friday”</p>
+          <p class="after">→ “I think we should ship it Friday.”</p>
+        </div>
+        <div class="lang-row">
+          <label for="lang-select">You mostly dictate in:</label>
+          <select id="lang-select" class="setting-select">
+            <option value="auto">Auto-detect</option>
+            <option value="en">English</option>
+            <option value="hi">Hindi (हिन्दी)</option>
+            <option value="ar">Arabic (العربية)</option>
+            <option value="fr">French (Français)</option>
+            <option value="es">Spanish (Español)</option>
+            <option value="de">German (Deutsch)</option>
+            <option value="pt">Portuguese (Português)</option>
+            <option value="it">Italian (Italiano)</option>
+            <option value="ja">Japanese (日本語)</option>
+            <option value="ko">Korean (한국어)</option>
+            <option value="zh">Chinese (中文)</option>
+            <option value="ru">Russian (Русский)</option>
+            <option value="tr">Turkish (Türkçe)</option>
+            <option value="nl">Dutch (Nederlands)</option>
+            <option value="pl">Polish (Polski)</option>
+            <option value="sv">Swedish (Svenska)</option>
+            <option value="id">Indonesian (Bahasa)</option>
+            <option value="th">Thai (ไทย)</option>
+            <option value="vi">Vietnamese (Tiếng Việt)</option>
+            <option value="uk">Ukrainian (Українська)</option>
+            <option value="ur">Urdu (اردو)</option>
+            <option value="bn">Bengali (বাংলা)</option>
+            <option value="ta">Tamil (தமிழ்)</option>
+            <option value="te">Telugu (తెలుగు)</option>
+            <option value="mr">Marathi (मराठी)</option>
+          </select>
+        </div>
+        <p class="size-line" id="cleanup-size"></p>
+        <p class="small warn" id="cleanup-memory" hidden>On a Mac with 8 GB of memory, other apps may slow down while it runs.</p>
+        <p class="small">You can keep dictating while it downloads. Change this anytime in Settings.</p>
+      </section>
+
+      <footer>
+        <div class="dots" aria-hidden="true">
+          <span class="dot active"></span><span class="dot"></span><span class="dot"></span>
+        </div>
+        <div class="footer-actions">
+          <button type="button" class="link-button" id="btn-skip">Skip for now</button>
+          <button type="button" class="btn-secondary" id="btn-back" hidden>Back</button>
+          <button type="button" class="btn-secondary" id="btn-not-now" hidden>Not now</button>
+          <button type="button" class="btn-primary" id="btn-next">Continue</button>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>

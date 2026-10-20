@@ -33,6 +33,45 @@ export function defaultLocalModelFor(language: string | undefined): string {
   return language === 'en' ? ENGLISH_MODEL : MULTILINGUAL_MODEL;
 }
 
+export function localModelBytes(model: string): number {
+  return MODEL_BYTES[model] ?? 4e9;
+}
+
+// Where Hugging Face keeps a model: models--<org>--<name>.
+function modelCacheDir(model: string): string {
+  return path.join(HF_HUB_DIR, `models--${model.replace('/', '--')}`);
+}
+
+// True when every weight file of the model is in the cache. A download in
+// progress leaves only *.incomplete blobs, with no snapshot link yet.
+export function isLocalModelDownloaded(model: string): boolean {
+  const snapshots = path.join(modelCacheDir(model), 'snapshots');
+  let revisions: string[];
+  try {
+    revisions = fs.readdirSync(snapshots);
+  } catch {
+    return false;
+  }
+  return revisions.some((rev) => {
+    const dir = path.join(snapshots, rev);
+    try {
+      const index = path.join(dir, 'model.safetensors.index.json');
+      if (fs.existsSync(index)) {
+        const shards = new Set(Object.values(JSON.parse(fs.readFileSync(index, 'utf-8')).weight_map ?? {}) as string[]);
+        return shards.size > 0 && [...shards].every((f) => fs.existsSync(path.join(dir, f)));
+      }
+      return fs.existsSync(path.join(dir, 'model.safetensors'));
+    } catch {
+      return false;
+    }
+  });
+}
+
+// The folder the cleanup model downloads into, for the free-space check.
+export function localModelCacheDir(): string {
+  return HF_HUB_DIR;
+}
+
 export interface LocalModelOption {
   id: string; // 'auto' or an MLX model ID
   label: string;
@@ -60,6 +99,10 @@ let starting: Promise<boolean> | null = null;
 let currentModel = DEFAULT_LOCAL_MODEL;
 let onStatusChange: (() => void) | null = null;
 let download: DownloadWatch | null = null;
+// Goes up whenever the app stops the server on purpose, so a start that ends
+// because of that isn't reported as a failed download.
+let generation = 0;
+let lastStartFailed = false;
 
 export function setOnLocalLlmStatusChange(cb: () => void): void {
   onStatusChange = cb;
@@ -112,6 +155,12 @@ export function isLocalLlmRunning(): boolean {
 
 export function isLocalLlmStarting(): boolean {
   return starting !== null;
+}
+
+// The last start didn't finish (usually the download stopped). Cleared when a
+// new start begins.
+export function didLocalLlmFail(): boolean {
+  return lastStartFailed;
 }
 
 // While the model downloads on first use: how far along, and how big it is.
@@ -170,10 +219,17 @@ export function startLocalLlm(model?: string): Promise<boolean> {
   if (isLocalLlmRunning()) return Promise.resolve(true);
   if (starting) return starting;
 
-  starting = doStart().finally(() => {
-    starting = null;
-    onStatusChange?.();
-  });
+  const gen = generation;
+  lastStartFailed = false;
+  starting = doStart()
+    .then((ok) => {
+      if (gen === generation) lastStartFailed = !ok;
+      return ok;
+    })
+    .finally(() => {
+      starting = null;
+      onStatusChange?.();
+    });
   onStatusChange?.();
   return starting;
 }
@@ -238,7 +294,7 @@ async function doStart(): Promise<boolean> {
 
   if (!(await waitForServer(60_000))) {
     console.error('[DictateAI] Local LLM server failed to start within timeout.');
-    stopLocalLlm();
+    killServer();
     return false;
   }
 
@@ -249,7 +305,7 @@ async function doStart(): Promise<boolean> {
   if (serverProcess !== proc) return false;
   if (!warmed) {
     console.error('[DictateAI] Local LLM failed to load the model.');
-    stopLocalLlm();
+    killServer();
     return false;
   }
 
@@ -259,6 +315,12 @@ async function doStart(): Promise<boolean> {
 }
 
 export function stopLocalLlm(): void {
+  generation++;
+  lastStartFailed = false;
+  killServer();
+}
+
+function killServer(): void {
   if (serverProcess && !serverProcess.killed) {
     console.log('[DictateAI] Stopping local LLM server...');
     serverProcess.kill('SIGTERM');
