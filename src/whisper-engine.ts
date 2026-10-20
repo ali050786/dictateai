@@ -35,16 +35,46 @@ function modelFolder(id: string): string {
   return path.join(MODEL_DIR, 'models', 'argmaxinc', 'whisperkit-coreml', `openai_whisper-${id}`);
 }
 
-// The downloaded model, if every part of it is there. Starting from this
-// folder skips WhisperKit's check with Hugging Face, which fails offline.
+// The downloaded model, if every part of it is there, weights included,
+// and no file is still half-downloaded. Starting from this folder skips
+// WhisperKit's check with Hugging Face, which fails offline.
 function completeModelFolder(id: string): string | null {
   const folder = modelFolder(id);
-  const parts = ['AudioEncoder.mlmodelc', 'MelSpectrogram.mlmodelc', 'TextDecoder.mlmodelc', 'config.json'];
-  return parts.every(part => fs.existsSync(path.join(folder, part))) ? folder : null;
+  const parts = ['config.json'];
+  for (const model of ['AudioEncoder', 'MelSpectrogram', 'TextDecoder']) {
+    for (const file of ['coremldata.bin', 'model.mil', 'weights/weight.bin']) {
+      parts.push(path.join(`${model}.mlmodelc`, file));
+    }
+  }
+  if (!parts.every(part => fs.existsSync(path.join(folder, part)))) return null;
+  // Hugging Face's downloader keeps unfinished files here with this suffix.
+  const pending = path.join(path.dirname(folder), '.cache', 'huggingface', 'download', path.basename(folder));
+  return hasIncompleteFiles(pending) ? null : folder;
 }
 
+function hasIncompleteFiles(dir: string): boolean {
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return false;
+  }
+  return entries.some(entry => entry.isDirectory()
+    ? hasIncompleteFiles(path.join(dir, entry.name))
+    : entry.name.endsWith('.incomplete'));
+}
+
+// Models that failed to load this session (a damaged download). They count
+// as not on disk until a fresh download loads.
+const brokenModels = new Set<string>();
+
 export function isSpeechModelOnDisk(key: SpeechModelKey): boolean {
-  return completeModelFolder(SPEECH_MODELS[key].id) !== null;
+  const { id } = SPEECH_MODELS[key];
+  return !brokenModels.has(id) && completeModelFolder(id) !== null;
+}
+
+export function isSpeechModelBroken(key: SpeechModelKey): boolean {
+  return brokenModels.has(SPEECH_MODELS[key].id);
 }
 
 // The model to run: the wanted one if it's on disk; otherwise one already
@@ -71,6 +101,22 @@ const notify = () => onStatusChange?.();
 // background while the current one keeps serving.
 let download = new DownloadWatch(MODEL_DIR, SPEECH_MODELS.fast.bytes, notify);
 let preparing: { key: SpeechModelKey; watch: DownloadWatch; done: Promise<boolean> } | null = null;
+// Whether the last start ended without a running server (shown in Settings).
+let lastStartFailed = false;
+let onModelReady: ((key: SpeechModelKey) => void) | null = null;
+
+// Called when a background download (or repair) leaves a model ready to use.
+export function setOnSpeechModelReady(cb: (key: SpeechModelKey) => void): void {
+  onModelReady = cb;
+}
+
+export function isServerStarting(): boolean {
+  return serverProcess !== null && !serverReady;
+}
+
+export function didServerFail(): boolean {
+  return lastStartFailed && !serverProcess;
+}
 
 export function setOnStatusChange(cb: () => void): void {
   onStatusChange = cb;
@@ -143,6 +189,15 @@ export function prepareSpeechModel(key: SpeechModelKey): Promise<boolean> {
   if (!cliPath) return Promise.resolve(false);
 
   const { id, bytes } = SPEECH_MODELS[key];
+  // WhisperKit keeps a damaged file that's already there, so a model that
+  // failed to load is removed first and downloaded whole.
+  if (brokenModels.has(id)) {
+    const folder = modelFolder(id);
+    const pending = path.join(path.dirname(folder), '.cache', 'huggingface', 'download', path.basename(folder));
+    console.log(`[DictateAI] Removing damaged speech model ${id} before downloading it again`);
+    fs.rmSync(folder, { recursive: true, force: true });
+    fs.rmSync(pending, { recursive: true, force: true });
+  }
   const silence = path.join(os.tmpdir(), 'dictateai-silence.wav');
   fs.writeFileSync(silence, float32ToWav(new Float32Array(16000), 16000));
   fs.mkdirSync(MODEL_DIR, { recursive: true });
@@ -168,9 +223,14 @@ export function prepareSpeechModel(key: SpeechModelKey): Promise<boolean> {
       preparing = null;
       console.log(`[DictateAI] Speech model ${id} ${ok ? 'ready' : 'download failed'}`);
       notify();
+      if (ok) onModelReady?.(key);
       resolve(ok);
     };
-    proc.on('exit', (code) => finish(code === 0 && isSpeechModelOnDisk(key)));
+    proc.on('exit', (code) => {
+      // Exit 0 means WhisperKit downloaded the model and loaded it.
+      if (code === 0) brokenModels.delete(id);
+      finish(code === 0 && isSpeechModelOnDisk(key));
+    });
     proc.on('error', () => finish(false));
   });
   preparing = { key, watch, done };
@@ -277,10 +337,13 @@ export async function startServer(forceDownload = false): Promise<boolean> {
     if (line) console.log(`[WhisperKit] ${line}`);
   });
 
-  serverProcess.on('exit', (code) => {
+  const proc = serverProcess;
+  proc.on('exit', (code) => {
     console.log(`[DictateAI] WhisperKit server exited (code: ${code})`);
+    if (serverProcess !== proc) return;
     serverReady = false;
     serverProcess = null;
+    notify();
   });
 
   console.log('[DictateAI] Waiting for WhisperKit server to be ready...');
@@ -292,15 +355,28 @@ export async function startServer(forceDownload = false): Promise<boolean> {
 
   if (ready) {
     serverReady = true;
+    lastStartFailed = false;
     console.log('[DictateAI] WhisperKit server is ready.');
   } else {
     console.error('[DictateAI] WhisperKit server failed to start within timeout.');
     stopServer();
-    // A damaged model on disk: let WhisperKit fetch it again.
     if (localFolder) {
+      // The model on disk didn't load (a damaged download). Keep dictation
+      // working on the other model if there is one, and fetch this one
+      // again in the background; otherwise fetch it again right away.
+      brokenModels.add(currentModel);
+      const failed = keyForId(currentModel);
+      const other: SpeechModelKey = failed === 'fast' ? 'accurate' : 'fast';
+      if (isSpeechModelOnDisk(other)) {
+        console.log(`[DictateAI] ${SPEECH_MODELS[failed].name} didn't load — using ${SPEECH_MODELS[other].name} while it downloads again`);
+        currentModel = SPEECH_MODELS[other].id;
+        void prepareSpeechModel(failed);
+        return startServer();
+      }
       console.log('[DictateAI] Retrying WhisperKit with a fresh model download...');
       return startServer(true);
     }
+    lastStartFailed = true;
   }
 
   onStatusChange?.();
