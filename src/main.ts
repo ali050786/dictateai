@@ -91,6 +91,12 @@ const dictation = {
 // Recordings are processed one after another, so text is inserted in the
 // order it was spoken even when the user starts talking again early.
 let processingQueue: Promise<void> = Promise.resolve();
+// Recordings that have stopped but whose last audio is still on its way from
+// the overlay (collectLastChunk), by session.
+const endingRecordings = new Map<number, { chunks: Float32Array[]; done: () => void }>();
+// How long a stopped recording waits for its last chunk. It normally takes a
+// few milliseconds; this only stops a lost message from holding up the queue.
+const LAST_CHUNK_TIMEOUT_MS = 150;
 
 const pillTimers = {
   hide: null as ReturnType<typeof setTimeout> | null,
@@ -422,6 +428,7 @@ function startRecording(): void {
 
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     applyOverlayPosition();
+    overlayWindow.webContents.send('audio:capture', 'start', dictation.session);
     overlayWindow.webContents.send('dictation:state', 'recording');
     overlayWindow.showInactive();
   }
@@ -445,8 +452,36 @@ function stopRecording(): void {
   updateTrayMenu();
   console.log(`[DictateAI] Recording stopped — ${chunks.length} chunks collected`);
 
+  const allChunks = collectLastChunk(session, chunks);
   sendPillState(session, 'processing');
-  processingQueue = processingQueue.then(() => processAudio(session, chunks));
+  processingQueue = processingQueue.then(async () => processAudio(session, await allChunks));
+}
+
+// The overlay sends audio in 0.5 s chunks, so when a recording stops it still
+// holds up to half a second of it: the last words. Ask for that and wait for
+// it (see 'audio:chunk'), but never longer than LAST_CHUNK_TIMEOUT_MS.
+function collectLastChunk(session: number, chunks: Float32Array[]): Promise<Float32Array[]> {
+  return new Promise((resolve) => {
+    const asked = Date.now();
+    const finish = (arrived: boolean) => {
+      clearTimeout(timer);
+      endingRecordings.delete(session);
+      const samples = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+      console.log(
+        arrived
+          ? `[DictateAI] Last audio chunk arrived after ${Date.now() - asked}ms — ${(samples / 16000).toFixed(2)}s recorded (${samples} samples)`
+          : `[DictateAI] Last audio chunk didn't arrive within ${LAST_CHUNK_TIMEOUT_MS}ms — going on with ${(samples / 16000).toFixed(2)}s`,
+      );
+      resolve(chunks);
+    };
+    const timer = setTimeout(() => finish(false), LAST_CHUNK_TIMEOUT_MS);
+    endingRecordings.set(session, { chunks, done: () => finish(true) });
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.webContents.send('audio:capture', 'flush', session);
+    } else {
+      finish(false);
+    }
+  });
 }
 
 // Pill updates from a dictation that has since been replaced by a newer
@@ -766,10 +801,18 @@ function registerPushToTalk(): void {
 }
 
 function setupIPC(): void {
-  ipcMain.on('audio:chunk', (_event, data: ArrayBuffer) => {
-    if (isRecording()) {
-      dictation.chunks.push(new Float32Array(data));
+  // Every chunk names the recording it belongs to, so audio from one that
+  // has ended never lands in the next.
+  ipcMain.on('audio:chunk', (_event, session: number, data: ArrayBuffer, final: boolean) => {
+    const samples = new Float32Array(data);
+    if (isRecording() && session === dictation.session) {
+      dictation.chunks.push(samples);
+      return;
     }
+    const ending = endingRecordings.get(session);
+    if (!ending) return;
+    if (samples.length > 0) ending.chunks.push(samples);
+    if (final) ending.done();
   });
 
   ipcMain.on('overlay:stopRecording', () => {

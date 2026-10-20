@@ -1,8 +1,16 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('dictateAI', {
-  sendAudioChunk: (data: ArrayBuffer) => {
-    ipcRenderer.send('audio:chunk', data);
+  sendAudioChunk: (session: number, data: ArrayBuffer, final: boolean) => {
+    ipcRenderer.send('audio:chunk', session, data, final);
+  },
+  onCapture: (callback: (command: 'start' | 'flush', session: number) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, command: 'start' | 'flush', session: number) =>
+      callback(command, session);
+    ipcRenderer.on('audio:capture', handler);
+    return () => {
+      ipcRenderer.removeListener('audio:capture', handler);
+    };
   },
   getState: () => ipcRenderer.invoke('dictation:getState'),
   onStateChange: (callback: (state: string) => void) => {
