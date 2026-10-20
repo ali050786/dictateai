@@ -42,10 +42,12 @@ interface CleanupPlan {
 interface SpeechStatus {
   installed: boolean;
   running: boolean;
+  starting: boolean;
+  failed: boolean;
   download: ModelDownload | null;
   choice: 'auto' | 'fast' | 'accurate';
   language: string;
-  wanted: { key: 'fast' | 'accurate'; name: string; size: string; onDisk: boolean };
+  wanted: { key: 'fast' | 'accurate'; name: string; size: string; onDisk: boolean; broken: boolean };
   active: { key: 'fast' | 'accurate'; name: string };
   preparing: 'fast' | 'accurate' | null;
   free: string | null;
@@ -71,6 +73,7 @@ interface HubAPI {
     sttStatus: () => Promise<SpeechStatus>;
     setSpeechChoice: (choice: 'auto' | 'fast' | 'accurate') => Promise<boolean>;
     downloadSpeech: () => Promise<boolean>;
+    retrySpeech: () => Promise<boolean>;
     getBasicCleanup: () => Promise<boolean>;
     setBasicCleanup: (enabled: boolean) => Promise<boolean>;
     getLlmEnabled: () => Promise<boolean>;
@@ -380,6 +383,7 @@ const speechConfirmText = document.getElementById('speech-confirm-text')!;
 const btnSpeechDownload = document.getElementById('btn-speech-download') as HTMLButtonElement;
 const sttProgress = document.getElementById('stt-progress')!;
 const sttProgressFill = document.getElementById('stt-progress-fill')!;
+const btnSttRetry = document.getElementById('btn-stt-retry') as HTMLButtonElement;
 // "Not now" for a model, until the choice or language changes.
 let speechDismissed = '';
 
@@ -398,6 +402,7 @@ async function loadSttStatus(): Promise<void> {
   }
   sttStatus.style.color = '';
   sttProgress.hidden = true;
+  btnSttRetry.hidden = true;
 
   const downloading = stt.download || stt.preparing;
   const needsDownload = !stt.wanted.onDisk && stt.active.key !== stt.wanted.key && !stt.preparing;
@@ -405,7 +410,9 @@ async function loadSttStatus(): Promise<void> {
   speechConfirm.hidden = !(needsDownload && stt.installed && speechDismissed !== dismissKey);
   if (!speechConfirm.hidden) {
     const lang = stt.language === 'auto' ? 'Other languages' : languageName(stt.language);
-    const why = stt.wanted.key === 'accurate'
+    const why = stt.wanted.broken
+      ? `${stt.wanted.name} didn't load; its download looks incomplete. Download it again`
+      : stt.wanted.key === 'accurate'
       ? `${stt.choice === 'auto' ? `${lang} ${stt.language === 'auto' ? 'are' : 'is'} transcribed` : 'Dictation is transcribed'} much more accurately with ${stt.wanted.name}`
       : `${stt.wanted.name} is faster for English`;
     btnSpeechDownload.disabled = !stt.enoughSpace;
@@ -434,11 +441,23 @@ async function loadSttStatus(): Promise<void> {
       ? `Using ${stt.active.name} until ${stt.wanted.name} is downloaded`
       : `${stt.active.name} · on your Mac`;
     badge('Ready', 'green');
+  } else if (stt.failed || !stt.starting) {
+    sttStatus.textContent = `${stt.active.name} couldn't start.`;
+    sttStatus.style.color = '#dc2626';
+    btnSttRetry.hidden = false;
+    badge('Stopped', 'red');
   } else {
     sttStatus.textContent = `${stt.active.name} — starting…`;
     badge('Starting', 'blue');
   }
 }
+
+btnSttRetry.addEventListener('click', async () => {
+  btnSttRetry.hidden = true;
+  document.getElementById('stt-status')!.textContent = 'Starting…';
+  await window.hub.config.retrySpeech();
+  loadSttStatus();
+});
 
 speechSelect.addEventListener('change', async () => {
   speechDismissed = '';

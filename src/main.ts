@@ -20,7 +20,7 @@ import {
   stopPushToTalk,
   setPttKey,
 } from './text-injection';
-import { transcribe, getLanguage, startServer, stopServer, isServerRunning, isWhisperKitInstalled, setOnStatusChange, getModelDownload, whenServerReady, configureSpeech, effectiveSpeechModel, speechModelFor, isSpeechModelOnDisk, prepareSpeechModel, getPreparingSpeechModel, getSpeechModel, SPEECH_MODELS, SpeechChoice } from './whisper-engine';
+import { transcribe, getLanguage, startServer, stopServer, isServerRunning, isWhisperKitInstalled, setOnStatusChange, getModelDownload, whenServerReady, configureSpeech, effectiveSpeechModel, speechModelFor, isSpeechModelOnDisk, prepareSpeechModel, getPreparingSpeechModel, getSpeechModel, SPEECH_MODELS, SpeechChoice, isServerStarting, didServerFail, isSpeechModelBroken, setOnSpeechModelReady } from './whisper-engine';
 import { basicCleanup } from './basic-cleanup';
 import { exec } from 'child_process';
 import * as path from 'path';
@@ -944,6 +944,13 @@ function setupIPC(): void {
     });
     return true;
   });
+  // Settings' "Try again" after the speech engine failed to start.
+  ipcMain.handle('config:retrySpeech', async () => {
+    applySpeech();
+    if (!isServerRunning() && !isServerStarting()) await startServer();
+    sendToPages('stt:status-changed');
+    return isServerRunning();
+  });
   ipcMain.handle('config:getBasicCleanup', () => loadConfig().basicCleanup ?? true);
   ipcMain.handle('config:setBasicCleanup', (_event, enabled: boolean) => {
     saveConfig({ basicCleanup: enabled ? undefined : false });
@@ -1164,6 +1171,12 @@ app.whenReady().then(async () => {
   syncLocalLlm();
 
   setOnStatusChange(() => sendToPages('stt:status-changed'));
+  // A model finished downloading (or was repaired): use it if it's the one
+  // the user's choice and language want.
+  setOnSpeechModelReady(() => {
+    applySpeech();
+    sendToPages('stt:status-changed');
+  });
 
   const hasAccess = firstLaunch ? isAccessibilityTrusted() : checkAccessibilityPermission();
   console.log(
@@ -1224,10 +1237,12 @@ function speechStatus() {
   return {
     installed: isWhisperKitInstalled(),
     running: isServerRunning(),
+    starting: isServerStarting(),
+    failed: didServerFail(),
     download: getModelDownload(),
     choice,
     language: lang,
-    wanted: { key: wanted, name: SPEECH_MODELS[wanted].name, size: formatBytes(bytes), onDisk: isSpeechModelOnDisk(wanted) },
+    wanted: { key: wanted, name: SPEECH_MODELS[wanted].name, size: formatBytes(bytes), onDisk: isSpeechModelOnDisk(wanted), broken: isSpeechModelBroken(wanted) },
     active: { key: active, name: SPEECH_MODELS[active].name },
     preparing: getPreparingSpeechModel(),
     free: freeBytes == null ? null : formatBytes(freeBytes),
