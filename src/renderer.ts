@@ -3,6 +3,7 @@ import startCueSrc from '../assets/sounds/start.wav';
 import stopCueSrc from '../assets/sounds/stop.wav';
 import { samplesToSkip } from './cue-timing';
 import { PillView } from './pill-view';
+import type { Bands } from './orb';
 
 interface DictateAPI {
   sendAudioChunk: (session: number, data: ArrayBuffer, final: boolean) => void;
@@ -119,6 +120,33 @@ function micLevel(): number {
   const rms = Math.sqrt(sum / levelSamples.length);
   const db = 20 * Math.log10(rms || 1e-6);
   return Math.min(1, Math.max(0, (db + 50) / 35));
+}
+
+// The voice's loudness in three bands, 0 to 1, for the orb's three strands:
+// low 80–500 Hz (vowels), middle 500–2000 Hz, high 2–6 kHz (consonants).
+// Floors and ranges come from speech at a normal close-mic level, where the
+// analyser's bytes (-100 to -30 dB) averaged 0.55–0.77, 0.2–0.67 and
+// 0.05–0.37 of full scale. Quiet rooms stay still: the bands follow the
+// overall level, so noise alone doesn't move them.
+const spectrum = new Uint8Array(levelSamples.length / 2);
+const BANDS = [
+  { from: 80, to: 500, floor: 0.2, range: 0.55 },
+  { from: 500, to: 2000, floor: 0.12, range: 0.5 },
+  { from: 2000, to: 6000, floor: 0.06, range: 0.3 },
+];
+function micBands(): Bands {
+  if (!analyserNode || !audioContext) return [0, 0, 0];
+  analyserNode.getByteFrequencyData(spectrum);
+  const hzPerBin = audioContext.sampleRate / analyserNode.fftSize;
+  const gate = Math.min(1, micLevel() * 3);
+  const [low, mid, high] = BANDS.map(({ from, to, floor, range }) => {
+    const start = Math.floor(from / hzPerBin);
+    const end = Math.min(spectrum.length, Math.ceil(to / hzPerBin));
+    let sum = 0;
+    for (let i = start; i < end; i++) sum += spectrum[i];
+    return Math.min(1, Math.max(0, (sum / (end - start) / 255 - floor) / range)) * gate;
+  });
+  return [low, mid, high];
 }
 
 async function ensureAudioContext(): Promise<void> {
@@ -267,7 +295,7 @@ async function startAudioCapture(fresh: boolean): Promise<void> {
       if (generation !== captureGeneration) return;
     }
 
-    view.setLevelSource(micLevel);
+    view.setLevelSource(micLevel, micBands);
   } catch (err) {
     console.error('[DictateAI] Audio capture failed:', err);
     if (generation === captureGeneration && currentState === 'recording') {

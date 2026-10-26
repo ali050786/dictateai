@@ -1,45 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
   <!-- Favicon: the app icon, full bleed, for browser tabs. -->
-  <defs>
-    <radialGradient id="tile" cx="0.5" cy="0.28" r="0.9"><stop offset="0" stop-color="#1d2152"/><stop offset="1" stop-color="#06060e"/></radialGradient>
-    <radialGradient id="halo" cx="32" cy="32" r="32" gradientUnits="userSpaceOnUse">
-      <stop offset="0.6" stop-color="#7b6cff" stop-opacity="0.44"/>
-      <stop offset="0.8" stop-color="#4fb8ff" stop-opacity="0.14"/>
-      <stop offset="1" stop-color="#4fb8ff" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="body" cx="0.42" cy="0.36" r="0.72">
-      <stop offset="0" stop-color="#2b3070"/><stop offset="1" stop-color="#090920"/>
-    </radialGradient>
-    <radialGradient id="shine" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#fff" stop-opacity="0.62"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="edge" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0.76" stop-color="#00001a" stop-opacity="0"/><stop offset="1" stop-color="#00001a" stop-opacity="0.5"/>
-    </radialGradient>
-    <clipPath id="orbClip"><circle cx="32" cy="32" r="21"/></clipPath>
-    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="1.9"/></filter>
-    <radialGradient id="b0"><stop offset="0" stop-color="#3fc8ff" stop-opacity="0.95"/><stop offset="0.5" stop-color="#3fc8ff" stop-opacity="0.38"/><stop offset="1" stop-color="#3fc8ff" stop-opacity="0"/></radialGradient>
-    <radialGradient id="b1"><stop offset="0" stop-color="#4a6dff" stop-opacity="0.95"/><stop offset="0.5" stop-color="#4a6dff" stop-opacity="0.38"/><stop offset="1" stop-color="#4a6dff" stop-opacity="0"/></radialGradient>
-    <radialGradient id="b2"><stop offset="0" stop-color="#a35bff" stop-opacity="0.95"/><stop offset="0.5" stop-color="#a35bff" stop-opacity="0.38"/><stop offset="1" stop-color="#a35bff" stop-opacity="0"/></radialGradient>
-    <radialGradient id="b3"><stop offset="0" stop-color="#ff4fbf" stop-opacity="0.95"/><stop offset="0.5" stop-color="#ff4fbf" stop-opacity="0.38"/><stop offset="1" stop-color="#ff4fbf" stop-opacity="0"/></radialGradient>
-    <linearGradient id="fade" x1="15" y1="0" x2="49" y2="0" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="0.24" stop-color="#fff"/>
-      <stop offset="0.76" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
-    </linearGradient>
-    <filter id="lineGlow" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur stdDeviation="1.1"/></filter>
-  </defs>
-  <rect width="64" height="64" rx="14" fill="url(#tile)"/>
-  <circle cx="32" cy="32" r="32" fill="url(#halo)"/>
-  <circle cx="32" cy="32" r="21" fill="url(#body)"/>
-  <g clip-path="url(#orbClip)">
-  <circle cx="25.7" cy="29.9" r="16.8" fill="url(#b0)" style="mix-blend-mode:screen"/>
-  <circle cx="37.5" cy="25.3" r="14.7" fill="url(#b1)" style="mix-blend-mode:screen"/>
-  <circle cx="38.3" cy="37.9" r="16.0" fill="url(#b2)" style="mix-blend-mode:screen"/>
-  <circle cx="28.2" cy="40.0" r="13.0" fill="url(#b3)" style="mix-blend-mode:screen"/>
-  <g filter="url(#soft)" fill="none" stroke-linecap="round" style="mix-blend-mode:screen"><path d="M20.6 29.0 A11.8 11.8 0 0 1 41.6 25.3" stroke="#8fe8ff" stroke-width="3.1" stroke-opacity="0.85"/><path d="M42.1 34.7 A10.5 10.5 0 0 1 22.9 37.2" stroke="#ff7ad9" stroke-width="2.7" stroke-opacity="0.75"/><path d="M29.3 36.7 A5.5 5.5 0 0 1 34.7 27.3" stroke="#b9a4ff" stroke-width="2.1" stroke-opacity="0.6"/></g>
-  <path d="M15.2 32.0 L15.5 32.0 L15.9 31.9 L16.2 31.8 L16.6 31.7 L16.9 31.6 L17.3 31.5 L17.6 31.3 L18.0 31.1 L18.3 30.9 L18.7 30.6 L19.0 30.4 L19.4 30.1 L19.8 29.9 L20.1 29.6 L20.4 29.4 L20.8 29.3 L21.1 29.2 L21.5 29.2 L21.8 29.3 L22.2 29.5 L22.5 29.8 L22.9 30.3 L23.2 30.9 L23.6 31.6 L23.9 32.5 L24.3 33.4 L24.6 34.5 L25.0 35.5 L25.3 36.6 L25.7 37.6 L26.0 38.6 L26.4 39.4 L26.7 40.2 L27.1 40.7 L27.4 41.1 L27.8 41.4 L28.1 41.4 L28.5 41.2 L28.8 40.9 L29.2 40.4 L29.5 39.7 L29.9 38.9 L30.2 38.0 L30.6 36.9 L30.9 35.8 L31.3 34.5 L31.6 33.3 L32.0 32.0 L32.3 30.7 L32.7 29.5 L33.0 28.2 L33.4 27.1 L33.8 26.0 L34.1 25.1 L34.4 24.3 L34.8 23.6 L35.1 23.1 L35.5 22.8 L35.8 22.6 L36.2 22.6 L36.5 22.9 L36.9 23.3 L37.2 23.8 L37.6 24.6 L37.9 25.4 L38.3 26.4 L38.6 27.4 L39.0 28.5 L39.3 29.5 L39.7 30.6 L40.0 31.5 L40.4 32.4 L40.8 33.1 L41.1 33.7 L41.4 34.2 L41.8 34.5 L42.1 34.7 L42.5 34.8 L42.8 34.8 L43.2 34.7 L43.5 34.6 L43.9 34.4 L44.2 34.1 L44.6 33.9 L44.9 33.6 L45.3 33.4 L45.6 33.1 L46.0 32.9 L46.3 32.7 L46.7 32.5 L47.0 32.4 L47.4 32.3 L47.7 32.2 L48.1 32.1 L48.4 32.0 L48.8 32.0" fill="none" stroke="url(#fade)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-  <ellipse cx="25.7" cy="22.8" rx="10.5" ry="6.3" transform="rotate(-24 25.7 22.8)" fill="url(#shine)"/>
-  <circle cx="32" cy="32" r="21" fill="url(#edge)"/>
-  </g>
-  <circle cx="32" cy="32" r="20.8" fill="none" stroke="#fff" stroke-opacity="0.32" stroke-width="0.3"/>
+  <rect width="64" height="64" rx="14" fill="#0045F9"/>
+  <circle cx="32" cy="32" r="21" fill="#111111"/>
+  <path d="M18.98 32.04 L19.39 31.97 L19.79 31.87 L20.2 31.74 L20.61 31.57 L21.01 31.36 L21.42 31.11 L21.83 30.83 L22.23 30.53 L22.64 30.24 L23.05 29.99 L23.46 29.83 L23.86 29.79 L24.27 29.94 L24.68 30.29 L25.08 30.89 L25.49 31.72 L25.9 32.75 L26.3 33.93 L26.71 35.17 L27.12 36.39 L27.52 37.48 L27.93 38.38 L28.34 39.01 L28.74 39.33 L29.15 39.32 L29.56 38.98 L29.97 38.33 L30.37 37.41 L30.78 36.27 L31.19 34.94 L31.59 33.5 L32.0 32.0 L32.41 30.5 L32.81 29.06 L33.22 27.73 L33.63 26.59 L34.03 25.67 L34.44 25.02 L34.85 24.68 L35.25 24.67 L35.66 24.99 L36.07 25.62 L36.48 26.52 L36.88 27.61 L37.29 28.83 L37.7 30.07 L38.1 31.25 L38.51 32.28 L38.92 33.11 L39.32 33.71 L39.73 34.06 L40.14 34.21 L40.54 34.17 L40.95 34.01 L41.36 33.76 L41.77 33.47 L42.17 33.17 L42.58 32.89 L42.99 32.64 L43.39 32.43 L43.8 32.26 L44.21 32.13 L44.61 32.03 L45.02 31.96" fill="none" stroke="#FFFFFF" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

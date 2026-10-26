@@ -1,4 +1,4 @@
-import { Orb, OrbMood } from './orb';
+import { Bands, Orb, OrbMood } from './orb';
 
 // What the pill shows: the orb, with the voice wave inside it, and a caption
 // with the live transcript or a short status. renderer.ts drives it from
@@ -35,7 +35,6 @@ const LOOKS: Record<string, Look> = {
 
 export class PillView {
   private readonly pill = document.getElementById('pill')!;
-  private readonly caption = document.getElementById('caption')!;
   private readonly clip = document.getElementById('caption-clip')!;
   private readonly text = document.getElementById('caption-text')!;
   private readonly orb = new Orb(document.getElementById('orb') as HTMLCanvasElement);
@@ -45,6 +44,7 @@ export class PillView {
   private transcript = '';
   private handsfree = false;
   private levelSource: (() => number) | null = null;
+  private bandsSource: (() => Bands) | null = null;
   private frameId: number | null = null;
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -100,10 +100,15 @@ export class PillView {
     this.pill.classList.toggle('handsfree', active && this.state === 'recording');
   }
 
-  // The microphone level (0 to 1) while recording; null when not capturing.
-  setLevelSource(source: (() => number) | null): void {
+  // The microphone level (0 to 1) and, if known, its low, middle and high
+  // bands while recording; null when not capturing.
+  setLevelSource(source: (() => number) | null, bands: (() => Bands) | null = null): void {
     this.levelSource = source;
-    if (!source) this.orb.setLevel(0);
+    this.bandsSource = source ? bands : null;
+    if (!source) {
+      this.orb.setLevel(0);
+      this.orb.setBands(null);
+    }
   }
 
   setPosition(position: string): void {
@@ -114,12 +119,20 @@ export class PillView {
     this.text.textContent = value;
     this.pill.classList.toggle('has-caption', value !== '');
     this.pill.classList.toggle('has-transcript', isTranscript && value !== '');
-    // Long dictations show their newest words: the start slides out of view
-    // and fades at the edge.
-    this.text.style.transform = '';
-    const overflow = this.text.scrollWidth - this.clip.clientWidth;
-    this.caption.classList.toggle('overflow', overflow > 0);
-    if (overflow > 0) this.text.style.transform = `translateX(${-overflow}px)`;
+    // Long dictations show their newest words after an ellipsis: the fewest
+    // words dropped from the start that make the rest fit.
+    const fits = () => this.clip.scrollWidth <= this.clip.clientWidth;
+    if (fits()) return;
+    const words = value.split(' ');
+    let lo = 1;
+    let hi = words.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      this.text.textContent = `… ${words.slice(mid).join(' ')}`;
+      if (fits()) hi = mid;
+      else lo = mid + 1;
+    }
+    this.text.textContent = `… ${words.slice(lo).join(' ')}`;
   }
 
   private start(): void {
@@ -133,6 +146,7 @@ export class PillView {
 
   private readonly tick = (now: number): void => {
     if (this.levelSource) this.orb.setLevel(this.levelSource());
+    if (this.bandsSource) this.orb.setBands(this.bandsSource());
     this.orb.frame(now);
     this.frameId = requestAnimationFrame(this.tick);
   };
