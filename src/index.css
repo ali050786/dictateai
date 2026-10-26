@@ -4,190 +4,164 @@
   box-sizing: border-box;
 }
 
+/* The window is transparent and ignores the mouse; only the orb
+   and the caption are drawn. data-position (main.ts) puts them against the
+   screen edge the window sits on. */
 body {
   background: transparent;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
   -webkit-app-region: no-drag;
   overflow: hidden;
   display: flex;
-  justify-content: center;
-  align-items: flex-end;
   height: 100vh;
-  padding-bottom: 8px;
+  /* Room for the orb's glow, which reaches past the orb. */
+  padding: 8px;
 }
 
-.flow-bar {
+body[data-position^='bottom'] { align-items: flex-end; }
+body[data-position^='top'] { align-items: flex-start; }
+body[data-position$='left'] { justify-content: flex-start; }
+body[data-position$='center'] { justify-content: center; }
+body[data-position$='right'] { justify-content: flex-end; }
+
+.pill {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border-radius: 20px;
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow:
-    0 4px 20px rgba(0, 0, 0, 0.35),
-    0 0 0 0.5px rgba(255, 255, 255, 0.08) inset;
+  transition:
+    opacity 0.25s ease,
+    transform 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.25);
+  transform-origin: 36px 50%;
 }
 
-/* Idle: hidden */
-.flow-bar.idle {
+/* On the right of the screen the orb sits on the outside edge and the
+   words grow towards the middle. */
+body[data-position$='right'] .pill {
+  flex-direction: row-reverse;
+  transform-origin: calc(100% - 36px) 50%;
+}
+
+.pill.idle {
   opacity: 0;
-  transform: translateY(12px) scale(0.92);
+  transform: scale(0.5);
   pointer-events: none;
-  width: 48px;
-  height: 36px;
-  background: rgba(30, 30, 30, 0.85);
 }
 
-/* Recording: compact dark pill with waveform */
-.flow-bar.recording {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  width: 140px;
-  height: 36px;
-  padding: 0 14px;
-  background: rgba(20, 20, 22, 0.92);
+/* The canvas has room around the orb (about 50px) for its glow. */
+.orb {
+  width: 84px;
+  height: 84px;
+  flex-shrink: 0;
+  margin: -6px;
 }
 
-/* Processing: compact pill with label */
-.flow-bar.processing {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  width: 120px;
-  height: 34px;
-  padding: 0 14px;
-  background: rgba(20, 20, 22, 0.92);
-}
-
-/* Downloading: wider for text */
-.flow-bar.downloading {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  width: 160px;
-  height: 34px;
-  padding: 0 14px;
-  background: rgba(20, 20, 22, 0.92);
-}
-
-/* Error / empty: brief red-tinted pill */
-.flow-bar.error {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  width: 160px;
-  height: 34px;
-  padding: 0 14px;
-  background: rgba(40, 16, 16, 0.92);
-  box-shadow:
-    0 4px 20px rgba(0, 0, 0, 0.35),
-    0 0 0 0.5px rgba(220, 38, 38, 0.25) inset;
-}
-
-.flow-bar.error .label {
-  color: rgba(252, 165, 165, 0.95);
-}
-
-.flow-bar.error .waveform {
+/* --- Caption: the live transcript, or a short status. While listening
+   before any words arrive the orb floats alone, its wave showing the voice.
+   Dark translucent glass, because white text vanishes over a white window. --- */
+.caption {
   display: none;
-}
-
-/* Notice: "No text field. Press ⌃⌘V to paste it.", "Copied". Sized to the text. */
-.flow-bar.notice {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  width: auto;
-  max-width: 236px;
-  height: 34px;
-  padding: 0 14px;
-  background: rgba(20, 20, 22, 0.92);
-}
-
-.flow-bar.notice .waveform {
-  display: none;
-}
-
-/* --- Waveform bars --- */
-.waveform {
-  display: flex;
   align-items: center;
-  gap: 2px;
-  height: 20px;
-}
-
-.flow-bar.idle .waveform,
-.flow-bar.processing .waveform,
-.flow-bar.downloading .waveform {
-  display: none;
-}
-
-.waveform .bar {
-  width: 2.5px;
-  border-radius: 1.5px;
-  background: #fff;
-  transition: height 0.08s ease-out;
-  min-height: 3px;
-  height: 3px;
-}
-
-/* Idle animation for bars when recording but silent */
-.flow-bar.recording .waveform .bar {
-  animation: idle-pulse 1.2s ease-in-out infinite;
-}
-
-.flow-bar.recording .waveform .bar:nth-child(1) { animation-delay: 0s; }
-.flow-bar.recording .waveform .bar:nth-child(2) { animation-delay: 0.15s; }
-.flow-bar.recording .waveform .bar:nth-child(3) { animation-delay: 0.3s; }
-.flow-bar.recording .waveform .bar:nth-child(4) { animation-delay: 0.45s; }
-.flow-bar.recording .waveform .bar:nth-child(5) { animation-delay: 0.6s; }
-
-@keyframes idle-pulse {
-  0%, 100% { height: 3px; opacity: 0.5; }
-  50% { height: 8px; opacity: 0.8; }
-}
-
-/* When audio levels are being set via JS, disable the CSS animation */
-.flow-bar.recording.has-audio .waveform .bar {
-  animation: none;
-}
-
-/* --- Label --- */
-.label {
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.flow-bar.idle .label {
-  display: none;
-}
-
-/* --- Preview text --- */
-.preview {
-  font-size: 10px;
-  font-weight: 400;
-  color: rgba(255, 255, 255, 0.65);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 200px;
-  display: none;
-}
-
-.flow-bar.recording .preview:not(:empty) {
-  display: inline;
-}
-
-.flow-bar.recording .preview:not(:empty) ~ .label {
-  display: none;
-}
-
-.flow-bar.recording.has-preview {
-  width: auto;
-  min-width: 140px;
-  max-width: 320px;
+  height: 34px;
+  max-width: 318px;
   padding: 0 14px;
+  border-radius: 17px;
+  /* The edge picks up the orb's colours. */
+  border: 1px solid transparent;
+  background:
+    linear-gradient(rgba(16, 16, 28, 0.7), rgba(16, 16, 28, 0.7)) padding-box,
+    linear-gradient(100deg, rgba(64, 200, 255, 0.45), rgba(160, 90, 255, 0.4), rgba(255, 80, 190, 0.45)) border-box;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+  animation: caption-in 0.3s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.pill.alert .caption {
+  background:
+    linear-gradient(rgba(28, 16, 16, 0.72), rgba(28, 16, 16, 0.72)) padding-box,
+    linear-gradient(100deg, rgba(255, 160, 60, 0.45), rgba(235, 70, 110, 0.45)) border-box;
+}
+
+.pill.done .caption {
+  background:
+    linear-gradient(rgba(16, 16, 28, 0.7), rgba(16, 16, 28, 0.7)) padding-box,
+    linear-gradient(100deg, rgba(50, 220, 160, 0.5), rgba(64, 200, 255, 0.45)) border-box;
+}
+
+.pill.has-caption .caption {
+  display: flex;
+}
+
+@keyframes caption-in {
+  from { opacity: 0; transform: translateX(-8px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+body[data-position$='right'] .caption {
+  animation-name: caption-in-left;
+}
+
+@keyframes caption-in-left {
+  from { opacity: 0; transform: translateX(8px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+.caption-clip {
+  overflow: hidden;
+  animation: words-in 0.25s ease-out;
+}
+
+@keyframes words-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.caption.overflow .caption-clip {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 32px);
+  mask-image: linear-gradient(to right, transparent 0, #000 32px);
+}
+
+.caption-text {
+  display: inline-block;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  color: rgba(255, 255, 255, 0.95);
+  transition: transform 0.25s ease-out;
+}
+
+/* Status lines are quieter than your words. */
+.pill:not(.has-transcript) .caption-text {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+/* Transcribing and formatting: the words (or the status) shimmer. */
+.pill.thinking .caption-text {
+  color: transparent;
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0.5) 0%,
+    rgba(255, 255, 255, 0.5) 35%,
+    #fff 50%,
+    rgba(255, 255, 255, 0.5) 65%,
+    rgba(255, 255, 255, 0.5) 100%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@keyframes shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -150% 0; }
+}
+
+.pill.done .caption-text {
+  color: rgb(140, 240, 200);
+}
+
+.pill.alert .caption-text {
+  color: rgb(255, 196, 160);
 }
 
 /* --- Close button (hands-free only) --- */
@@ -195,45 +169,27 @@ body {
   display: none;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
+  margin: 0 4px;
   border: none;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 11px;
+  background: rgba(16, 16, 28, 0.68);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 13px;
   line-height: 1;
   cursor: pointer;
   padding: 0;
-  margin-left: 2px;
   flex-shrink: 0;
   transition: background 0.15s ease;
 }
 
 .close-btn:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(60, 60, 80, 0.9);
   color: #fff;
 }
 
-.flow-bar.recording.handsfree .close-btn {
+.pill.recording.handsfree .close-btn {
   display: flex;
-}
-
-/* Processing spinner dot */
-.flow-bar.processing .label::before,
-.flow-bar.downloading .label::before {
-  content: '';
-  display: inline-block;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.7);
-  margin-right: 6px;
-  vertical-align: middle;
-  animation: dot-pulse 1s ease-in-out infinite;
-}
-
-@keyframes dot-pulse {
-  0%, 100% { opacity: 0.4; transform: scale(0.8); }
-  50% { opacity: 1; transform: scale(1.2); }
 }

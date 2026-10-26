@@ -129,17 +129,21 @@ function settings(): { llmEnabled: boolean; pillPosition: PillPosition; muteWhil
 }
 
 
+// The overlay: room for the orb, its glow and a caption of about 40
+// characters. It's transparent and lets clicks through, so its size costs
+// nothing.
+const OVERLAY_W = 440;
+const OVERLAY_H = 88;
+
 function createOverlayWindow(): BrowserWindow {
   const display = screen.getPrimaryDisplay();
   const { width: screenW, height: screenH } = display.workAreaSize;
-  const winW = 240;
-  const winH = 64;
 
   const win = new BrowserWindow({
-    width: winW,
-    height: winH,
-    x: Math.round((screenW - winW) / 2),
-    y: screenH - winH - 16,
+    width: OVERLAY_W,
+    height: OVERLAY_H,
+    x: Math.round((screenW - OVERLAY_W) / 2),
+    y: screenH - OVERLAY_H,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -320,10 +324,13 @@ function applyOverlayPosition(): void {
 
   const display = screen.getPrimaryDisplay();
   const { x: dX, y: dY, width: dW, height: dH } = display.workArea;
-  const MARGIN = 12;
-  const winW = 240;
-  const winH = 52;
+  // The page keeps the orb's glow off the window's edge, so the orb ends up
+  // about 20px from the screen's.
+  const MARGIN = 4;
+  const winW = OVERLAY_W;
+  const winH = OVERLAY_H;
   overlayWindow.setSize(winW, winH);
+  overlayWindow.webContents.send('overlay:position', settings().pillPosition);
 
   let x: number, y: number;
 
