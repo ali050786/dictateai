@@ -3,18 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' ws://localhost:*; base-uri 'none'; form-action 'none'; script-src 'self'" />
-    <title>DictateAI</title>
+    <title>Utter</title>
   </head>
   <body>
     <div id="app">
       <nav id="sidebar">
         <div class="sidebar-logo">
-          <svg class="logo-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M6.5 3.5h11a4.5 4.5 0 0 1 4.5 4.5v5a4.5 4.5 0 0 1-4.5 4.5H10.2l-4.4 3.7a.5.5 0 0 1-.8-.46l.55-3.3A4.5 4.5 0 0 1 2 13V8a4.5 4.5 0 0 1 4.5-4.5z"/>
-            <path d="M5.8 10.5c.65-2.9 1.55-2.9 2.2 0s1.55 2.9 2.2 0c.5-1.6 1.1-1.6 1.6 0H13.6"/>
-            <path d="M17 7.4v6.2" stroke="#ff6f61"/>
+          <svg class="logo-icon" viewBox="0 0 64 64" width="24" height="24" aria-hidden="true">
+            <!-- The app icon (assets/brand/favicon.svg). -->
+            <rect width="64" height="64" rx="14" fill="#0045F9"/>
+            <circle cx="32" cy="32" r="21" fill="#111111"/>
+            <path d="M18.98 32.04 L19.39 31.97 L19.79 31.87 L20.2 31.74 L20.61 31.57 L21.01 31.36 L21.42 31.11 L21.83 30.83 L22.23 30.53 L22.64 30.24 L23.05 29.99 L23.46 29.83 L23.86 29.79 L24.27 29.94 L24.68 30.29 L25.08 30.89 L25.49 31.72 L25.9 32.75 L26.3 33.93 L26.71 35.17 L27.12 36.39 L27.52 37.48 L27.93 38.38 L28.34 39.01 L28.74 39.33 L29.15 39.32 L29.56 38.98 L29.97 38.33 L30.37 37.41 L30.78 36.27 L31.19 34.94 L31.59 33.5 L32.0 32.0 L32.41 30.5 L32.81 29.06 L33.22 27.73 L33.63 26.59 L34.03 25.67 L34.44 25.02 L34.85 24.68 L35.25 24.67 L35.66 24.99 L36.07 25.62 L36.48 26.52 L36.88 27.61 L37.29 28.83 L37.7 30.07 L38.1 31.25 L38.51 32.28 L38.92 33.11 L39.32 33.71 L39.73 34.06 L40.14 34.21 L40.54 34.17 L40.95 34.01 L41.36 33.76 L41.77 33.47 L42.17 33.17 L42.58 32.89 L42.99 32.64 L43.39 32.43 L43.8 32.26 L44.21 32.13 L44.61 32.03 L45.02 31.96" fill="none" stroke="#FFFFFF" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          <span class="logo-text">DictateAI</span>
+          <span class="logo-text">Utter</span>
         </div>
 
         <div class="nav-items">
@@ -98,7 +99,7 @@
           </div>
           <div class="page-body">
             <div class="hero-card">
-              <h2>DictateAI spells the way <em>you</em> do.</h2>
+              <h2>Utter spells the way <em>you</em> do.</h2>
               <p>Add words here so your personal terms, company jargon, or uncommon names are spelled right in every dictation.</p>
               <div class="hero-chips" id="suggestion-chips"></div>
             </div>
@@ -109,7 +110,7 @@
                   <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
                 </svg>
                 <p>No words added yet</p>
-                <span>Click "Add new" to teach DictateAI your vocabulary</span>
+                <span>Click "Add new" to teach Utter your vocabulary</span>
               </div>
             </div>
           </div>
@@ -120,7 +121,7 @@
             <div class="modal-content">
               <h3 id="modal-title">Add new word</h3>
               <div class="form-group">
-                <label for="dict-from">Whisper hears</label>
+                <label for="dict-from">Utter hears</label>
                 <input type="text" id="dict-from" placeholder="e.g. bee mad" />
               </div>
               <div class="form-group">
@@ -298,7 +299,7 @@
               </div>
               <div class="setting-row">
                 <div class="setting-info">
-                  <span class="setting-label">Open DictateAI when you log in</span>
+                  <span class="setting-label">Open Utter when you log in</span>
                   <span class="setting-desc" id="login-item-desc">Ready in the menu bar whenever your Mac starts</span>
                   <button type="button" class="link-button" id="btn-login-items" hidden>Open Login Items in System Settings</button>
                 </div>
@@ -314,7 +315,7 @@
               <div class="setting-row">
                 <div class="setting-info">
                   <span class="setting-label">Dictation Language</span>
-                  <span class="setting-desc">Language Whisper listens for</span>
+                  <span class="setting-desc">Auto-detect hears English and 24 other European languages. Choose others, like Hindi, here.</span>
                 </div>
                 <select id="language-select" class="setting-select">
                   <option value="auto">Auto-detect</option>
@@ -360,14 +361,15 @@
                 <div class="setting-info">
                   <span class="setting-label">Speech model <span class="badge badge-green" id="stt-badge">Local</span></span>
                   <span class="setting-desc" id="stt-status">Loading…</span>
+                  <button type="button" class="link-button" id="btn-stt-retry" hidden>Try again</button>
                   <div class="setting-progress" id="stt-progress" role="progressbar" aria-label="Speech model download" aria-valuemin="0" aria-valuemax="100" hidden>
                     <div class="setting-progress-fill" id="stt-progress-fill"></div>
                   </div>
                 </div>
                 <select id="speech-select" class="setting-select" aria-label="Speech model">
                   <option value="auto">Automatic (recommended)</option>
-                  <option value="fast">Faster</option>
-                  <option value="accurate">More accurate</option>
+                  <option value="fast">Whisper, faster</option>
+                  <option value="accurate">Whisper, more accurate</option>
                 </select>
               </div>
               <aside class="setting-confirm" id="speech-confirm" hidden>
@@ -453,7 +455,7 @@
               <h3>About</h3>
               <div class="setting-row">
                 <div class="setting-info">
-                  <span class="setting-label">DictateAI</span>
+                  <span class="setting-label">Utter</span>
                   <span class="setting-desc">v0.1.0 — Open source voice dictation</span>
                 </div>
               </div>

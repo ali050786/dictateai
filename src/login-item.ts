@@ -1,6 +1,6 @@
 import { app, shell } from 'electron';
 
-// "Open DictateAI when you log in". macOS keeps this setting (System Settings
+// "Open Utter when you log in". macOS keeps this setting (System Settings
 // → General → Login Items), so it's always read back from there, never from
 // config.json. Electron registers the app with SMAppService (macOS 13+).
 
@@ -29,7 +29,7 @@ export function setOpenAtLogin(enabled: boolean): LoginItemState {
   if (app.isPackaged) {
     app.setLoginItemSettings({ openAtLogin: enabled });
     console.log(
-      `[DictateAI] Open at login: ${enabled} (macOS says ${app.getLoginItemSettings().status})`,
+      `[Utter] Open at login: ${enabled} (macOS says ${app.getLoginItemSettings().status})`,
     );
   }
   return getLoginItemState();

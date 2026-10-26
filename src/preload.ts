@@ -56,4 +56,13 @@ contextBridge.exposeInMainWorld('dictateAI', {
   },
   stopRecording: () => ipcRenderer.send('overlay:stopRecording'),
   setClickable: (clickable: boolean) => ipcRenderer.send('overlay:setClickable', clickable),
+  // The pill's place on screen, so the orb sits against that edge.
+  onPosition: (callback: (position: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, position: string) =>
+      callback(position);
+    ipcRenderer.on('overlay:position', handler);
+    return () => {
+      ipcRenderer.removeListener('overlay:position', handler);
+    };
+  },
 });

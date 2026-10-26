@@ -133,7 +133,8 @@ body {
 
 /* --- Hero Card --- */
 .hero-card {
-  background: linear-gradient(135deg, #1a1a2e 0%, #2d2d44 100%);
+  /* Flat brand blue, like the orb while it listens. */
+  background: #0045f9;
   border-radius: 14px;
   padding: 28px 32px;
   margin-bottom: 24px;

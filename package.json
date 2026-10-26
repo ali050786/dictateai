@@ -1,6 +1,6 @@
 {
-  "name": "dictateai",
-  "productName": "DictateAI",
+  "name": "utter",
+  "productName": "Utter",
   "version": "0.2.2",
   "private": true,
   "description": "Open-source voice dictation for macOS — local Whisper STT + AI formatting",

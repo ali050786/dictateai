@@ -15,6 +15,9 @@ import { FuseV1Options, FuseVersion } from '@electron/fuses';
 import { mainConfig } from './webpack.main.config';
 import { rendererConfig } from './webpack.renderer.config';
 
+// Kept from the app's first name, DictateAI: macOS ties the Accessibility and
+// microphone permissions and the login item to it, so changing it would make
+// everyone allow them again.
 const BUNDLE_ID = 'io.github.ali050786.dictateai';
 
 const config: ForgeConfig = {
@@ -26,7 +29,7 @@ const config: ForgeConfig = {
     // Contents/Resources/bin and Contents/Resources/python.
     extraResource: ['native/text-injection/build/Release/text_injection.node', 'engines/bin', 'engines/python', 'assets/tray'],
     // App, Dock and Finder icon (scripts/build-icons.mjs; forge adds .icns).
-    icon: 'assets/icon/DictateAI',
+    icon: 'assets/icon/Utter',
     // macOS keys Accessibility, Microphone and Keychain access to this ID.
     appBundleId: BUNDLE_ID,
     appCategoryType: 'public.app-category.productivity',
@@ -34,7 +37,7 @@ const config: ForgeConfig = {
       // Menu-bar app: no Dock icon, not even briefly at launch.
       LSUIElement: true,
       NSMicrophoneUsageDescription:
-        'DictateAI listens only while you hold your dictation key, and turns your speech into text on this Mac.',
+        'Utter listens only while you hold your dictation key, and turns your speech into text on this Mac.',
     },
   },
   rebuildConfig: {},
@@ -59,8 +62,8 @@ const config: ForgeConfig = {
   makers: [
     new MakerSquirrel({}),
     new MakerZIP({}, ['darwin']),
-    // Drag-to-Applications installer: out/make/DictateAI-<version>-arm64.dmg
-    new MakerDMG({ format: 'ULFO', icon: 'assets/icon/DictateAI.icns' }, ['darwin']),
+    // Drag-to-Applications installer: out/make/Utter-<version>-arm64.dmg
+    new MakerDMG({ format: 'ULFO', icon: 'assets/icon/Utter.icns' }, ['darwin']),
     new MakerRpm({}),
     new MakerDeb({}),
   ],

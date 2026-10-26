@@ -20,7 +20,8 @@ import {
   stopPushToTalk,
   setPttKey,
 } from './text-injection';
-import { transcribe, getLanguage, startServer, stopServer, isServerRunning, isWhisperKitInstalled, setOnStatusChange, getModelDownload, whenServerReady, configureSpeech, effectiveSpeechModel, speechModelFor, isSpeechModelOnDisk, prepareSpeechModel, getPreparingSpeechModel, getSpeechModel, SPEECH_MODELS, SpeechChoice } from './whisper-engine';
+import { transcribe, getLanguage, startServer, stopServer, isServerRunning, isSpeechEngineInstalled, setOnStatusChange, getModelDownload, whenServerReady, configureSpeech, effectiveSpeechModel, speechModelFor, isSpeechModelOnDisk, prepareSpeechModel, getPreparingSpeechModel, getSpeechModel, isServerStarting, didServerFail, isSpeechModelBroken, setOnSpeechModelReady } from './speech-engine';
+import { SPEECH_MODELS, SpeechChoice } from './speech-models';
 import { basicCleanup } from './basic-cleanup';
 import { exec } from 'child_process';
 import * as path from 'path';
@@ -31,7 +32,7 @@ import { formatBytes, freeDiskBytes } from './engines';
 import { getFocusedElementInfo } from './text-injection';
 import { noticeAfterCleanup, noticeMicrophoneBlocked, noticeCleanupReady } from './notices';
 import { addHistory, listHistory, clearHistory } from './history';
-import { applyReplacements, detectCorrections, addCorrection, getAllCorrections, removeCorrection } from './dictionary';
+import { applyReplacements, detectCorrections, addCorrection, getAllCorrections, removeCorrection, getHotwords } from './dictionary';
 import started from 'electron-squirrel-startup';
 import { redact } from './log';
 import { getFocusTarget } from './text-injection';
@@ -128,17 +129,21 @@ function settings(): { llmEnabled: boolean; pillPosition: PillPosition; muteWhil
 }
 
 
+// The overlay: room for the orb, its glow and a caption of about 40
+// characters. It's transparent and lets clicks through, so its size costs
+// nothing.
+const OVERLAY_W = 440;
+const OVERLAY_H = 88;
+
 function createOverlayWindow(): BrowserWindow {
   const display = screen.getPrimaryDisplay();
   const { width: screenW, height: screenH } = display.workAreaSize;
-  const winW = 240;
-  const winH = 64;
 
   const win = new BrowserWindow({
-    width: winW,
-    height: winH,
-    x: Math.round((screenW - winW) / 2),
-    y: screenH - winH - 16,
+    width: OVERLAY_W,
+    height: OVERLAY_H,
+    x: Math.round((screenW - OVERLAY_W) / 2),
+    y: screenH - OVERLAY_H,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -266,7 +271,7 @@ function trayIcon(recording: boolean): Electron.NativeImage {
 
 function createTray(): void {
   tray = new Tray(trayIcon(false));
-  tray.setToolTip('DictateAI');
+  tray.setToolTip('Utter');
   tray.on('click', () => createHubWindow());
   updateTrayMenu();
 }
@@ -276,7 +281,7 @@ function updateTrayMenu(): void {
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: 'Open DictateAI',
+      label: 'Open Utter',
       click: () => createHubWindow(),
     },
     { label: 'Welcome & Setup…', click: () => createWelcomeWindow() },
@@ -305,7 +310,7 @@ function updateTrayMenu(): void {
     },
     { type: 'separator' },
     {
-      label: 'Quit DictateAI',
+      label: 'Quit Utter',
       click: () => app.quit(),
     },
   ]);
@@ -319,10 +324,13 @@ function applyOverlayPosition(): void {
 
   const display = screen.getPrimaryDisplay();
   const { x: dX, y: dY, width: dW, height: dH } = display.workArea;
-  const MARGIN = 12;
-  const winW = 240;
-  const winH = 52;
+  // The page keeps the orb's glow off the window's edge, so the orb ends up
+  // about 20px from the screen's.
+  const MARGIN = 4;
+  const winW = OVERLAY_W;
+  const winH = OVERLAY_H;
   overlayWindow.setSize(winW, winH);
+  overlayWindow.webContents.send('overlay:position', settings().pillPosition);
 
   let x: number, y: number;
 
@@ -346,7 +354,7 @@ function applyOverlayPosition(): void {
 }
 
 function toggleRecording(): void {
-  console.log(`[DictateAI] toggleRecording called — phase=${dictation.phase}`);
+  console.log(`[Utter] toggleRecording called — phase=${dictation.phase}`);
   if (isRecording()) {
     stopRecording();
   } else {
@@ -371,7 +379,7 @@ function muteSystemAudio(): void {
     muteTimer = null;
     exec('osascript -e "output muted of (get volume settings)"', (err, stdout) => {
       if (err) {
-        console.error('[DictateAI] Failed to check mute state:', err);
+        console.error('[Utter] Failed to check mute state:', err);
         return;
       }
       if (stdout.trim() === 'true') {
@@ -380,11 +388,11 @@ function muteSystemAudio(): void {
       }
       exec('osascript -e "set volume with output muted"', (err2) => {
         if (err2) {
-          console.error('[DictateAI] Failed to mute audio:', err2);
+          console.error('[Utter] Failed to mute audio:', err2);
           return;
         }
         didMuteAudio = true;
-        console.log('[DictateAI] System audio muted');
+        console.log('[Utter] System audio muted');
         // The recording ended while we were muting (a quick press).
         if (session !== dictation.session || !isRecording()) unmuteSystemAudio();
       });
@@ -405,9 +413,9 @@ function unmuteSystemAudio(then?: () => void): void {
   didMuteAudio = false;
   exec('osascript -e "set volume without output muted"', (err) => {
     if (err) {
-      console.error('[DictateAI] Failed to unmute audio:', err);
+      console.error('[Utter] Failed to unmute audio:', err);
     } else {
-      console.log('[DictateAI] System audio unmuted');
+      console.log('[Utter] System audio unmuted');
     }
     then?.();
   });
@@ -425,7 +433,7 @@ function startRecording(): void {
   playCue('start');
   muteSystemAudio();
   updateTrayMenu();
-  console.log('[DictateAI] Recording started');
+  console.log('[Utter] Recording started');
 
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     applyOverlayPosition();
@@ -451,7 +459,7 @@ function stopRecording(): void {
   });
   stopPreviewTimer();
   updateTrayMenu();
-  console.log(`[DictateAI] Recording stopped — ${chunks.length} chunks collected`);
+  console.log(`[Utter] Recording stopped — ${chunks.length} chunks collected`);
 
   const allChunks = collectLastChunk(session, chunks);
   sendPillState(session, 'processing');
@@ -470,8 +478,8 @@ function collectLastChunk(session: number, chunks: Float32Array[]): Promise<Floa
       const samples = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
       console.log(
         arrived
-          ? `[DictateAI] Last audio chunk arrived after ${Date.now() - asked}ms — ${(samples / 16000).toFixed(2)}s recorded (${samples} samples)`
-          : `[DictateAI] Last audio chunk didn't arrive within ${LAST_CHUNK_TIMEOUT_MS}ms — going on with ${(samples / 16000).toFixed(2)}s`,
+          ? `[Utter] Last audio chunk arrived after ${Date.now() - asked}ms — ${(samples / 16000).toFixed(2)}s recorded (${samples} samples)`
+          : `[Utter] Last audio chunk didn't arrive within ${LAST_CHUNK_TIMEOUT_MS}ms — going on with ${(samples / 16000).toFixed(2)}s`,
       );
       resolve(chunks);
     };
@@ -511,6 +519,9 @@ function joinChunks(chunks: Float32Array[]): Float32Array {
 function startPreviewTimer(): void {
   stopPreviewTimer();
   const session = dictation.session;
+  // Phonon transcribes in about 0.15s, so the words can follow the voice
+  // (audio arrives every 0.5s); Whisper takes up to 2s, so it's asked less.
+  const interval = SPEECH_MODELS[getSpeechModel()].engine === 'phonon' ? 600 : 2000;
   dictation.previewTimer = setInterval(async () => {
     if (!isRecording() || dictation.chunks.length === 0 || dictation.previewInFlight) return;
 
@@ -519,7 +530,7 @@ function startPreviewTimer(): void {
 
     dictation.previewInFlight = true;
     try {
-      const preview = await transcribe(combined);
+      const preview = await transcribe(combined, getHotwords());
       if (isRecording() && session === dictation.session && preview && !/^\s*[\[(].*[\])]\s*$/i.test(preview)) {
         if (overlayWindow && !overlayWindow.isDestroyed()) {
           overlayWindow.webContents.send('dictation:preview', preview);
@@ -530,7 +541,7 @@ function startPreviewTimer(): void {
     } finally {
       dictation.previewInFlight = false;
     }
-  }, 2000);
+  }, interval);
 }
 
 function stopPreviewTimer(): void {
@@ -543,7 +554,7 @@ function stopPreviewTimer(): void {
 
 async function processAudio(session: number, chunks: Float32Array[]): Promise<void> {
   if (chunks.length === 0) {
-    console.log('[DictateAI] No audio chunks — skipping');
+    console.log('[Utter] No audio chunks — skipping');
     hidePillLater(session, 300);
     finishProcessing(session, '');
     return;
@@ -554,7 +565,7 @@ async function processAudio(session: number, chunks: Float32Array[]): Promise<vo
   // Exact digital silence (every sample 0) means macOS is withholding the
   // microphone; a real quiet room still has noise.
   if (combined.every((sample) => sample === 0)) {
-    console.log('[DictateAI] Recording is pure silence — microphone access is blocked');
+    console.log('[Utter] Recording is pure silence — microphone access is blocked');
     sendPillState(session, 'mic-blocked');
     hidePillLater(session, 2500);
     noticeMicrophoneBlocked();
@@ -564,13 +575,14 @@ async function processAudio(session: number, chunks: Float32Array[]): Promise<vo
 
   const durationSec = combined.length / 16000;
   if (durationSec < 0.2) {
-    console.log(`[DictateAI] Recording too short (${durationSec.toFixed(1)}s) — skipping`);
+    console.log(`[Utter] Recording too short (${durationSec.toFixed(1)}s) — skipping`);
     hidePillLater(session, 300);
     finishProcessing(session, '');
     return;
   }
 
-  // Pad short recordings with silence so WhisperKit gets enough context
+  // Pad short recordings with silence so the speech model gets enough
+  // context (WhisperKit heard nothing in under ~1.5s)
   const MIN_DURATION = 1.5;
   let audioToTranscribe = combined;
   if (durationSec < MIN_DURATION) {
@@ -578,17 +590,17 @@ async function processAudio(session: number, chunks: Float32Array[]): Promise<vo
     const padded = new Float32Array(padSamples);
     padded.set(combined, 0);
     audioToTranscribe = padded;
-    console.log(`[DictateAI] Padded ${durationSec.toFixed(1)}s → ${MIN_DURATION}s for WhisperKit`);
+    console.log(`[Utter] Padded ${durationSec.toFixed(1)}s → ${MIN_DURATION}s`);
   }
 
   console.log(
-    `[DictateAI] Processing ${durationSec.toFixed(1)}s of audio (${combined.length} samples)`,
+    `[Utter] Processing ${durationSec.toFixed(1)}s of audio (${combined.length} samples)`,
   );
 
   // Dictating before the speech model has downloaded or loaded (first run, or
   // just after launch): keep the recording and transcribe it once it's ready.
   if (!isServerRunning()) {
-    console.log('[DictateAI] Speech engine still getting ready — holding the recording');
+    console.log('[Utter] Speech engine still getting ready — holding the recording');
     const showProgress = () => {
       const download = getModelDownload();
       sendPillState(session, download ? `preparing:${download.percent}` : 'preparing');
@@ -597,7 +609,7 @@ async function processAudio(session: number, chunks: Float32Array[]): Promise<vo
     const progressTimer = setInterval(showProgress, 1000);
     const ready = await whenServerReady(10 * 60_000).finally(() => clearInterval(progressTimer));
     if (!ready) {
-      console.error('[DictateAI] Speech engine not available — recording dropped');
+      console.error('[Utter] Speech engine not available — recording dropped');
       sendPillState(session, 'stt-unavailable');
       hidePillLater(session, 3000);
       finishProcessing(session, '');
@@ -608,10 +620,10 @@ async function processAudio(session: number, chunks: Float32Array[]): Promise<vo
 
   try {
     const sttStart = Date.now();
-    const rawText = await transcribe(audioToTranscribe);
-    console.log(`[DictateAI] Transcription took ${Date.now() - sttStart}ms`);
+    const rawText = await transcribe(audioToTranscribe, getHotwords());
+    console.log(`[Utter] Transcription took ${Date.now() - sttStart}ms`);
     if (!rawText || /^\s*[\[(].*[\])]\s*$/i.test(rawText) || rawText.trim().length < 2) {
-      console.log(`[DictateAI] No usable speech detected: ${redact(rawText)}`);
+      console.log(`[Utter] No usable speech detected: ${redact(rawText)}`);
       sendPillState(session, 'empty');
       hidePillLater(session, 1500);
       finishProcessing(session, '');
@@ -632,18 +644,18 @@ async function processAudio(session: number, chunks: Float32Array[]): Promise<vo
           app: context.app,
           role: context.role,
         });
-        console.log(`[DictateAI] LLM cleanup took ${Date.now() - llmStart}ms`);
+        console.log(`[Utter] LLM cleanup took ${Date.now() - llmStart}ms`);
         finishProcessing(session, result.text || correctedText, context.app, result.location);
         noticeAfterCleanup(result, getLocalModel(), loadConfig().language);
       } catch (err) {
-        console.error('[DictateAI] LLM formatting failed, using raw:', err);
+        console.error('[Utter] LLM formatting failed, using raw:', err);
         finishProcessing(session, correctedText, context.app);
       }
     } else {
       finishProcessing(session, correctedText, context.app);
     }
   } catch (err) {
-    console.error('[DictateAI] Transcription failed:', err);
+    console.error('[Utter] Transcription failed:', err);
     sendPillState(session, 'error');
     hidePillLater(session, 2000);
     finishProcessing(session, '');
@@ -680,11 +692,11 @@ function insertText(session: number, text: string): boolean {
   const verdict = classifyFocus(focus);
   const where = `${focus.role || 'no focused element'} in ${focus.app || 'unknown app'}`;
   if (verdict === 'none') {
-    console.log(`[DictateAI] No text field (${where}) — kept for the paste shortcut`);
+    console.log(`[Utter] No text field (${where}) — kept for the paste shortcut`);
   } else {
     sendPillState(session, 'injecting');
     const method = injectText(text);
-    console.log(`[DictateAI] Injected via: ${method} (focus: ${verdict}, ${where})`);
+    console.log(`[Utter] Injected via: ${method} (focus: ${verdict}, ${where})`);
     if (method !== 'failed') {
       hidePillLater(session, 1200);
       return true;
@@ -701,7 +713,7 @@ function finishProcessing(session: number, text: string, appName?: string, locat
   }
 
   if (text) {
-    console.log(`[DictateAI] Result: ${redact(text)}`);
+    console.log(`[Utter] Result: ${redact(text)}`);
 
     const inserted = insertText(session, text);
 
@@ -715,16 +727,16 @@ function finishProcessing(session: number, text: string, appName?: string, locat
     if (inserted) setTimeout(() => {
       try {
         const fieldInfo = getFocusedElementInfo();
-        console.log(`[DictateAI] Correction check — available: ${fieldInfo.available}, app: ${fieldInfo.app}, role: ${fieldInfo.role}`);
-        console.log(`[DictateAI] Correction check — title: ${redact(fieldInfo.title)}, value: ${redact(fieldInfo.value)}`);
-        console.log(`[DictateAI] Correction check — injected: ${redact(text)}`);
+        console.log(`[Utter] Correction check — available: ${fieldInfo.available}, app: ${fieldInfo.app}, role: ${fieldInfo.role}`);
+        console.log(`[Utter] Correction check — title: ${redact(fieldInfo.title)}, value: ${redact(fieldInfo.value)}`);
+        console.log(`[Utter] Correction check — injected: ${redact(text)}`);
         if (fieldInfo.available && fieldInfo.value) {
           detectCorrections(text, fieldInfo.value);
         } else {
-          console.log('[DictateAI] Correction check — no value from focused element');
+          console.log('[Utter] Correction check — no value from focused element');
         }
       } catch (err) {
-        console.error('[DictateAI] Correction check error:', err);
+        console.error('[Utter] Correction check error:', err);
       }
     }, 5000);
   }
@@ -742,7 +754,7 @@ function registerPushToTalk(): void {
 
     if (event === 'down') {
       if (dictation.handsFree) {
-        console.log('[DictateAI] Hands-free: key down — stop recording');
+        console.log('[Utter] Hands-free: key down — stop recording');
         dictation.handsFree = false;
         if (overlayWindow && !overlayWindow.isDestroyed()) {
           overlayWindow.webContents.send('dictation:handsfree', false);
@@ -764,7 +776,7 @@ function registerPushToTalk(): void {
       if (tapTimer) clearTimeout(tapTimer);
 
       if (tapCount >= 3 && !isRecording()) {
-        console.log('[DictateAI] Triple-tap detected — undo last dictation');
+        console.log('[Utter] Triple-tap detected — undo last dictation');
         tapCount = 0;
         undoLastInjection();
         if (overlayWindow && !overlayWindow.isDestroyed()) {
@@ -777,7 +789,7 @@ function registerPushToTalk(): void {
 
       if (tapCount === 2 && !isRecording()) {
         tapTimer = setTimeout(() => {
-          console.log('[DictateAI] Double-tap confirmed — hands-free mode');
+          console.log('[Utter] Double-tap confirmed — hands-free mode');
           dictation.handsFree = true;
           startRecording();
           if (overlayWindow && !overlayWindow.isDestroyed()) {
@@ -790,18 +802,18 @@ function registerPushToTalk(): void {
       }
 
       if (tapCount === 1 && !isRecording()) {
-        console.log('[DictateAI] PTT key down — start recording');
+        console.log('[Utter] PTT key down — start recording');
         startRecording();
       }
     } else if (event === 'up') {
       if (dictation.handsFree) return;
       if (isRecording() && tapCount <= 1) {
-        console.log('[DictateAI] PTT key up — stop recording');
+        console.log('[Utter] PTT key up — stop recording');
         stopRecording();
       }
     }
   });
-  console.log(`[DictateAI] Push-to-talk monitor started: ${started}`);
+  console.log(`[Utter] Push-to-talk monitor started: ${started}`);
 }
 
 function setupIPC(): void {
@@ -821,7 +833,7 @@ function setupIPC(): void {
 
   ipcMain.on('overlay:stopRecording', () => {
     if (isRecording()) {
-      console.log('[DictateAI] Stop recording from overlay close button');
+      console.log('[Utter] Stop recording from overlay close button');
       dictation.handsFree = false;
       if (overlayWindow && !overlayWindow.isDestroyed()) {
         overlayWindow.webContents.send('dictation:handsfree', false);
@@ -879,8 +891,7 @@ function setupIPC(): void {
   // downloadCleanup: false when the user said "Not now" to the cleanup model
   // the new language needs; it then waits until they ask for it.
   ipcMain.handle('config:setLanguage', async (_event, lang: string, downloadCleanup = true) => {
-    applyLanguage(lang, downloadCleanup);
-    return true;
+    return applyLanguage(lang, downloadCleanup);
   });
   ipcMain.handle('config:cleanupPlan', (_event, lang: string) => cleanupPlan(lang));
   ipcMain.handle('config:downloadCleanup', () => {
@@ -944,6 +955,13 @@ function setupIPC(): void {
     });
     return true;
   });
+  // Settings' "Try again" after the speech engine failed to start.
+  ipcMain.handle('config:retrySpeech', async () => {
+    applySpeech();
+    if (!isServerRunning() && !isServerStarting()) await startServer();
+    sendToPages('stt:status-changed');
+    return isServerRunning();
+  });
   ipcMain.handle('config:getBasicCleanup', () => loadConfig().basicCleanup ?? true);
   ipcMain.handle('config:setBasicCleanup', (_event, enabled: boolean) => {
     saveConfig({ basicCleanup: enabled ? undefined : false });
@@ -955,7 +973,7 @@ function setupIPC(): void {
     accessibility: isAccessibilityTrusted(),
     microphone: systemPreferences.getMediaAccessStatus('microphone'),
     speech: {
-      installed: isWhisperKitInstalled(),
+      installed: isSpeechEngineInstalled(),
       running: isServerRunning(),
       failed: speechFailed,
       download: getModelDownload(),
@@ -967,7 +985,7 @@ function setupIPC(): void {
     llmEnabled: settings().llmEnabled,
   }));
   ipcMain.handle('welcome:openAccessibility', () => {
-    // Prompting also adds DictateAI to the list in System Settings.
+    // Prompting also adds Utter to the list in System Settings.
     checkAccessibilityPermission();
     shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility');
     return true;
@@ -1007,7 +1025,7 @@ function setupIPC(): void {
     if (overlayWindow && !overlayWindow.isDestroyed()) {
       overlayWindow.webContents.send('config:audioDeviceChanged', deviceId);
     }
-    console.log(`[DictateAI] Audio device changed: ${deviceId || 'system default'}`);
+    console.log(`[Utter] Audio device changed: ${deviceId || 'system default'}`);
     return true;
   });
 
@@ -1016,7 +1034,7 @@ function setupIPC(): void {
   });
   ipcMain.handle('config:setPillPosition', (_event, position: string) => {
     saveConfig({ pillPosition: normalizePillPosition(position) });
-    console.log(`[DictateAI] Pill position changed to: ${position}`);
+    console.log(`[Utter] Pill position changed to: ${position}`);
     return true;
   });
 
@@ -1025,7 +1043,7 @@ function setupIPC(): void {
   });
   ipcMain.handle('config:setMuteWhileSpeaking', (_event, enabled: boolean) => {
     saveConfig({ muteWhileSpeaking: enabled });
-    console.log(`[DictateAI] Mute while speaking: ${enabled}`);
+    console.log(`[Utter] Mute while speaking: ${enabled}`);
     return true;
   });
 
@@ -1036,14 +1054,14 @@ function setupIPC(): void {
   ipcMain.handle('config:setShortcut', (_event, shortcut: ShortcutConfig) => {
     setPttKey(shortcut.keyCode, shortcut.flagMask, shortcut.isModifier, shortcut.requiredModifiers);
     saveConfig({ shortcut });
-    console.log(`[DictateAI] Shortcut changed to: ${shortcut.display} (code=${shortcut.code})`);
+    console.log(`[Utter] Shortcut changed to: ${shortcut.display} (code=${shortcut.code})`);
     return true;
   });
 
   ipcMain.handle('config:getPlaySounds', () => settings().playSounds);
   ipcMain.handle('config:setPlaySounds', (_event, enabled: boolean) => {
     saveConfig({ playSounds: enabled });
-    console.log(`[DictateAI] Play sounds: ${enabled}`);
+    console.log(`[Utter] Play sounds: ${enabled}`);
     return true;
   });
 
@@ -1091,7 +1109,7 @@ function showTranscriptFeedback(state: string): void {
 app.dock?.hide();
 
 // A second copy would fight the first for the push-to-talk key and the
-// WhisperKit/MLX ports. Launching again just opens the existing hub.
+// speech and MLX ports. Launching again just opens the existing hub.
 const isPrimaryInstance = app.requestSingleInstanceLock();
 if (!isPrimaryInstance) {
   app.quit();
@@ -1103,10 +1121,10 @@ if (!isPrimaryInstance) {
 // silence, so ask explicitly before the overlay opens its audio stream.
 async function ensureMicrophoneAccess(): Promise<void> {
   const status = systemPreferences.getMediaAccessStatus('microphone');
-  console.log(`[DictateAI] Microphone access: ${status}`);
+  console.log(`[Utter] Microphone access: ${status}`);
   if (status === 'not-determined') {
     const granted = await systemPreferences.askForMediaAccess('microphone');
-    console.log(`[DictateAI] Microphone access ${granted ? 'granted' : 'denied'}`);
+    console.log(`[Utter] Microphone access ${granted ? 'granted' : 'denied'}`);
     if (!granted) noticeMicrophoneBlocked();
   } else if (status !== 'granted') {
     noticeMicrophoneBlocked();
@@ -1138,21 +1156,21 @@ app.whenReady().then(async () => {
   if (savedConfig.cloudTier !== undefined) {
     const wasFree = savedConfig.llmProvider === 'cloud' && savedConfig.cloudTier === 'free';
     saveConfig(wasFree ? { llmProvider: 'local', cloudTier: undefined } : { cloudTier: undefined });
-    if (wasFree) console.log('[DictateAI] Cloud, free was removed — switched cleanup to local');
+    if (wasFree) console.log('[Utter] Cloud, free was removed — switched cleanup to local');
   }
   if (savedConfig.shortcut) {
     const s = savedConfig.shortcut;
     setPttKey(s.keyCode, s.flagMask, s.isModifier, s.requiredModifiers);
-    console.log(`[DictateAI] Restored shortcut: ${s.display}`);
+    console.log(`[Utter] Restored shortcut: ${s.display}`);
   }
   setLastTranscriptFeedback(showTranscriptFeedback);
   registerTranscriptShortcuts();
   const { paste, copy } = getTranscriptShortcuts();
-  console.log(`[DictateAI] Last transcript: paste ${paste.map(acceleratorSymbol).join(', ')} · copy ${copy.map(acceleratorSymbol).join(', ')}`);
+  console.log(`[Utter] Last transcript: paste ${paste.map(acceleratorSymbol).join(', ')} · copy ${copy.map(acceleratorSymbol).join(', ')}`);
   // Saved middle-row positions (removed) are rewritten to their new spot.
   const pillPosition = settings().pillPosition;
   if (savedConfig.pillPosition && pillPosition !== savedConfig.pillPosition) saveConfig({ pillPosition });
-  console.log(`[DictateAI] Pill position: ${pillPosition} · mute while speaking: ${settings().muteWhileSpeaking}`);
+  console.log(`[Utter] Pill position: ${pillPosition} · mute while speaking: ${settings().muteWhileSpeaking}`);
 
   setOnLocalLlmStatusChange(() => {
     if (cleanupReadyNoticePending && isLocalLlmRunning()) {
@@ -1164,15 +1182,21 @@ app.whenReady().then(async () => {
   syncLocalLlm();
 
   setOnStatusChange(() => sendToPages('stt:status-changed'));
+  // A model finished downloading (or was repaired): use it if it's the one
+  // the user's choice and language want.
+  setOnSpeechModelReady(() => {
+    applySpeech();
+    sendToPages('stt:status-changed');
+  });
 
   const hasAccess = firstLaunch ? isAccessibilityTrusted() : checkAccessibilityPermission();
   console.log(
-    `[DictateAI] Accessibility permission: ${hasAccess ? 'granted' : 'NEEDS GRANT — check System Settings → Privacy → Accessibility'}`,
+    `[Utter] Accessibility permission: ${hasAccess ? 'granted' : 'NEEDS GRANT — check System Settings → Privacy → Accessibility'}`,
   );
   if (!hasAccess) waitForAccessibility();
 
-  if (!isWhisperKitInstalled()) {
-    console.error('[DictateAI] Speech engine not found. Run scripts/build-engines.sh, or: brew install whisperkit-cli');
+  if (!isSpeechEngineInstalled()) {
+    console.error('[Utter] Speech engine not found. Run scripts/build-engines.sh, or: brew install whisperkit-cli');
   } else {
     if (overlayWindow && !overlayWindow.isDestroyed()) {
       overlayWindow.webContents.send('dictation:state', 'downloading');
@@ -1185,7 +1209,7 @@ app.whenReady().then(async () => {
     createWelcomeWindow();
   }
 
-  console.log(`[DictateAI] Ready. Hold ${settings().shortcutLabel} to dictate.`);
+  console.log(`[Utter] Ready. Hold ${settings().shortcutLabel} to dictate.`);
 });
 
 function startSpeech(): void {
@@ -1194,9 +1218,9 @@ function startSpeech(): void {
   startServer().then((ok) => {
     speechFailed = !ok;
     if (ok) {
-      console.log('[DictateAI] WhisperKit server ready.');
+      console.log('[Utter] Speech server ready.');
     } else {
-      console.error('[DictateAI] WhisperKit server failed to start.');
+      console.error('[Utter] Speech server failed to start.');
     }
     sendToPages('stt:status-changed');
   });
@@ -1207,11 +1231,22 @@ function speechChoice(): SpeechChoice {
 }
 
 // Points the speech server at the model for the current choice and
-// language. A model that isn't on disk yet is only used once downloaded
-// (Settings asks first), except on first run when there is none at all.
+// language. A model that isn't on disk yet is only used once downloaded,
+// except on first run when there is none at all. Phonon's models (about
+// 160 MB) download on their own meanwhile; Whisper's wait for Settings.
 function applySpeech(): void {
   const lang = loadConfig().language ?? 'auto';
-  configureSpeech(lang, effectiveSpeechModel(speechChoice(), lang));
+  const wanted = speechModelFor(speechChoice(), lang);
+  const model = effectiveSpeechModel(speechChoice(), lang);
+  configureSpeech(lang, model);
+  if (model !== wanted && SPEECH_MODELS[wanted].engine === 'phonon' && !getPreparingSpeechModel() && hasRoomFor(SPEECH_MODELS[wanted].bytes)) {
+    void prepareSpeechModel(wanted).then(() => sendToPages('stt:status-changed'));
+  }
+}
+
+function hasRoomFor(bytes: number): boolean {
+  const freeBytes = freeDiskBytes(path.join(os.homedir(), '.dictateai'));
+  return freeBytes == null || freeBytes >= bytes + 1e9;
 }
 
 function speechStatus() {
@@ -1222,12 +1257,14 @@ function speechStatus() {
   const bytes = SPEECH_MODELS[wanted].bytes;
   const freeBytes = freeDiskBytes(path.join(os.homedir(), '.dictateai'));
   return {
-    installed: isWhisperKitInstalled(),
+    installed: isSpeechEngineInstalled(wanted),
     running: isServerRunning(),
+    starting: isServerStarting(),
+    failed: didServerFail(),
     download: getModelDownload(),
     choice,
     language: lang,
-    wanted: { key: wanted, name: SPEECH_MODELS[wanted].name, size: formatBytes(bytes), onDisk: isSpeechModelOnDisk(wanted) },
+    wanted: { key: wanted, name: SPEECH_MODELS[wanted].name, size: formatBytes(bytes), onDisk: isSpeechModelOnDisk(wanted), broken: isSpeechModelBroken(wanted) },
     active: { key: active, name: SPEECH_MODELS[active].name },
     preparing: getPreparingSpeechModel(),
     free: freeBytes == null ? null : formatBytes(freeBytes),
@@ -1236,18 +1273,26 @@ function speechStatus() {
   };
 }
 
-function applyLanguage(lang: string, downloadCleanup: boolean): void {
+// Returns whether the speech server restarts for the new language.
+function applyLanguage(lang: string, downloadCleanup: boolean): boolean {
   const plan = cleanupPlan(lang);
   saveConfig({
     language: lang,
     cleanupDownloadDeclined: !downloadCleanup && !plan.downloaded ? plan.model : undefined,
   });
+  const wasRunning = isServerRunning();
   applySpeech();
   syncLocalLlm();
+  // Phonon-2.5 hears all of its languages, so moving between them restarts nothing.
+  if (wasRunning && isServerRunning()) {
+    sendToPages('stt:status-changed');
+    return false;
+  }
   sendToPages('stt:restarting');
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     overlayWindow.webContents.send('dictation:state', 'restarting');
   }
+  return true;
 }
 
 // The cleanup model a language would use, and what fetching it costs. The
@@ -1277,7 +1322,7 @@ function waitForAccessibility(): void {
   const timer = setInterval(() => {
     if (!isAccessibilityTrusted()) return;
     clearInterval(timer);
-    console.log('[DictateAI] Accessibility granted — starting push-to-talk');
+    console.log('[Utter] Accessibility granted — starting push-to-talk');
     stopPushToTalk();
     registerPushToTalk();
     const shortcut = loadConfig().shortcut;

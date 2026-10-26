@@ -5,6 +5,8 @@ import * as os from 'os';
 
 // User settings, persisted to ~/.dictateai/config.json (owner-only).
 
+// The folder keeps the app's first name, DictateAI, so settings, history, the
+// dictionary and downloaded models carry over to Utter.
 export const DATA_DIR = path.join(os.homedir(), '.dictateai');
 const CONFIG_PATH = path.join(DATA_DIR, 'config.json');
 
@@ -43,7 +45,7 @@ export interface Config {
   cloudTier?: 'free' | 'paid';
   localModel?: string;
   language?: string;
-  // Speech model: 'auto' (missing) picks by language; see whisper-engine.ts.
+  // Speech model: 'auto' (missing) picks by language; see speech-models.ts.
   speechModel?: 'auto' | 'fast' | 'accurate';
   // Removes fillers and repeated words without AI. On unless turned off.
   basicCleanup?: boolean;
@@ -109,7 +111,7 @@ export function getLlmProvider(): LlmProvider {
 
 export function saveApiKey(key: string): void {
   if (!safeStorage.isEncryptionAvailable()) {
-    console.error('[DictateAI] Keychain encryption unavailable — key not saved');
+    console.error('[Utter] Keychain encryption unavailable — key not saved');
     return;
   }
   saveConfig({
@@ -126,7 +128,7 @@ export function getApiKey(): string | null {
     } catch {
       // Encrypted by a different app identity (e.g. the dev build); the user
       // has to enter it again.
-      console.error('[DictateAI] Could not decrypt the saved OpenRouter key');
+      console.error('[Utter] Could not decrypt the saved OpenRouter key');
       return null;
     }
   }
@@ -148,6 +150,6 @@ export function migrateApiKey(): void {
   const plain = loadConfig().openRouterApiKey;
   if (plain && safeStorage.isEncryptionAvailable()) {
     saveApiKey(plain);
-    console.log('[DictateAI] Encrypted the saved OpenRouter key');
+    console.log('[Utter] Encrypted the saved OpenRouter key');
   }
 }

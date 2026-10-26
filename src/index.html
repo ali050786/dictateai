@@ -4,19 +4,14 @@
     <meta charset="UTF-8" />
     <!-- data: scripts: the audio worklet in renderer.ts is loaded from a data: URL -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' ws://localhost:*; base-uri 'none'; form-action 'none'; script-src 'self' data:; media-src 'self' mediastream: blob:" />
-    <title>DictateAI</title>
+    <title>Utter</title>
   </head>
-  <body>
-    <div id="flow-bar" class="flow-bar idle">
-      <div id="waveform" class="waveform">
-        <div class="bar"></div>
-        <div class="bar"></div>
-        <div class="bar"></div>
-        <div class="bar"></div>
-        <div class="bar"></div>
+  <body data-position="bottom-center">
+    <div id="pill" class="pill idle">
+      <canvas id="orb" class="orb"></canvas>
+      <div id="caption" class="caption">
+        <div id="caption-clip" class="caption-clip"><span id="caption-text" class="caption-text"></span></div>
       </div>
-      <span id="label" class="label"></span>
-      <span id="preview" class="preview"></span>
       <button id="close-btn" class="close-btn" aria-label="Stop recording">×</button>
     </div>
   </body>

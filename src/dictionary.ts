@@ -72,7 +72,7 @@ export function addCorrection(original: string, corrected: string, manual = fals
   }
 
   save(dict);
-  console.log(`[DictateAI] Dictionary learned: ${redact(original)} → ${redact(corrected)}`);
+  console.log(`[Utter] Dictionary learned: ${redact(original)} → ${redact(corrected)}`);
 }
 
 export function applyReplacements(text: string): string {
@@ -89,7 +89,7 @@ export function applyReplacements(text: string): string {
   }
 
   if (result !== text) {
-    console.log(`[DictateAI] Dictionary applied: ${redact(text)} → ${redact(result)}`);
+    console.log(`[Utter] Dictionary applied: ${redact(text)} → ${redact(result)}`);
   }
 
   return result;
@@ -109,6 +109,15 @@ export function getCorrectionsPrompt(): string {
 
   const lines = corrections.map((c) => `"${c.from}" → "${c.to}"`);
   return `\nThe user has these preferred spellings and corrections — always apply them:\n${lines.join('\n')}`;
+}
+
+// Spellings for the speech model to favour while it listens: what active
+// entries correct to, the user's own entries first, then the most used.
+export function getHotwords(): string[] {
+  const entries = load().replacements
+    .filter(isActive)
+    .sort((a, b) => Number(b.manual === true) - Number(a.manual === true) || b.count - a.count);
+  return [...new Set(entries.map((e) => e.to))];
 }
 
 export function removeCorrection(from: string): boolean {

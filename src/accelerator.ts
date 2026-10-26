@@ -270,7 +270,7 @@ export function bindingProblem(
   index: number | null,
 ): string | null {
   const target = canonicalAccelerator(accelerator);
-  if (!target) return "That isn't a shortcut DictateAI can use.";
+  if (!target) return "That isn't a shortcut Utter can use.";
   if (index === null && shortcuts[action].length >= MAX_BINDINGS) {
     return `${TRANSCRIPT_ACTION_LABELS[action]} already has ${MAX_BINDINGS} shortcuts.`;
   }

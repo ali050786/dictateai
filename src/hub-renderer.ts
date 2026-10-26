@@ -39,15 +39,19 @@ interface CleanupPlan {
   declined: boolean;
 }
 
+type SpeechModelKey = 'phonon2' | 'phonon25' | 'fast' | 'accurate';
+
 interface SpeechStatus {
   installed: boolean;
   running: boolean;
+  starting: boolean;
+  failed: boolean;
   download: ModelDownload | null;
   choice: 'auto' | 'fast' | 'accurate';
   language: string;
-  wanted: { key: 'fast' | 'accurate'; name: string; size: string; onDisk: boolean };
-  active: { key: 'fast' | 'accurate'; name: string };
-  preparing: 'fast' | 'accurate' | null;
+  wanted: { key: SpeechModelKey; name: string; size: string; onDisk: boolean; broken: boolean };
+  active: { key: SpeechModelKey; name: string };
+  preparing: SpeechModelKey | null;
   free: string | null;
   enoughSpace: boolean;
   sizes: { fast: string; accurate: string };
@@ -71,6 +75,7 @@ interface HubAPI {
     sttStatus: () => Promise<SpeechStatus>;
     setSpeechChoice: (choice: 'auto' | 'fast' | 'accurate') => Promise<boolean>;
     downloadSpeech: () => Promise<boolean>;
+    retrySpeech: () => Promise<boolean>;
     getBasicCleanup: () => Promise<boolean>;
     setBasicCleanup: (enabled: boolean) => Promise<boolean>;
     getLlmEnabled: () => Promise<boolean>;
@@ -380,6 +385,7 @@ const speechConfirmText = document.getElementById('speech-confirm-text')!;
 const btnSpeechDownload = document.getElementById('btn-speech-download') as HTMLButtonElement;
 const sttProgress = document.getElementById('stt-progress')!;
 const sttProgressFill = document.getElementById('stt-progress-fill')!;
+const btnSttRetry = document.getElementById('btn-stt-retry') as HTMLButtonElement;
 // "Not now" for a model, until the choice or language changes.
 let speechDismissed = '';
 
@@ -393,11 +399,12 @@ async function loadSttStatus(): Promise<void> {
   };
   speechSelect.value = stt.choice;
   for (const option of speechSelect.options) {
-    if (option.value === 'fast') option.textContent = `Faster · ${stt.sizes.fast}`;
-    if (option.value === 'accurate') option.textContent = `More accurate · ${stt.sizes.accurate}`;
+    if (option.value === 'fast') option.textContent = `Whisper, faster · ${stt.sizes.fast}`;
+    if (option.value === 'accurate') option.textContent = `Whisper, more accurate · ${stt.sizes.accurate}`;
   }
   sttStatus.style.color = '';
   sttProgress.hidden = true;
+  btnSttRetry.hidden = true;
 
   const downloading = stt.download || stt.preparing;
   const needsDownload = !stt.wanted.onDisk && stt.active.key !== stt.wanted.key && !stt.preparing;
@@ -405,7 +412,11 @@ async function loadSttStatus(): Promise<void> {
   speechConfirm.hidden = !(needsDownload && stt.installed && speechDismissed !== dismissKey);
   if (!speechConfirm.hidden) {
     const lang = stt.language === 'auto' ? 'Other languages' : languageName(stt.language);
-    const why = stt.wanted.key === 'accurate'
+    const why = stt.wanted.broken
+      ? `${stt.wanted.name} didn't load; its download looks incomplete. Download it again`
+      : stt.wanted.key === 'phonon2' || stt.wanted.key === 'phonon25'
+      ? `${stt.language === 'auto' ? 'Dictation' : lang} is transcribed faster and more accurately with ${stt.wanted.name}`
+      : stt.wanted.key === 'accurate'
       ? `${stt.choice === 'auto' ? `${lang} ${stt.language === 'auto' ? 'are' : 'is'} transcribed` : 'Dictation is transcribed'} much more accurately with ${stt.wanted.name}`
       : `${stt.wanted.name} is faster for English`;
     btnSpeechDownload.disabled = !stt.enoughSpace;
@@ -415,7 +426,7 @@ async function loadSttStatus(): Promise<void> {
   }
 
   if (!stt.installed) {
-    sttStatus.textContent = 'Speech engine missing — reinstall DictateAI';
+    sttStatus.textContent = 'Speech engine missing — reinstall Utter';
     sttStatus.style.color = '#dc2626';
     badge('Missing', 'red');
   } else if (downloading) {
@@ -434,11 +445,23 @@ async function loadSttStatus(): Promise<void> {
       ? `Using ${stt.active.name} until ${stt.wanted.name} is downloaded`
       : `${stt.active.name} · on your Mac`;
     badge('Ready', 'green');
+  } else if (stt.failed || !stt.starting) {
+    sttStatus.textContent = `${stt.active.name} couldn't start.`;
+    sttStatus.style.color = '#dc2626';
+    btnSttRetry.hidden = false;
+    badge('Stopped', 'red');
   } else {
     sttStatus.textContent = `${stt.active.name} — starting…`;
     badge('Starting', 'blue');
   }
 }
+
+btnSttRetry.addEventListener('click', async () => {
+  btnSttRetry.hidden = true;
+  document.getElementById('stt-status')!.textContent = 'Starting…';
+  await window.hub.config.retrySpeech();
+  loadSttStatus();
+});
 
 speechSelect.addEventListener('change', async () => {
   speechDismissed = '';
@@ -512,12 +535,16 @@ languageSelect.addEventListener('change', async () => {
   // the size, instead of starting a multi-GB download silently.
   const [plan, llm] = await Promise.all([window.hub.config.cleanupPlan(lang), window.hub.config.llmStatus()]);
   const askFirst = llmToggle.checked && llm.provider === 'local' && !plan.downloaded;
-  await window.hub.config.setLanguage(lang, !askFirst);
+  const restarting = await window.hub.config.setLanguage(lang, !askFirst);
   showLanguageConfirm(askFirst ? { lang, plan } : null);
+  if (!restarting) {
+    loadSttStatus();
+    return;
+  }
   languageSelect.disabled = true;
   const sttStatus = document.getElementById('stt-status')!;
   const sttBadge = document.getElementById('stt-badge')!;
-  sttStatus.textContent = 'WhisperKit — restarting for new language…';
+  sttStatus.textContent = 'Speech model — restarting for new language…';
   sttBadge.textContent = 'Restarting';
   sttBadge.className = 'badge badge-yellow';
 });
@@ -525,7 +552,7 @@ languageSelect.addEventListener('change', async () => {
 window.hub.onSttRestarting(() => {
   const sttStatus = document.getElementById('stt-status')!;
   const sttBadge = document.getElementById('stt-badge')!;
-  sttStatus.textContent = 'WhisperKit — restarting…';
+  sttStatus.textContent = 'Speech model — restarting…';
   sttBadge.textContent = 'Restarting';
   sttBadge.className = 'badge badge-yellow';
   languageSelect.disabled = true;
@@ -655,7 +682,7 @@ async function loadLlmStatus(): Promise<void> {
     llmModelName.textContent = status.cloudModel;
     if (document.activeElement !== cloudModelInput) cloudModelInput.value = status.cloudModel;
   } else if (!status.mlxInstalled) {
-    llmProviderDesc.textContent = 'Cleanup engine missing — reinstall DictateAI';
+    llmProviderDesc.textContent = 'Cleanup engine missing — reinstall Utter';
     llmProviderDesc.style.color = '#dc2626';
     llmModelName.textContent = '';
   } else {

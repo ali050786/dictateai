@@ -2,8 +2,9 @@
 # Puts the speech and cleanup engines in engines/ so the app ships them and
 # users install nothing else.
 #   engines/bin/whisperkit-cli: copied from Homebrew (links only macOS libraries)
-#   engines/python:             a standalone Python with mlx-lm installed, run
-#                               as `python3 -m mlx_lm server`
+#   engines/python:             a standalone Python with mlx-lm, run as
+#                               `python3 -m mlx_lm server`, and Phonon
+#                               (fermion-research), run as `python3 -m fermion.cli serve`
 # MLX stays the cleanup engine: on the same prompts llama.cpp was 1.5-2x slower
 # for non-English dictation and its 3B model garbled Hindi.
 set -euo pipefail
@@ -12,6 +13,8 @@ cd "$(dirname "$0")/.."
 PYTHON_VERSION=3.11
 MLX_LM_VERSION=0.32.2
 MLX_VERSION=0.32.4
+FERMION_VERSION=0.2.15
+MLX_AUDIO_VERSION=0.6.1
 OUT=engines/bin
 PY=engines/python
 mkdir -p "$OUT"
@@ -32,6 +35,16 @@ if [ ! -x "$PY/bin/python3" ]; then
   # codesign rejects the symlinks in bin/, and the app needs only the interpreter.
   mv "$PY/bin/python$PYTHON_VERSION" "$PY/python3"
   rm -rf "$PY/bin" && mkdir "$PY/bin" && mv "$PY/python3" "$PY/bin/python3"
+fi
+
+# Phonon speech recognition, on MLX like the cleanup model. fermion-research
+# requires PyTorch for its CPU engine on other platforms; on Apple silicon it
+# never imports it, so it's left out (about 530 MB).
+if [ ! -d "$PY/lib/python$PYTHON_VERSION/site-packages/fermion" ]; then
+  uv pip install --quiet --compile-bytecode --python "$PY/bin/python3" --break-system-packages --no-deps \
+    "fermion-research==$FERMION_VERSION"
+  uv pip install --quiet --compile-bytecode --python "$PY/bin/python3" --break-system-packages \
+    "mlx-audio==$MLX_AUDIO_VERSION" "mlx==$MLX_VERSION" soundfile scipy zstandard safetensors
 fi
 
 if [ ! -x "$OUT/whisperkit-cli" ]; then

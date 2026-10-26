@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('hub', {
     sttStatus: () => ipcRenderer.invoke('config:sttStatus'),
     setSpeechChoice: (choice: string) => ipcRenderer.invoke('config:setSpeechChoice', choice),
     downloadSpeech: () => ipcRenderer.invoke('config:downloadSpeech'),
+    retrySpeech: () => ipcRenderer.invoke('config:retrySpeech'),
     getBasicCleanup: () => ipcRenderer.invoke('config:getBasicCleanup'),
     setBasicCleanup: (enabled: boolean) => ipcRenderer.invoke('config:setBasicCleanup', enabled),
     getLlmEnabled: () => ipcRenderer.invoke('config:getLlmEnabled'),

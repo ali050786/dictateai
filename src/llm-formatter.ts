@@ -56,7 +56,7 @@ function getCloudClient(): OpenAI | null {
     // Retrying a 429 only delays the local fallback by several seconds.
     maxRetries: 0,
     defaultHeaders: {
-      'X-Title': 'DictateAI',
+      'X-Title': 'Utter',
     },
   });
 }
@@ -132,19 +132,19 @@ export async function formatText(
         const formatted = await complete(cloud, model, systemPrompt, rawText);
         const problem = checkCleanup(rawText, formatted);
         if (!problem) {
-          console.log(`[DictateAI] LLM formatted (${mode}, ${model}): ${redact(formatted)}`);
+          console.log(`[Utter] LLM formatted (${mode}, ${model}): ${redact(formatted)}`);
           return { text: formatted, location: 'cloud', cleaned: true };
         }
         fallback = 'rejected';
-        console.log(`[DictateAI] Cloud result rejected (${problem}): ${redact(formatted)}`);
+        console.log(`[Utter] Cloud result rejected (${problem}): ${redact(formatted)}`);
       } catch (err) {
         if (isRateLimited(err)) {
           cloudPausedUntil = Date.now() + CLOUD_PAUSE_MS;
           fallback = 'rate-limited';
-          console.log('[DictateAI] Cloud rate-limited — using local LLM for the next 15 minutes');
+          console.log('[Utter] Cloud rate-limited — using local LLM for the next 15 minutes');
         } else {
           fallback = 'cloud-error';
-          console.error('[DictateAI] Cloud formatting failed:', err);
+          console.error('[Utter] Cloud formatting failed:', err);
         }
       }
     }
@@ -155,7 +155,7 @@ export async function formatText(
 
   const local = getLocalClient();
   if (!local) {
-    console.log('[DictateAI] Local LLM not ready — returning raw text');
+    console.log('[Utter] Local LLM not ready — returning raw text');
     return raw();
   }
 
@@ -163,12 +163,12 @@ export async function formatText(
     const formatted = await complete(local, getLocalModel(), systemPrompt, rawText);
     const problem = checkCleanup(rawText, formatted);
     if (!problem) {
-      console.log(`[DictateAI] LLM formatted (${mode}, local): ${redact(formatted)}`);
+      console.log(`[Utter] LLM formatted (${mode}, local): ${redact(formatted)}`);
       return { text: formatted, location: 'local', cleaned: true, fallback };
     }
-    console.log(`[DictateAI] Local result rejected (${problem}): ${redact(formatted)} — returning raw text`);
+    console.log(`[Utter] Local result rejected (${problem}): ${redact(formatted)} — returning raw text`);
   } catch (err) {
-    console.error('[DictateAI] Local formatting failed:', err);
+    console.error('[Utter] Local formatting failed:', err);
   }
 
   return raw();

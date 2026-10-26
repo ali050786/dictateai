@@ -4,190 +4,131 @@
   box-sizing: border-box;
 }
 
+/* The window is transparent and ignores the mouse; only the orb
+   and the caption are drawn. data-position (main.ts) puts them against the
+   screen edge the window sits on. */
 body {
   background: transparent;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
   -webkit-app-region: no-drag;
   overflow: hidden;
   display: flex;
-  justify-content: center;
-  align-items: flex-end;
   height: 100vh;
-  padding-bottom: 8px;
+  /* Room for the orb's halo, which reaches past the orb. */
+  padding: 8px;
 }
 
-.flow-bar {
+body[data-position^='bottom'] { align-items: flex-end; }
+body[data-position^='top'] { align-items: flex-start; }
+body[data-position$='left'] { justify-content: flex-start; }
+body[data-position$='center'] { justify-content: center; }
+body[data-position$='right'] { justify-content: flex-end; }
+
+.pill {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border-radius: 20px;
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow:
-    0 4px 20px rgba(0, 0, 0, 0.35),
-    0 0 0 0.5px rgba(255, 255, 255, 0.08) inset;
+  transition:
+    opacity 0.25s ease,
+    transform 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.25);
+  transform-origin: 26px 50%;
 }
 
-/* Idle: hidden */
-.flow-bar.idle {
+/* On the right of the screen the orb sits on the outside edge and the
+   words grow towards the middle. */
+body[data-position$='right'] .pill {
+  flex-direction: row-reverse;
+  transform-origin: calc(100% - 26px) 50%;
+}
+
+.pill.idle {
   opacity: 0;
-  transform: translateY(12px) scale(0.92);
+  transform: scale(0.5);
   pointer-events: none;
-  width: 48px;
-  height: 36px;
-  background: rgba(30, 30, 30, 0.85);
 }
 
-/* Recording: compact dark pill with waveform */
-.flow-bar.recording {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  width: 140px;
-  height: 36px;
-  padding: 0 14px;
-  background: rgba(20, 20, 22, 0.92);
+/* The canvas has room around the orb (about 40px) for its halo and ring. */
+.orb {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  margin: -6px;
 }
 
-/* Processing: compact pill with label */
-.flow-bar.processing {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  width: 120px;
-  height: 34px;
-  padding: 0 14px;
-  background: rgba(20, 20, 22, 0.92);
-}
-
-/* Downloading: wider for text */
-.flow-bar.downloading {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  width: 160px;
-  height: 34px;
-  padding: 0 14px;
-  background: rgba(20, 20, 22, 0.92);
-}
-
-/* Error / empty: brief red-tinted pill */
-.flow-bar.error {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  width: 160px;
-  height: 34px;
-  padding: 0 14px;
-  background: rgba(40, 16, 16, 0.92);
-  box-shadow:
-    0 4px 20px rgba(0, 0, 0, 0.35),
-    0 0 0 0.5px rgba(220, 38, 38, 0.25) inset;
-}
-
-.flow-bar.error .label {
-  color: rgba(252, 165, 165, 0.95);
-}
-
-.flow-bar.error .waveform {
+/* --- Caption: the live transcript, or a short status, in a flat chat
+   bubble. While listening before any words arrive the orb is alone, its
+   wave showing the voice. Solid near-black, so white text reads over any
+   window; a hairline edge keeps it visible on dark ones. --- */
+.caption {
   display: none;
-}
-
-/* Notice: "No text field. Press ⌃⌘V to paste it.", "Copied". Sized to the text. */
-.flow-bar.notice {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  width: auto;
-  max-width: 236px;
-  height: 34px;
-  padding: 0 14px;
-  background: rgba(20, 20, 22, 0.92);
-}
-
-.flow-bar.notice .waveform {
-  display: none;
-}
-
-/* --- Waveform bars --- */
-.waveform {
-  display: flex;
   align-items: center;
-  gap: 2px;
-  height: 20px;
-}
-
-.flow-bar.idle .waveform,
-.flow-bar.processing .waveform,
-.flow-bar.downloading .waveform {
-  display: none;
-}
-
-.waveform .bar {
-  width: 2.5px;
-  border-radius: 1.5px;
-  background: #fff;
-  transition: height 0.08s ease-out;
-  min-height: 3px;
-  height: 3px;
-}
-
-/* Idle animation for bars when recording but silent */
-.flow-bar.recording .waveform .bar {
-  animation: idle-pulse 1.2s ease-in-out infinite;
-}
-
-.flow-bar.recording .waveform .bar:nth-child(1) { animation-delay: 0s; }
-.flow-bar.recording .waveform .bar:nth-child(2) { animation-delay: 0.15s; }
-.flow-bar.recording .waveform .bar:nth-child(3) { animation-delay: 0.3s; }
-.flow-bar.recording .waveform .bar:nth-child(4) { animation-delay: 0.45s; }
-.flow-bar.recording .waveform .bar:nth-child(5) { animation-delay: 0.6s; }
-
-@keyframes idle-pulse {
-  0%, 100% { height: 3px; opacity: 0.5; }
-  50% { height: 8px; opacity: 0.8; }
-}
-
-/* When audio levels are being set via JS, disable the CSS animation */
-.flow-bar.recording.has-audio .waveform .bar {
-  animation: none;
-}
-
-/* --- Label --- */
-.label {
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.flow-bar.idle .label {
-  display: none;
-}
-
-/* --- Preview text --- */
-.preview {
-  font-size: 10px;
-  font-weight: 400;
-  color: rgba(255, 255, 255, 0.65);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 200px;
-  display: none;
-}
-
-.flow-bar.recording .preview:not(:empty) {
-  display: inline;
-}
-
-.flow-bar.recording .preview:not(:empty) ~ .label {
-  display: none;
-}
-
-.flow-bar.recording.has-preview {
-  width: auto;
-  min-width: 140px;
-  max-width: 320px;
+  height: 34px;
+  max-width: 318px;
   padding: 0 14px;
+  border-radius: 12px;
+  background: #111;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  animation: caption-in 0.25s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+/* Problems get the orange bubble. */
+.pill.alert .caption {
+  background: #e24402;
+  border-color: #e24402;
+}
+
+.pill.has-caption .caption {
+  display: flex;
+}
+
+@keyframes caption-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: none; }
+}
+
+body[data-position$='right'] .caption {
+  animation-name: caption-in-left;
+}
+
+@keyframes caption-in-left {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Long dictations: pill-view.ts drops words from the start behind an
+   ellipsis so the newest ones show. */
+.caption-clip {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.caption-text {
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  color: #fff;
+}
+
+/* Status lines are quieter than your words. */
+.pill:not(.has-transcript) .caption-text {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+/* Transcribing and formatting: the words pulse until the text is in. */
+.pill.thinking .caption-text {
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% { opacity: 0.45; }
+}
+
+.pill.done .caption-text {
+  color: #a6fb88;
+}
+
+.pill.alert .caption-text {
+  color: #fff;
 }
 
 /* --- Close button (hands-free only) --- */
@@ -195,45 +136,27 @@ body {
   display: none;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
-  border: none;
+  width: 20px;
+  height: 20px;
+  margin: 0 4px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 11px;
+  background: #111;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
   line-height: 1;
   cursor: pointer;
   padding: 0;
-  margin-left: 2px;
   flex-shrink: 0;
   transition: background 0.15s ease;
 }
 
 .close-btn:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: #e24402;
+  border-color: #e24402;
   color: #fff;
 }
 
-.flow-bar.recording.handsfree .close-btn {
+.pill.recording.handsfree .close-btn {
   display: flex;
-}
-
-/* Processing spinner dot */
-.flow-bar.processing .label::before,
-.flow-bar.downloading .label::before {
-  content: '';
-  display: inline-block;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.7);
-  margin-right: 6px;
-  vertical-align: middle;
-  animation: dot-pulse 1s ease-in-out infinite;
-}
-
-@keyframes dot-pulse {
-  0%, 100% { opacity: 0.4; transform: scale(0.8); }
-  50% { opacity: 1; transform: scale(1.2); }
 }

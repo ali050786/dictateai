@@ -1,5 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <!-- DictateAI: a speech bubble holding a sound wave that settles into a line of text and ends at a cursor. Flat: two colours plus one accent. -->
-  <rect x="100" y="100" width="824" height="824" rx="185" fill="#15171d"/>
-  <g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M372 262h280a120 120 0 0 1 120 120v196a120 120 0 0 1-120 120H452l-112 92a14 14 0 0 1-22-13l14-91a120 120 0 0 1-80-108V382a120 120 0 0 1 120-120z" stroke="#ffffff" stroke-width="30"/><path d="M330 480C347 405 370 405 387 480S427 555 444 480S479 438 494 480S523 506 538 480H606" stroke="#ffffff" stroke-width="32"/><path d="M676 392v176" stroke="#ff6f61" stroke-width="32"/></g>
+  <!-- Utter: the orb from the dictation pill, flat: a black disc holding one white voice wave, on the brand blue. -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#0045F9"/>
+  <circle cx="512" cy="512" r="262" fill="#111111"/>
+  <path d="M349.6 512.4 L354.6 511.6 L359.7 510.4 L364.8 508.8 L369.9 506.7 L374.9 504.0 L380.0 500.9 L385.1 497.4 L390.2 493.7 L395.2 490.1 L400.3 487.0 L405.4 484.9 L410.5 484.5 L415.6 486.3 L420.6 490.7 L425.7 498.1 L430.8 508.5 L435.9 521.4 L440.9 536.0 L446.0 551.5 L451.1 566.7 L456.2 580.4 L461.2 591.6 L466.3 599.4 L471.4 603.4 L476.5 603.3 L481.5 599.0 L486.6 591.0 L491.7 579.5 L496.8 565.2 L501.8 548.7 L506.9 530.7 L512.0 512.0 L517.1 493.3 L522.2 475.3 L527.2 458.8 L532.3 444.5 L537.4 433.0 L542.5 425.0 L547.5 420.7 L552.6 420.6 L557.7 424.6 L562.8 432.4 L567.8 443.6 L572.9 457.3 L578.0 472.5 L583.1 488.0 L588.1 502.6 L593.2 515.5 L598.3 525.9 L603.4 533.3 L608.4 537.7 L613.5 539.5 L618.6 539.1 L623.7 537.0 L628.8 533.9 L633.8 530.3 L638.9 526.6 L644.0 523.1 L649.1 520.0 L654.1 517.3 L659.2 515.2 L664.3 513.6 L669.4 512.4 L674.4 511.6" fill="none" stroke="#FFFFFF" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
