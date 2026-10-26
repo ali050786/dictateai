@@ -13,13 +13,13 @@ Apple Silicon only.
 3. It lives in the menu bar (🎙), not the Dock. Allow **Accessibility** when macOS asks (System Settings → Privacy & Security → Accessibility → DictateAI). The dictation key starts working as soon as you allow it.
 4. Allow the **Microphone** the first time you dictate.
 
-Nothing else to install: the speech engine (WhisperKit) and the cleanup engine (a standalone Python with mlx-lm) ship inside the app. The first run downloads the models, with progress shown in Settings: about 490 MB for speech, and 1.7 GB (English) or 4.3 GB (other languages) for cleanup.
+Nothing else to install: the speech engines (Phonon and WhisperKit) and the cleanup engine (mlx-lm) ship inside the app. The first run downloads the models, with progress shown in Settings: about 160 MB for speech (646 MB if you dictate in a language Phonon doesn't cover, such as Hindi), and 1.7 GB (English) or 4.3 GB (other languages) for cleanup.
 
 After rebuilding and reinstalling, macOS may ask for Accessibility again.
 
 ## Build
 
-Building needs Homebrew's `whisperkit-cli` (copied into the app) and [uv](https://docs.astral.sh/uv/) (fetches the bundled Python):
+Building needs Homebrew's `whisperkit-cli` (copied into the app) and [uv](https://docs.astral.sh/uv/) (fetches the bundled Python, with mlx-lm and Phonon's `fermion-research`, minus the PyTorch it only needs on other platforms):
 
 ```bash
 brew install whisperkit-cli
@@ -40,6 +40,20 @@ npm install && npm run make
 - A soft tone plays when dictation starts and stops (Settings → Play sounds). Settings can also open DictateAI when you log in.
 
 Settings, history and your dictionary are in the app window: click the menu-bar icon → Open DictateAI. Data is kept in `~/.dictateai` (readable only by you).
+
+## Speech models
+
+Settings → Speech model → **Automatic** picks by your dictation language:
+
+| Language | Model | Download |
+|---|---|---|
+| English | Phonon-2 | 158 MB |
+| Auto-detect, and 24 other European languages (French, German, Spanish, Russian, Ukrainian…) | Phonon-2.5 | 156 MB |
+| Everything else (Hindi, Arabic, Japanese, Chinese…) | Whisper Large v3 Turbo | 646 MB |
+
+Phonon transcribes 7.6 seconds of speech in about 0.15 s on an M-series Mac, and the words in your dictionary are passed to it as hotwords, so it favours your spellings of names and terms. Auto-detect only hears Phonon-2.5's languages; to dictate in Hindi, choose Hindi. Settings can also run Whisper (Small or Large v3 Turbo) for every language.
+
+Phonon-2 and Phonon-2.5 are by [Fermion Research](https://www.fermionresearch.com/models/phonon-2/), derived from NVIDIA's Parakeet TDT 0.6B v3, and released under CC-BY-4.0. They run through the `fermion-research` package (Apache 2.0).
 
 ## Develop
 

@@ -120,7 +120,7 @@
             <div class="modal-content">
               <h3 id="modal-title">Add new word</h3>
               <div class="form-group">
-                <label for="dict-from">Whisper hears</label>
+                <label for="dict-from">DictateAI hears</label>
                 <input type="text" id="dict-from" placeholder="e.g. bee mad" />
               </div>
               <div class="form-group">
@@ -314,7 +314,7 @@
               <div class="setting-row">
                 <div class="setting-info">
                   <span class="setting-label">Dictation Language</span>
-                  <span class="setting-desc">Language Whisper listens for</span>
+                  <span class="setting-desc">Auto-detect hears English and 24 other European languages. Choose others, like Hindi, here.</span>
                 </div>
                 <select id="language-select" class="setting-select">
                   <option value="auto">Auto-detect</option>
@@ -367,8 +367,8 @@
                 </div>
                 <select id="speech-select" class="setting-select" aria-label="Speech model">
                   <option value="auto">Automatic (recommended)</option>
-                  <option value="fast">Faster</option>
-                  <option value="accurate">More accurate</option>
+                  <option value="fast">Whisper, faster</option>
+                  <option value="accurate">Whisper, more accurate</option>
                 </select>
               </div>
               <aside class="setting-confirm" id="speech-confirm" hidden>

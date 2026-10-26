@@ -43,7 +43,7 @@ export interface Config {
   cloudTier?: 'free' | 'paid';
   localModel?: string;
   language?: string;
-  // Speech model: 'auto' (missing) picks by language; see whisper-engine.ts.
+  // Speech model: 'auto' (missing) picks by language; see speech-models.ts.
   speechModel?: 'auto' | 'fast' | 'accurate';
   // Removes fillers and repeated words without AI. On unless turned off.
   basicCleanup?: boolean;

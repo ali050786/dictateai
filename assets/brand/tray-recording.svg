@@ -1,6 +1,5 @@
-<!-- Menu-bar template while recording: the bubble fills in, with the wave cut out. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-  <defs><mask id="cut"><rect width="24" height="24" fill="#fff"/>
-    <g fill="none" stroke="#000" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5.8 10.5c.65-2.9 1.55-2.9 2.2 0s1.55 2.9 2.2 0c.5-1.6 1.1-1.6 1.6 0H13.6"/><path d="M17 7.4v6.2"/></g></mask></defs>
-  <path d="M6.5 3.5h11a4.5 4.5 0 0 1 4.5 4.5v5a4.5 4.5 0 0 1-4.5 4.5H10.2l-4.4 3.7a.5.5 0 0 1-.8-.46l.55-3.3A4.5 4.5 0 0 1 2 13V8a4.5 4.5 0 0 1 4.5-4.5z" fill="#000" stroke="#000" stroke-width="1.9" stroke-linejoin="round" mask="url(#cut)"/>
+  <!-- Menu-bar template while recording: the orb fills in, with the wave cut out. -->
+  <defs><mask id="cut"><rect width="24" height="24" fill="#fff"/><path d="M6.5 12.02 L6.78 11.96 L7.05 11.85 L7.33 11.69 L7.6 11.49 L7.88 11.24 L8.15 11.01 L8.43 10.87 L8.7 10.91 L8.97 11.23 L9.25 11.85 L9.53 12.74 L9.8 13.76 L10.07 14.72 L10.35 15.44 L10.62 15.78 L10.9 15.69 L11.18 15.18 L11.45 14.33 L11.72 13.23 L12.0 12.0 L12.28 10.77 L12.55 9.67 L12.82 8.82 L13.1 8.31 L13.38 8.22 L13.65 8.56 L13.93 9.28 L14.2 10.24 L14.47 11.26 L14.75 12.15 L15.03 12.77 L15.3 13.09 L15.57 13.13 L15.85 12.99 L16.12 12.76 L16.4 12.51 L16.68 12.31 L16.95 12.15 L17.23 12.04 L17.5 11.98" fill="none" stroke="#000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></mask></defs>
+  <circle cx="12" cy="12" r="9.45" fill="#000" mask="url(#cut)"/>
 </svg>

@@ -111,6 +111,15 @@ export function getCorrectionsPrompt(): string {
   return `\nThe user has these preferred spellings and corrections — always apply them:\n${lines.join('\n')}`;
 }
 
+// Spellings for the speech model to favour while it listens: what active
+// entries correct to, the user's own entries first, then the most used.
+export function getHotwords(): string[] {
+  const entries = load().replacements
+    .filter(isActive)
+    .sort((a, b) => Number(b.manual === true) - Number(a.manual === true) || b.count - a.count);
+  return [...new Set(entries.map((e) => e.to))];
+}
+
 export function removeCorrection(from: string): boolean {
   const dict = load();
   const idx = dict.replacements.findIndex(
