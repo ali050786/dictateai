@@ -98,7 +98,7 @@ async function playCue(name: 'start' | 'stop'): Promise<void> {
   };
 }
 
-loadCues().catch((err) => console.error('[DictateAI] Could not load sounds:', err));
+loadCues().catch((err) => console.error('[Utter] Could not load sounds:', err));
 
 function updateUI(fullState: string): void {
   const state = view.setState(fullState);
@@ -274,7 +274,7 @@ async function startAudioCapture(fresh: boolean): Promise<void> {
 
     mediaStream.getAudioTracks().forEach(track => {
       track.addEventListener('ended', () => {
-        console.warn('[DictateAI] Audio track ended unexpectedly — attempting recovery');
+        console.warn('[Utter] Audio track ended unexpectedly — attempting recovery');
         if (currentState === 'recording') {
           attemptAudioRecovery();
         }
@@ -297,7 +297,7 @@ async function startAudioCapture(fresh: boolean): Promise<void> {
 
     view.setLevelSource(micLevel, micBands);
   } catch (err) {
-    console.error('[DictateAI] Audio capture failed:', err);
+    console.error('[Utter] Audio capture failed:', err);
     if (generation === captureGeneration && currentState === 'recording') {
       attemptAudioRecovery();
     }
@@ -305,7 +305,7 @@ async function startAudioCapture(fresh: boolean): Promise<void> {
 }
 
 async function attemptAudioRecovery(): Promise<void> {
-  console.log('[DictateAI] Attempting audio recovery…');
+  console.log('[Utter] Attempting audio recovery…');
   stopAudioCapture();
   const generation = captureGeneration;
 
@@ -316,16 +316,16 @@ async function attemptAudioRecovery(): Promise<void> {
     if (generation !== captureGeneration) return;
     try {
       await startAudioCapture(false);
-      console.log('[DictateAI] Audio recovered');
+      console.log('[Utter] Audio recovered');
       return;
     } catch {
       retries--;
-      console.warn(`[DictateAI] Recovery attempt failed, ${retries} left`);
+      console.warn(`[Utter] Recovery attempt failed, ${retries} left`);
     }
   }
 
   if (currentState === 'recording') {
-    console.error('[DictateAI] Audio recovery failed — stopping recording');
+    console.error('[Utter] Audio recovery failed — stopping recording');
     window.dictateAI.stopRecording();
   }
 }
@@ -364,7 +364,7 @@ window.dictateAI.onCapture((command, session) => {
 });
 
 window.dictateAI.onCue((cue) => {
-  playCue(cue).catch((err) => console.error('[DictateAI] Sound failed:', err));
+  playCue(cue).catch((err) => console.error('[Utter] Sound failed:', err));
 });
 
 window.dictateAI.onStateChange(updateUI);
@@ -392,11 +392,11 @@ window.dictateAI.getAudioDevice().then(id => {
 
 window.dictateAI.onAudioDeviceChanged((deviceId) => {
   selectedDeviceId = deviceId || '';
-  console.log(`[DictateAI] Audio device updated: ${selectedDeviceId || 'system default'}`);
+  console.log(`[Utter] Audio device updated: ${selectedDeviceId || 'system default'}`);
 });
 
 navigator.mediaDevices.addEventListener('devicechange', async () => {
-  console.log('[DictateAI] Audio devices changed');
+  console.log('[Utter] Audio devices changed');
   if (currentState === 'recording' && mediaStream) {
     const tracks = mediaStream.getAudioTracks();
     const allEnded = tracks.every(t => t.readyState === 'ended');

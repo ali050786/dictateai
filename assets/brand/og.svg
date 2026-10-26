@@ -2,7 +2,7 @@
   <rect width="1200" height="630" fill="#0045F9"/>
   <circle cx="250" cy="315" r="150" fill="#111111"/>
   <path d="M157.0 315.3 L159.9 314.8 L162.8 314.1 L165.7 313.2 L168.6 312.0 L171.5 310.4 L174.4 308.7 L177.3 306.6 L180.2 304.5 L183.2 302.4 L186.1 300.7 L189.0 299.5 L191.9 299.2 L194.8 300.3 L197.7 302.8 L200.6 307.1 L203.5 313.0 L206.4 320.4 L209.3 328.8 L212.2 337.6 L215.1 346.3 L218.0 354.2 L220.9 360.6 L223.8 365.1 L226.8 367.3 L229.7 367.3 L232.6 364.8 L235.5 360.2 L238.4 353.7 L241.3 345.5 L244.2 336.0 L247.1 325.7 L250.0 315.0 L252.9 304.3 L255.8 294.0 L258.7 284.5 L261.6 276.3 L264.5 269.8 L267.4 265.2 L270.3 262.7 L273.2 262.7 L276.2 264.9 L279.1 269.4 L282.0 275.8 L284.9 283.7 L287.8 292.4 L290.7 301.2 L293.6 309.6 L296.5 317.0 L299.4 322.9 L302.3 327.2 L305.2 329.7 L308.1 330.8 L311.0 330.5 L313.9 329.3 L316.8 327.6 L319.8 325.5 L322.7 323.4 L325.6 321.3 L328.5 319.6 L331.4 318.0 L334.3 316.8 L337.2 315.9 L340.1 315.2 L343.0 314.7" fill="none" stroke="#FFFFFF" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="470" y="262" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="92" font-weight="700" fill="#FFFFFF" letter-spacing="-3">DictateAI</text>
+  <text x="470" y="262" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="92" font-weight="700" fill="#FFFFFF" letter-spacing="-3">Utter</text>
   <text x="472" y="340" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="37" font-weight="500" fill="#FFFFFF">Hold a key and talk. Your Mac types it.</text>
   <text x="472" y="404" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="26" fill="#FFFFFF" fill-opacity="0.72">Private · Works offline · Free and open source</text>
 </svg>

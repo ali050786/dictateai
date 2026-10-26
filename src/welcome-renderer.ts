@@ -121,7 +121,7 @@ function renderSpeech(s: WelcomeStatus): void {
   $('speech-progress').hidden = ready || failed;
   $('speech-error').hidden = !failed;
   if (!speech.installed) {
-    $('speech-error').querySelector('p')!.textContent = 'The speech engine is missing. Reinstall DictateAI.';
+    $('speech-error').querySelector('p')!.textContent = 'The speech engine is missing. Reinstall Utter.';
     $('btn-retry-speech').hidden = true;
   }
 

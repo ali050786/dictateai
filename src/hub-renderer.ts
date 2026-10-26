@@ -426,7 +426,7 @@ async function loadSttStatus(): Promise<void> {
   }
 
   if (!stt.installed) {
-    sttStatus.textContent = 'Speech engine missing — reinstall DictateAI';
+    sttStatus.textContent = 'Speech engine missing — reinstall Utter';
     sttStatus.style.color = '#dc2626';
     badge('Missing', 'red');
   } else if (downloading) {
@@ -682,7 +682,7 @@ async function loadLlmStatus(): Promise<void> {
     llmModelName.textContent = status.cloudModel;
     if (document.activeElement !== cloudModelInput) cloudModelInput.value = status.cloudModel;
   } else if (!status.mlxInstalled) {
-    llmProviderDesc.textContent = 'Cleanup engine missing — reinstall DictateAI';
+    llmProviderDesc.textContent = 'Cleanup engine missing — reinstall Utter';
     llmProviderDesc.style.color = '#dc2626';
     llmModelName.textContent = '';
   } else {

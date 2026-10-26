@@ -1,5 +1,7 @@
-// The newest DictateAI release on GitHub and its Mac disk image. Files
+// The newest Utter release on GitHub and its Mac disk image. Files
 // starting with _ aren't routes on Vercel; download.js and latest.js share it.
+// Change this if the GitHub repository is renamed (GitHub redirects the old
+// name meanwhile).
 const REPO = 'ali050786/dictateai';
 const RELEASES_PAGE = `https://github.com/${REPO}/releases/latest`;
 
@@ -7,7 +9,7 @@ async function latestDmg() {
   const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
     headers: {
       Accept: 'application/vnd.github+json',
-      'User-Agent': 'dictateai-site',
+      'User-Agent': 'utter-site',
       // Optional: without it GitHub allows 60 lookups an hour, plenty with
       // the CDN caching each answer for 10 minutes.
       ...(process.env.GITHUB_TOKEN ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {}),

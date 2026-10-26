@@ -72,7 +72,7 @@ export function addCorrection(original: string, corrected: string, manual = fals
   }
 
   save(dict);
-  console.log(`[DictateAI] Dictionary learned: ${redact(original)} → ${redact(corrected)}`);
+  console.log(`[Utter] Dictionary learned: ${redact(original)} → ${redact(corrected)}`);
 }
 
 export function applyReplacements(text: string): string {
@@ -89,7 +89,7 @@ export function applyReplacements(text: string): string {
   }
 
   if (result !== text) {
-    console.log(`[DictateAI] Dictionary applied: ${redact(text)} → ${redact(result)}`);
+    console.log(`[Utter] Dictionary applied: ${redact(text)} → ${redact(result)}`);
   }
 
   return result;

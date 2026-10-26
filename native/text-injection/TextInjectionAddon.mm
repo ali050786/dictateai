@@ -296,7 +296,7 @@ static Napi::Value StartPushToTalk(const Napi::CallbackInfo& info) {
       );
 
       if (!pttEventTap) {
-        NSLog(@"[DictateAI] Failed to create event tap — check Accessibility permission");
+        NSLog(@"[Utter] Failed to create event tap — check Accessibility permission");
         pttRunning = false;
         return;
       }
@@ -305,7 +305,7 @@ static Napi::Value StartPushToTalk(const Napi::CallbackInfo& info) {
       CFRunLoopAddSource(CFRunLoopGetCurrent(), pttRunLoopSource, kCFRunLoopCommonModes);
       CGEventTapEnable(pttEventTap, true);
 
-      NSLog(@"[DictateAI] Push-to-talk monitor started");
+      NSLog(@"[Utter] Push-to-talk monitor started");
 
       while (pttRunning) {
         CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.25, false);
@@ -318,7 +318,7 @@ static Napi::Value StartPushToTalk(const Napi::CallbackInfo& info) {
       pttRunLoopSource = nullptr;
       pttEventTap = nullptr;
 
-      NSLog(@"[DictateAI] Push-to-talk monitor stopped");
+      NSLog(@"[Utter] Push-to-talk monitor stopped");
     }
   });
 
@@ -355,7 +355,7 @@ static Napi::Value SetPttKey(const Napi::CallbackInfo& info) {
   pttRequiredModifiers = info.Length() > 3 ? (CGEventFlags)info[3].As<Napi::Number>().Int64Value() : 0;
   pttKeyDown = false;
 
-  NSLog(@"[DictateAI] PTT key updated: keyCode=%d flagMask=0x%llx isModifier=%d reqMods=0x%llx",
+  NSLog(@"[Utter] PTT key updated: keyCode=%d flagMask=0x%llx isModifier=%d reqMods=0x%llx",
         pttKeyCode, (unsigned long long)pttFlagMask, pttIsModifierKey, (unsigned long long)pttRequiredModifiers);
 
   return Napi::Boolean::New(env, true);
@@ -395,7 +395,7 @@ static Napi::Value GetTextCursorPosition(const Napi::CallbackInfo& info) {
   CFRelease(systemWide);
 
   if (err != kAXErrorSuccess || !focusedElement) {
-    NSLog(@"[DictateAI] GetTextCursorPosition: no focused element (err=%d)", (int)err);
+    NSLog(@"[Utter] GetTextCursorPosition: no focused element (err=%d)", (int)err);
     return result;
   }
 
@@ -405,7 +405,7 @@ static Napi::Value GetTextCursorPosition(const Napi::CallbackInfo& info) {
   pid_t pid = 0;
   AXUIElementGetPid(focusedElement, &pid);
   NSRunningApplication* app = [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
-  NSLog(@"[DictateAI] GetTextCursorPosition: focused=%@ app=%@ role=%@",
+  NSLog(@"[Utter] GetTextCursorPosition: focused=%@ app=%@ role=%@",
         focusedElement, app.localizedName ?: @"unknown",
         role ? (__bridge NSString*)role : @"unknown");
   if (role) CFRelease(role);
@@ -414,11 +414,11 @@ static Napi::Value GetTextCursorPosition(const Napi::CallbackInfo& info) {
   // at or just before the cursor (a zero-length range often returns degenerate rects)
   CFTypeRef selectedRange = nullptr;
   err = AXUIElementCopyAttributeValue(focusedElement, kAXSelectedTextRangeAttribute, &selectedRange);
-  NSLog(@"[DictateAI] GetTextCursorPosition: selectedTextRange err=%d", (int)err);
+  NSLog(@"[Utter] GetTextCursorPosition: selectedTextRange err=%d", (int)err);
   if (err == kAXErrorSuccess && selectedRange) {
     CFRange range;
     if (AXValueGetValue((AXValueRef)selectedRange, (AXValueType)kAXValueCFRangeType, &range)) {
-      NSLog(@"[DictateAI] GetTextCursorPosition: cursor at location=%ld length=%ld", (long)range.location, (long)range.length);
+      NSLog(@"[Utter] GetTextCursorPosition: cursor at location=%ld length=%ld", (long)range.location, (long)range.length);
       // Try a 1-char range at cursor (or just before if at end)
       CFRange charRange;
       if (range.location > 0) {
@@ -433,11 +433,11 @@ static Napi::Value GetTextCursorPosition(const Napi::CallbackInfo& info) {
           focusedElement, kAXBoundsForRangeParameterizedAttribute, charRangeValue, &boundsValue);
       CFRelease(charRangeValue);
 
-      NSLog(@"[DictateAI] GetTextCursorPosition: boundsForRange err=%d", (int)err);
+      NSLog(@"[Utter] GetTextCursorPosition: boundsForRange err=%d", (int)err);
       if (err == kAXErrorSuccess && boundsValue) {
         CGRect bounds;
         if (AXValueGetValue((AXValueRef)boundsValue, (AXValueType)kAXValueCGRectType, &bounds)) {
-          NSLog(@"[DictateAI] GetTextCursorPosition: bounds x=%.0f y=%.0f w=%.0f h=%.0f",
+          NSLog(@"[Utter] GetTextCursorPosition: bounds x=%.0f y=%.0f w=%.0f h=%.0f",
                 bounds.origin.x, bounds.origin.y, bounds.size.width, bounds.size.height);
           if (bounds.size.width > 0 || bounds.size.height > 0) {
             result.Set("available", true);

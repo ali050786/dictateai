@@ -57,7 +57,7 @@ function getAddon(): TextInjectionAddon {
     addon = __non_webpack_require__(addonPath) as TextInjectionAddon;
   } catch (err) {
     console.error(
-      '[DictateAI] Failed to load native text injection addon:',
+      '[Utter] Failed to load native text injection addon:',
       err,
     );
     addon = {
@@ -81,13 +81,13 @@ function getAddon(): TextInjectionAddon {
 
 export function injectText(text: string): string {
   const result = getAddon().injectText(text);
-  console.log(`[DictateAI] Text injection: ${result} (${text.length} chars)`);
+  console.log(`[Utter] Text injection: ${result} (${text.length} chars)`);
   return result;
 }
 
 export function undoLastInjection(): boolean {
   const result = getAddon().undoLastInjection();
-  console.log(`[DictateAI] Undo last injection: ${result}`);
+  console.log(`[Utter] Undo last injection: ${result}`);
   return result;
 }
 

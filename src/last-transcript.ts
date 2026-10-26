@@ -38,7 +38,7 @@ export async function pasteLastTranscript(): Promise<void> {
   // The shortcut fires while its keys are still held; with ⌃ down, the
   // paste or typed text would turn into control keys.
   await modifiersReleased(1000);
-  console.log(`[DictateAI] Paste last transcript: ${redact(text)}`);
+  console.log(`[Utter] Paste last transcript: ${redact(text)}`);
   injectText(text);
 }
 
@@ -49,7 +49,7 @@ export function copyLastTranscript(): void {
     return;
   }
   copyText(text);
-  console.log(`[DictateAI] Copied last transcript: ${redact(text)}`);
+  console.log(`[Utter] Copied last transcript: ${redact(text)}`);
   showFeedback('copied');
 }
 
@@ -90,7 +90,7 @@ function register(shortcuts: TranscriptShortcuts): string[] {
       try {
         ok = globalShortcut.register(accelerator, ACTIONS[action]);
       } catch (err) {
-        console.error(`[DictateAI] Shortcut ${accelerator} rejected:`, err);
+        console.error(`[Utter] Shortcut ${accelerator} rejected:`, err);
       }
       if (ok) registered.push(accelerator);
       else failed.push(accelerator);
@@ -104,7 +104,7 @@ export function registerTranscriptShortcuts(): void {
   unavailable = register(getTranscriptShortcuts());
   if (unavailable.length) {
     console.warn(
-      `[DictateAI] Shortcuts in use by another app: ${unavailable.join(', ')}`,
+      `[Utter] Shortcuts in use by another app: ${unavailable.join(', ')}`,
     );
   }
 }

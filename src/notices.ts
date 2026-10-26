@@ -66,7 +66,7 @@ export function noticeMicrophoneBlocked(): void {
   microphoneNoticeShown = true;
   const notification = new Notification({
     title: 'Microphone is blocked',
-    body: 'Allow DictateAI in System Settings → Privacy & Security → Microphone, then reopen DictateAI. Click to open.',
+    body: 'Allow Utter in System Settings → Privacy & Security → Microphone, then reopen Utter. Click to open.',
   });
   notification.on('click', () => shell.openExternal(MICROPHONE_SETTINGS));
   notification.show();

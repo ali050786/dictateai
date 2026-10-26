@@ -127,7 +127,7 @@ function removePhononDownloads(): void {
 // Deletes a model so it's downloaded whole: both engines keep a damaged file
 // that's already there.
 function removeModel(key: SpeechModelKey): void {
-  console.log(`[DictateAI] Removing damaged speech model ${SPEECH_MODELS[key].name} before downloading it again`);
+  console.log(`[Utter] Removing damaged speech model ${SPEECH_MODELS[key].name} before downloading it again`);
   const folders = engineOf(key) === 'phonon'
     ? [phononFolder(key), path.join(PHONON_DIR, `models--${PHONON_REPOS[key]!.replace('/', '--')}`)]
     : [whisperFolder(SPEECH_MODELS[key].id), whisperPendingFolder(SPEECH_MODELS[key].id)];
@@ -317,7 +317,7 @@ function transcribeOnceCommand(key: SpeechModelKey, audio: string): Command | nu
 export function prepareSpeechModel(key: SpeechModelKey): Promise<boolean> {
   if (isSpeechModelOnDisk(key)) return Promise.resolve(true);
   if (preparing?.key === key) return preparing.done;
-  const silence = path.join(os.tmpdir(), 'dictateai-silence.wav');
+  const silence = path.join(os.tmpdir(), 'utter-silence.wav');
   const command = transcribeOnceCommand(key, silence);
   if (!command) return Promise.resolve(false);
 
@@ -328,7 +328,7 @@ export function prepareSpeechModel(key: SpeechModelKey): Promise<boolean> {
 
   const watch = new DownloadWatch(modelDir(key), bytes, notify);
   watch.begin();
-  console.log(`[DictateAI] Downloading speech model ${name} in the background...`);
+  console.log(`[Utter] Downloading speech model ${name} in the background...`);
   const proc = spawn(command.cmd, command.args, { stdio: ['ignore', 'ignore', 'pipe'], env: command.env });
   proc.stderr?.on('data', (data: Buffer) => {
     const line = data.toString().trim();
@@ -339,7 +339,7 @@ export function prepareSpeechModel(key: SpeechModelKey): Promise<boolean> {
     const finish = (ok: boolean) => {
       watch.end();
       preparing = null;
-      console.log(`[DictateAI] Speech model ${name} ${ok ? 'ready' : 'download failed'}`);
+      console.log(`[Utter] Speech model ${name} ${ok ? 'ready' : 'download failed'}`);
       notify();
       if (ok) onModelReady?.(key);
       resolve(ok);
@@ -357,7 +357,7 @@ export function prepareSpeechModel(key: SpeechModelKey): Promise<boolean> {
 }
 
 export async function restartServer(): Promise<boolean> {
-  console.log(`[DictateAI] Restarting speech server (${SPEECH_MODELS[currentModel].name}, language: ${currentLanguage})...`);
+  console.log(`[Utter] Restarting speech server (${SPEECH_MODELS[currentModel].name}, language: ${currentLanguage})...`);
   stopServer();
   // Counts as starting, so a dictation finished meanwhile waits instead of failing.
   restartPending = true;
@@ -487,10 +487,10 @@ async function launchServer(forceDownload: boolean): Promise<boolean> {
   if (engineOf(key) === 'phonon') phononPort = await freePort();
   const command = serverCommand(key, localFolder);
   if (!command) {
-    console.error(`[DictateAI] Speech engine for ${name} not found. Run scripts/build-engines.sh`);
+    console.error(`[Utter] Speech engine for ${name} not found. Run scripts/build-engines.sh`);
     return false;
   }
-  console.log(`[DictateAI] Starting speech server (model: ${name}, ${localFolder ? 'on disk' : 'download if needed'})...`);
+  console.log(`[Utter] Starting speech server (model: ${name}, ${localFolder ? 'on disk' : 'download if needed'})...`);
   fs.mkdirSync(modelDir(key), { recursive: true });
   if (engineOf(key) === 'phonon' && localFolder && !preparing) removePhononDownloads();
 
@@ -509,7 +509,7 @@ async function launchServer(forceDownload: boolean): Promise<boolean> {
 
   const proc = serverProcess;
   proc.on('exit', (code) => {
-    console.log(`[DictateAI] Speech server (${name}) exited (code: ${code})`);
+    console.log(`[Utter] Speech server (${name}) exited (code: ${code})`);
     // stopServer() clears serverProcess first, so a deliberate stop ends here.
     if (serverProcess !== proc) return;
     const wasReady = serverReady;
@@ -522,7 +522,7 @@ async function launchServer(forceDownload: boolean): Promise<boolean> {
       if (crashRestarts.length < 3) {
         crashRestarts.push(now);
         restartPending = true;
-        console.log('[DictateAI] Speech server stopped unexpectedly — restarting');
+        console.log('[Utter] Speech server stopped unexpectedly — restarting');
         setTimeout(() => {
           restartPending = false;
           if (!serverProcess) void startServer();
@@ -534,7 +534,7 @@ async function launchServer(forceDownload: boolean): Promise<boolean> {
     notify();
   });
 
-  console.log(`[DictateAI] Waiting for ${name} to be ready...`);
+  console.log(`[Utter] Waiting for ${name} to be ready...`);
   // The first start downloads the model, which can take a while on a slow connection.
   download.end();
   download = new DownloadWatch(modelDir(key), bytes, notify);
@@ -547,9 +547,9 @@ async function launchServer(forceDownload: boolean): Promise<boolean> {
     // The first request after a start is slow (3.8s for Phonon-2, then 0.2s),
     // so spend it on a second of silence rather than on a dictation.
     await transcribe(new Float32Array(16000)).catch(() => {});
-    console.log(`[DictateAI] ${name} is ready.`);
+    console.log(`[Utter] ${name} is ready.`);
   } else {
-    console.error(`[DictateAI] ${name} failed to start within timeout.`);
+    console.error(`[Utter] ${name} failed to start within timeout.`);
     stopServer();
     if (localFolder) {
       // The model on disk didn't load (a damaged download). Keep dictation
@@ -558,12 +558,12 @@ async function launchServer(forceDownload: boolean): Promise<boolean> {
       brokenModels.add(key);
       const fallback = pickSpeechModel(key, currentLanguage, isSpeechModelOnDisk);
       if (fallback !== key) {
-        console.log(`[DictateAI] ${name} didn't load — using ${SPEECH_MODELS[fallback].name} while it downloads again`);
+        console.log(`[Utter] ${name} didn't load — using ${SPEECH_MODELS[fallback].name} while it downloads again`);
         currentModel = fallback;
         void prepareSpeechModel(key);
         return launchServer(false);
       }
-      console.log(`[DictateAI] Retrying ${name} with a fresh download...`);
+      console.log(`[Utter] Retrying ${name} with a fresh download...`);
       return launchServer(true);
     }
     lastStartFailed = true;
@@ -575,7 +575,7 @@ async function launchServer(forceDownload: boolean): Promise<boolean> {
 
 export function stopServer(): void {
   if (serverProcess && !serverProcess.killed) {
-    console.log('[DictateAI] Stopping speech server...');
+    console.log('[Utter] Stopping speech server...');
     serverProcess.kill('SIGTERM');
     serverProcess = null;
     serverReady = false;
@@ -643,7 +643,7 @@ export async function transcribe(audioSamples: Float32Array, hotwords: string[] 
   const phonon = engine === 'phonon';
   const wavBuffer = float32ToWav(audioSamples, 16000);
 
-  const boundary = `----DictateAI${Date.now()}`;
+  const boundary = `----Utter${Date.now()}`;
   const bodyParts: Buffer[] = [];
 
   const addField = (fieldName: string, value: string) => {
@@ -688,7 +688,7 @@ export async function transcribe(audioSamples: Float32Array, hotwords: string[] 
       res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
       res.on('end', () => {
         if (res.statusCode !== 200) {
-          console.error(`[DictateAI] ${name} answered ${res.statusCode}`);
+          console.error(`[Utter] ${name} answered ${res.statusCode}`);
           reject(new Error(`${name} request failed (${res.statusCode})`));
           return;
         }
@@ -696,7 +696,7 @@ export async function transcribe(audioSamples: Float32Array, hotwords: string[] 
           const json = JSON.parse(data);
           resolve(json.text || '');
         } catch {
-          console.error(`[DictateAI] ${name} response parse error:`, data);
+          console.error(`[Utter] ${name} response parse error:`, data);
           reject(new Error(`Failed to parse the ${name} response`));
         }
       });
@@ -708,6 +708,6 @@ export async function transcribe(audioSamples: Float32Array, hotwords: string[] 
     req.end();
   });
 
-  console.log(`[DictateAI] ${name} transcript: ${redact(result)}`);
+  console.log(`[Utter] ${name} transcript: ${redact(result)}`);
   return result;
 }

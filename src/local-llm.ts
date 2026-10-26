@@ -237,25 +237,25 @@ export function startLocalLlm(model?: string): Promise<boolean> {
 async function doStart(): Promise<boolean> {
   const server = findMlxServer();
   if (!server) {
-    console.error('[DictateAI] Cleanup engine not found. Run scripts/build-engines.sh, or: uv tool install mlx-lm');
+    console.error('[Utter] Cleanup engine not found. Run scripts/build-engines.sh, or: uv tool install mlx-lm');
     return false;
   }
 
   // Spawning onto a busy port fails, and the health check would then be
   // answered by the other server — so detect that case up front and use it.
   if (await checkServerHealth()) {
-    console.log(`[DictateAI] Reusing local LLM server already on port ${MLX_PORT}`);
+    console.log(`[Utter] Reusing local LLM server already on port ${MLX_PORT}`);
     if (!(await warmUp())) {
-      console.error('[DictateAI] Existing local LLM server failed to load the model.');
+      console.error('[Utter] Existing local LLM server failed to load the model.');
       return false;
     }
     usingExternal = true;
     serverReady = true;
-    console.log('[DictateAI] Local LLM ready.');
+    console.log('[Utter] Local LLM ready.');
     return true;
   }
 
-  console.log(`[DictateAI] Starting local LLM server (model: ${currentModel})...`);
+  console.log(`[Utter] Starting local LLM server (model: ${currentModel})...`);
 
   const proc = spawn(server.cmd, [
     ...server.args,
@@ -263,9 +263,9 @@ async function doStart(): Promise<boolean> {
     '--host', MLX_HOST,
     '--port', String(MLX_PORT),
     // The default (*) lets any web page in the user's browser call the model
-    // and read the reply. DictateAI talks to it from Node, which sends no
+    // and read the reply. Utter talks to it from Node, which sends no
     // Origin, so allow none: an origin that can never match.
-    '--allowed-origins', 'https://dictateai.invalid',
+    '--allowed-origins', 'https://utter.invalid',
     '--log-level', 'WARNING',
   ], {
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -284,7 +284,7 @@ async function doStart(): Promise<boolean> {
   proc.stderr?.on('data', log);
 
   proc.on('exit', (code) => {
-    console.log(`[DictateAI] Local LLM server exited (code: ${code})`);
+    console.log(`[Utter] Local LLM server exited (code: ${code})`);
     if (serverProcess === proc) {
       serverReady = false;
       serverProcess = null;
@@ -293,24 +293,24 @@ async function doStart(): Promise<boolean> {
   });
 
   if (!(await waitForServer(60_000))) {
-    console.error('[DictateAI] Local LLM server failed to start within timeout.');
+    console.error('[Utter] Local LLM server failed to start within timeout.');
     killServer();
     return false;
   }
 
-  console.log('[DictateAI] Local LLM server up — loading model (downloads on first use)...');
+  console.log('[Utter] Local LLM server up — loading model (downloads on first use)...');
   download = new DownloadWatch(HF_HUB_DIR, MODEL_BYTES[currentModel] ?? 4e9, () => onStatusChange?.());
   download.begin();
   const warmed = await warmUp().finally(() => download?.end());
   if (serverProcess !== proc) return false;
   if (!warmed) {
-    console.error('[DictateAI] Local LLM failed to load the model.');
+    console.error('[Utter] Local LLM failed to load the model.');
     killServer();
     return false;
   }
 
   serverReady = true;
-  console.log('[DictateAI] Local LLM ready.');
+  console.log('[Utter] Local LLM ready.');
   return true;
 }
 
@@ -322,7 +322,7 @@ export function stopLocalLlm(): void {
 
 function killServer(): void {
   if (serverProcess && !serverProcess.killed) {
-    console.log('[DictateAI] Stopping local LLM server...');
+    console.log('[Utter] Stopping local LLM server...');
     serverProcess.kill('SIGTERM');
   }
   serverProcess = null;
