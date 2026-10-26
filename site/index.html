@@ -112,9 +112,63 @@ nav .links a:hover { text-decoration: underline; text-underline-offset: 6px; }
 .card h3 { margin: 22px 0 10px; }
 .card p { color: var(--muted); font-size: 15px; }
 .card h3:first-child { margin-top: 0; }
-.keys { display: flex; gap: 6px; }
+.keys { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .key { min-width: 46px; height: 46px; padding: 0 12px; border-radius: 11px; display: grid; place-items: center; background: #262626; border: 1px solid #3a3a3a; border-bottom-width: 3px; font-weight: 800; font-size: 18px; }
-.key.held { min-width: 104px; background: var(--blue); border-color: var(--blue); }
+.key.on { background: var(--blue); border-color: var(--blue); }
+
+/* Bento: how the key works and what else the app does, in tiles of
+   different sizes. Each tile has a small picture above its words. */
+.bento { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, minmax(200px, auto)) auto; gap: 16px;
+  grid-template-areas:
+    "hold hold double triple"
+    "hold hold apps apps"
+    "names history limits paste"
+    "anykey history mute mic"
+    "oss oss oss oss"; }
+.tile { min-height: 190px; background: var(--card); border-radius: 24px; padding: 26px; display: flex; flex-direction: column; justify-content: space-between; gap: 18px; overflow: hidden; text-decoration: none; }
+.tile h3 { font-size: 19px; margin: 0 0 6px; }
+.tile p { color: var(--muted); font-size: 14.5px; line-height: 1.5; }
+.t-hold { grid-area: hold; background: var(--blue); padding: 34px; }
+.t-hold p { color: var(--on-blue-muted); font-size: 16px; max-width: 420px; }
+.t-hold h3 { font-size: 30px; letter-spacing: -.035em; }
+.t-double { grid-area: double; } .t-triple { grid-area: triple; } .t-apps { grid-area: apps; }
+.t-names { grid-area: names; } .t-history { grid-area: history; } .t-limits { grid-area: limits; }
+.t-paste { grid-area: paste; } .t-anykey { grid-area: anykey; } .t-mute { grid-area: mute; } .t-mic { grid-area: mic; }
+.hold-visual { display: flex; flex-direction: column; align-items: flex-start; gap: 22px; }
+.bigcap { height: 96px; padding: 0 40px; border-radius: 20px; display: grid; place-items: center; background: #fff; color: var(--blue); font-weight: 800; font-size: 34px; letter-spacing: -.02em; border-bottom: 6px solid #b9c8ff; transition: transform .12s, border-bottom-width .12s; }
+.bigcap.down { transform: translateY(5px); border-bottom-width: 1px; }
+.mini-pill { display: flex; align-items: center; gap: 4px; padding: 6px 18px 6px 6px; border-radius: 20px; background: #111; }
+.mini-pill canvas { width: 64px; height: 64px; margin: -8px; }
+.mini-pill span { font-size: 16px; font-weight: 700; padding-left: 10px; }
+.tag { white-space: nowrap; margin-left: 4px; padding: 6px 10px; border-radius: 8px; background: #262626; font-size: 12.5px; font-weight: 700; color: rgba(255,255,255,.8); }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.pills span { padding: 8px 14px; border-radius: 999px; border: 1.5px solid #333; font-size: 13.5px; font-weight: 700; }
+.dict { display: grid; gap: 8px; }
+.dict div { display: flex; align-items: center; gap: 10px; font-size: 15px; }
+.dict s { color: rgba(255,255,255,.45); text-decoration-color: var(--orange); text-decoration-thickness: 2px; }
+.dict span { color: rgba(255,255,255,.35); }
+.dict b { padding: 4px 10px; border-radius: 8px; background: var(--blue); }
+.hist { list-style: none; display: grid; gap: 8px; }
+.hist li { background: #111; border-radius: 12px; padding: 12px 14px; font-size: 14px; font-weight: 600; line-height: 1.4; }
+.hist time { display: block; font-size: 11.5px; font-weight: 600; color: rgba(255,255,255,.4); margin-bottom: 3px; }
+.huge { font-size: 72px; font-weight: 800; line-height: .9; letter-spacing: -.04em; }
+.ico { width: 40px; height: 40px; color: #fff; }
+.t-oss { grid-area: oss; background: #fff; color: #111; flex-direction: row; align-items: center; justify-content: flex-start; gap: 20px; min-height: 0; padding: 26px 30px; }
+.t-oss .gh { width: 40px; height: 40px; flex-shrink: 0; }
+.t-oss p { color: rgba(17,17,17,.62); }
+.t-oss .go { margin-left: auto; font-weight: 800; font-size: 15px; white-space: nowrap; }
+.t-oss:hover .go { text-decoration: underline; text-underline-offset: 5px; }
+@media (max-width: 1100px) {
+  .bento { grid-template-columns: 1fr 1fr; grid-template-rows: none; grid-template-areas:
+    "hold hold" "double triple" "apps apps" "names limits" "history history" "paste anykey" "mute mic" "oss oss"; }
+}
+@media (max-width: 640px) {
+  .bento { grid-template-columns: 1fr; grid-template-areas:
+    "hold" "double" "triple" "apps" "names" "history" "limits" "paste" "anykey" "mute" "mic" "oss"; }
+  .t-hold h3 { font-size: 26px; }
+  .t-oss { flex-wrap: wrap; }
+  .t-oss .go { margin-left: 0; }
+}
 .note-line { margin-top: 28px; color: var(--muted); font-size: 15px; }
 
 /* Cleanup: what you said, and what appears in your app */
@@ -267,15 +321,67 @@ footer .credits a { color: var(--muted); text-decoration: underline; }
 <section id="how">
   <div class="wrap">
     <div class="head">
-      <h2>Right Option does everything.</h2>
+      <h2>Everything is on one key.</h2>
       <p class="lede">Utter lives in the menu bar, so you never switch windows or paste.</p>
     </div>
-    <div class="grid g3">
-      <div class="card"><div class="keys"><div class="key held">⌥</div></div><h3>Hold to talk</h3><p>Hold Right ⌥, say what you want to write, and let go. The text appears at your cursor.</p></div>
-      <div class="card"><div class="keys"><div class="key">⌥</div><div class="key">⌥</div></div><h3>Double-tap for hands-free</h3><p>Tap twice and talk as long as you like. Tap again, or click the orb's ×, to stop.</p></div>
-      <div class="card"><div class="keys"><div class="key">⌥</div><div class="key">⌥</div><div class="key">⌥</div></div><h3>Triple-tap to undo</h3><p>Three taps remove the last dictation.</p></div>
+    <div class="bento">
+      <div class="tile t-hold">
+        <div class="hold-visual">
+          <span class="bigcap" id="bento-key">Right ⌥</span>
+          <div class="mini-pill"><canvas id="bento-orb" aria-hidden="true"></canvas><span id="bento-cap">Hold, speak, let go</span></div>
+        </div>
+        <div><h3>Hold to talk</h3><p>Hold Right ⌥, say what you want to write, and let go. The text appears at your cursor.</p></div>
+      </div>
+      <div class="tile t-double">
+        <div class="keys"><span class="key">⌥</span><span class="key">⌥</span><span class="tag">Hands-free</span></div>
+        <div><h3>Double-tap to keep talking</h3><p>Talk as long as you like. Tap again, or click the orb's ×, to stop.</p></div>
+      </div>
+      <div class="tile t-triple">
+        <div class="keys"><span class="key">⌥</span><span class="key">⌥</span><span class="key">⌥</span><span class="tag">↩ Undone</span></div>
+        <div><h3>Triple-tap to undo</h3><p>Three taps remove the last dictation.</p></div>
+      </div>
+      <div class="tile t-apps">
+        <div><h3>Works in any app</h3><p>It types into any text field, right at your cursor.</p></div>
+        <div class="pills"><span>Mail</span><span>Slack</span><span>Notes</span><span>Chrome</span><span>VS Code</span><span>Figma</span><span>Linear</span><span>Messages</span></div>
+      </div>
+      <div class="tile t-names">
+        <div class="dict"><div><s>figma</s><span>→</span><b>Figma</b></div><div><s>pria</s><span>→</span><b>Priya</b></div></div>
+        <div><h3>Learns your names</h3><p>Fix a word twice and Utter spells it your way from then on.</p></div>
+      </div>
+      <div class="tile t-history">
+        <div><h3>History</h3><p>Everything you've dictated stays on your Mac, ready to copy again.</p></div>
+        <ul class="hist">
+          <li><time>9:41</time>The launch moves to Friday.</li>
+          <li><time>9:42</time>Priya will send the deck before the client call.</li>
+          <li><time>9:43</time>Remind Alex to update the pricing page.</li>
+        </ul>
+      </div>
+      <div class="tile t-limits">
+        <b class="huge">∞</b>
+        <div><h3>No word limits</h3><p>No quota and no subscription.</p></div>
+      </div>
+      <div class="tile t-paste">
+        <div class="keys"><span class="key">⌃</span><span class="key">⌘</span><span class="key">V</span></div>
+        <div><h3>Never lost</h3><p>If no text field has focus, your words wait for ⌃⌘V.</p></div>
+      </div>
+      <div class="tile t-anykey">
+        <div class="keys"><span class="key on">⌥</span><span class="key">⌘</span><span class="key">⌃</span></div>
+        <div><h3>Any key</h3><p>Right ⌥ by default. Change it, and the paste shortcut, in Settings.</p></div>
+      </div>
+      <div class="tile t-mute">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9.5l5 5m0-5-5 5"/></svg>
+        <div><h3>Mutes while you speak</h3><p>Turn it on and your Mac's sound goes quiet while you dictate.</p></div>
+      </div>
+      <div class="tile t-mic">
+        <div class="pills"><span>Built-in</span><span>AirPods</span><span>USB</span></div>
+        <div><h3>Any microphone</h3><p>Switch in Settings without restarting.</p></div>
+      </div>
+      <a class="tile t-oss" href="https://github.com/ali050786/dictateai">
+        <svg class="gh" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.6 22.4c.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.2 1.2a11 11 0 0 1 5.8 0c2.2-1.5 3.2-1.2 3.2-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.9 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A11.5 11.5 0 0 0 12 .5z"/></svg>
+        <div><h3>Open source</h3><p>MIT licensed. Every line is on GitHub.</p></div>
+        <span class="go">View on GitHub →</span>
+      </a>
     </div>
-    <p class="note-line">If no text field has focus, your words wait for <kbd>⌃⌘V</kbd>. You can change every key in Settings.</p>
   </div>
 </section>
 
@@ -350,22 +456,6 @@ footer .credits a { color: var(--muted); text-decoration: underline; }
         <p>Whisper Large v3 Turbo covers the rest. Choose your language in Settings to use it.</p>
         <div class="chips"><span class="chip">हिन्दी</span><span class="chip">العربية</span><span class="chip">日本語</span><span class="chip">中文</span><span class="chip">한국어</span><span class="chip">Türkçe</span><span class="chip">Bahasa</span><span class="chip">ไทย</span><span class="chip">Tiếng Việt</span><span class="chip">اردو</span><span class="chip">বাংলা</span><span class="chip">தமிழ்</span><span class="chip">తెలుగు</span><span class="chip">मराठी</span></div>
       </div>
-    </div>
-  </div>
-</section>
-
-<section id="features" style="padding-top:0">
-  <div class="wrap">
-    <div class="head"><h2>What else is in the app.</h2></div>
-    <div class="grid g4">
-      <div class="card"><h3>Works in any app</h3><p>It types into any text field, at your cursor.</p></div>
-      <div class="card"><h3>No word limits</h3><p>Dictate a quick reply or a long email. There's no quota or subscription.</p></div>
-      <div class="card"><h3>Learns your names</h3><p>Fix a word twice and Utter spells it your way from then on.</p></div>
-      <div class="card"><h3>History</h3><p>Everything you've dictated stays on your Mac, ready to copy again.</p></div>
-      <div class="card"><h3>Any key</h3><p>Right ⌥ by default. Change it, and the paste and copy shortcuts, in Settings.</p></div>
-      <div class="card"><h3>Mutes while you speak</h3><p>Turn it on and your Mac's sound goes quiet while you dictate.</p></div>
-      <div class="card"><h3>Any microphone</h3><p>Built-in, AirPods or USB. Switch in Settings without restarting.</p></div>
-      <div class="card"><h3>Open source</h3><p>MIT licensed. Every line is on GitHub.</p></div>
     </div>
   </div>
 </section>
@@ -613,6 +703,25 @@ if (reduced) {
 } else {
   runDemo();
 }
+
+// --- The bento's "Hold to talk" tile: the key goes down, the orb listens ---
+const bentoOrb = new Orb($('bento-orb'));
+let bentoVisible = false, bentoFrame = null;
+const bentoTick = (now) => {
+  // A 3.2 s loop: the key is down for just over half of it.
+  const p = (now % 3200) / 3200, held = !reduced && p > .12 && p < .68;
+  $('bento-key').classList.toggle('down', held);
+  $('bento-cap').textContent = held ? 'Listening…' : 'Hold, speak, let go';
+  const t = now / 1000;
+  bentoOrb.setLevel(held ? .25 + .6 * Math.abs(Math.sin(t * 7.5)) * (.6 + .4 * Math.sin(t * 1.9)) : .02);
+  bentoOrb.frame(now);
+  bentoFrame = bentoVisible && !reduced ? requestAnimationFrame(bentoTick) : null;
+};
+bentoTick(performance.now());
+new IntersectionObserver(([entry]) => {
+  bentoVisible = entry.isIntersecting;
+  if (bentoVisible && bentoFrame === null && !reduced) bentoFrame = requestAnimationFrame(bentoTick);
+}).observe($('bento-orb'));
 
 // --- Downloads: the newest disk image, with its version and size ---
 fetch('/api/latest').then((r) => (r.ok ? r.json() : Promise.reject())).then((dmg) => {
