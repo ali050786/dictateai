@@ -1,4 +1,5 @@
-<!-- Menu-bar template: black on transparent; macOS tints it for light/dark menu bars. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M6.5 3.5h11a4.5 4.5 0 0 1 4.5 4.5v5a4.5 4.5 0 0 1-4.5 4.5H10.2l-4.4 3.7a.5.5 0 0 1-.8-.46l.55-3.3A4.5 4.5 0 0 1 2 13V8a4.5 4.5 0 0 1 4.5-4.5z"/><path d="M5.8 10.5c.65-2.9 1.55-2.9 2.2 0s1.55 2.9 2.2 0c.5-1.6 1.1-1.6 1.6 0H13.6"/><path d="M17 7.4v6.2"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <!-- Menu-bar template: black on transparent; macOS tints it for light/dark menu bars. The orb holding one wave. -->
+  <circle cx="12" cy="12" r="8.6" fill="none" stroke="#000" stroke-width="1.7"/>
+  <path d="M6.5 12.02 L6.78 11.96 L7.05 11.85 L7.33 11.69 L7.6 11.49 L7.88 11.24 L8.15 11.01 L8.43 10.87 L8.7 10.91 L8.97 11.23 L9.25 11.85 L9.53 12.74 L9.8 13.76 L10.07 14.72 L10.35 15.44 L10.62 15.78 L10.9 15.69 L11.18 15.18 L11.45 14.33 L11.72 13.23 L12.0 12.0 L12.28 10.77 L12.55 9.67 L12.82 8.82 L13.1 8.31 L13.38 8.22 L13.65 8.56 L13.93 9.28 L14.2 10.24 L14.47 11.26 L14.75 12.15 L15.03 12.77 L15.3 13.09 L15.57 13.13 L15.85 12.99 L16.12 12.76 L16.4 12.51 L16.68 12.31 L16.95 12.15 L17.23 12.04 L17.5 11.98" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

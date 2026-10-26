@@ -1,7 +1,57 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
   <rect width="1200" height="630" fill="#15171d"/>
-  <g transform="translate(250 330) scale(0.62) translate(-512 -512)"><g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M372 262h280a120 120 0 0 1 120 120v196a120 120 0 0 1-120 120H452l-112 92a14 14 0 0 1-22-13l14-91a120 120 0 0 1-80-108V382a120 120 0 0 1 120-120z" stroke="#ffffff" stroke-width="30"/><path d="M330 480C347 405 370 405 387 480S427 555 444 480S479 438 494 480S523 506 538 480H606" stroke="#ffffff" stroke-width="32"/><path d="M676 392v176" stroke="#ff6f61" stroke-width="32"/></g></g>
+  <svg x="58" y="138" width="384" height="384" viewBox="0 0 1024 1024">
+  <!-- DictateAI: the glass orb from the dictation pill, its light swirling, holding one glowing voice wave. -->
+  <defs>
+    <radialGradient id="tile" cx="0.5" cy="0.28" r="0.9">
+      <stop offset="0" stop-color="#1d2152"/><stop offset="1" stop-color="#06060e"/>
+    </radialGradient>
+    <clipPath id="tileClip"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
+    <radialGradient id="halo" cx="512" cy="512" r="375" gradientUnits="userSpaceOnUse">
+      <stop offset="0.6" stop-color="#7b6cff" stop-opacity="0.55"/>
+      <stop offset="0.8" stop-color="#4fb8ff" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#4fb8ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="body" cx="0.42" cy="0.36" r="0.72">
+      <stop offset="0" stop-color="#2b3070"/><stop offset="1" stop-color="#090920"/>
+    </radialGradient>
+    <radialGradient id="shine" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.62"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="edge" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0.76" stop-color="#00001a" stop-opacity="0"/><stop offset="1" stop-color="#00001a" stop-opacity="0.5"/>
+    </radialGradient>
+    <clipPath id="orbClip"><circle cx="512" cy="512" r="250"/></clipPath>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="22.5"/></filter>
+    <radialGradient id="b0"><stop offset="0" stop-color="#3fc8ff" stop-opacity="0.95"/><stop offset="0.5" stop-color="#3fc8ff" stop-opacity="0.38"/><stop offset="1" stop-color="#3fc8ff" stop-opacity="0"/></radialGradient>
+    <radialGradient id="b1"><stop offset="0" stop-color="#4a6dff" stop-opacity="0.95"/><stop offset="0.5" stop-color="#4a6dff" stop-opacity="0.38"/><stop offset="1" stop-color="#4a6dff" stop-opacity="0"/></radialGradient>
+    <radialGradient id="b2"><stop offset="0" stop-color="#a35bff" stop-opacity="0.95"/><stop offset="0.5" stop-color="#a35bff" stop-opacity="0.38"/><stop offset="1" stop-color="#a35bff" stop-opacity="0"/></radialGradient>
+    <radialGradient id="b3"><stop offset="0" stop-color="#ff4fbf" stop-opacity="0.95"/><stop offset="0.5" stop-color="#ff4fbf" stop-opacity="0.38"/><stop offset="1" stop-color="#ff4fbf" stop-opacity="0"/></radialGradient>
+    <linearGradient id="fade" x1="312" y1="0" x2="712" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="0.24" stop-color="#fff"/>
+      <stop offset="0.76" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="lineGlow" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur stdDeviation="12.5"/></filter>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#tile)"/>
+  <g clip-path="url(#tileClip)">
+  <circle cx="512" cy="512" r="375" fill="url(#halo)"/>
+  <circle cx="512" cy="512" r="250" fill="url(#body)"/>
+  <g clip-path="url(#orbClip)">
+  <circle cx="437.0" cy="487.0" r="200.0" fill="url(#b0)" style="mix-blend-mode:screen"/>
+  <circle cx="577.0" cy="432.0" r="175.0" fill="url(#b1)" style="mix-blend-mode:screen"/>
+  <circle cx="587.0" cy="582.0" r="190.0" fill="url(#b2)" style="mix-blend-mode:screen"/>
+  <circle cx="467.0" cy="607.0" r="155.0" fill="url(#b3)" style="mix-blend-mode:screen"/>
+  <g filter="url(#soft)" fill="none" stroke-linecap="round" style="mix-blend-mode:screen"><path d="M376.8 475.8 A140.0 140.0 0 0 1 626.7 431.7" stroke="#8fe8ff" stroke-width="37.5" stroke-opacity="0.85"/><path d="M632.7 544.4 A125.0 125.0 0 0 1 403.7 574.5" stroke="#ff7ad9" stroke-width="32.5" stroke-opacity="0.75"/><path d="M479.5 568.3 A65.0 65.0 0 0 1 544.5 455.7" stroke="#b9a4ff" stroke-width="25.0" stroke-opacity="0.6"/></g>
+  <path d="M312.0 512.5 L316.2 511.9 L320.3 511.1 L324.5 510.1 L328.7 508.8 L332.8 507.3 L337.0 505.5 L341.2 503.4 L345.3 501.1 L349.5 498.5 L353.7 495.7 L357.8 492.7 L362.0 489.7 L366.2 486.7 L370.3 483.9 L374.5 481.5 L378.7 479.6 L382.8 478.5 L387.0 478.4 L391.2 479.5 L395.3 482.0 L399.5 486.1 L403.7 491.7 L407.8 498.9 L412.0 507.7 L416.2 517.9 L420.3 529.2 L424.5 541.3 L428.7 553.9 L432.8 566.5 L437.0 578.7 L441.2 590.1 L445.3 600.3 L449.5 609.0 L453.7 615.9 L457.8 620.8 L462.0 623.4 L466.2 623.9 L470.3 622.1 L474.5 618.1 L478.7 612.1 L482.8 604.1 L487.0 594.3 L491.2 583.0 L495.3 570.4 L499.5 556.8 L503.7 542.3 L507.8 527.3 L512.0 512.0 L516.2 496.7 L520.3 481.7 L524.5 467.2 L528.7 453.6 L532.8 441.0 L537.0 429.7 L541.2 419.9 L545.3 411.9 L549.5 405.9 L553.7 401.9 L557.8 400.1 L562.0 400.6 L566.2 403.2 L570.3 408.1 L574.5 415.0 L578.7 423.7 L582.8 433.9 L587.0 445.3 L591.2 457.5 L595.3 470.1 L599.5 482.7 L603.7 494.8 L607.8 506.1 L612.0 516.3 L616.2 525.1 L620.3 532.3 L624.5 537.9 L628.7 542.0 L632.8 544.5 L637.0 545.6 L641.2 545.5 L645.3 544.4 L649.5 542.5 L653.7 540.1 L657.8 537.3 L662.0 534.3 L666.2 531.3 L670.3 528.3 L674.5 525.5 L678.7 522.9 L682.8 520.6 L687.0 518.5 L691.2 516.7 L695.3 515.2 L699.5 513.9 L703.7 512.9 L707.8 512.1 L712.0 511.5" fill="none" stroke="url(#fade)" stroke-width="50.0" stroke-linecap="round" stroke-opacity="0.75" filter="url(#lineGlow)"/>
+  <path d="M312.0 512.5 L316.2 511.9 L320.3 511.1 L324.5 510.1 L328.7 508.8 L332.8 507.3 L337.0 505.5 L341.2 503.4 L345.3 501.1 L349.5 498.5 L353.7 495.7 L357.8 492.7 L362.0 489.7 L366.2 486.7 L370.3 483.9 L374.5 481.5 L378.7 479.6 L382.8 478.5 L387.0 478.4 L391.2 479.5 L395.3 482.0 L399.5 486.1 L403.7 491.7 L407.8 498.9 L412.0 507.7 L416.2 517.9 L420.3 529.2 L424.5 541.3 L428.7 553.9 L432.8 566.5 L437.0 578.7 L441.2 590.1 L445.3 600.3 L449.5 609.0 L453.7 615.9 L457.8 620.8 L462.0 623.4 L466.2 623.9 L470.3 622.1 L474.5 618.1 L478.7 612.1 L482.8 604.1 L487.0 594.3 L491.2 583.0 L495.3 570.4 L499.5 556.8 L503.7 542.3 L507.8 527.3 L512.0 512.0 L516.2 496.7 L520.3 481.7 L524.5 467.2 L528.7 453.6 L532.8 441.0 L537.0 429.7 L541.2 419.9 L545.3 411.9 L549.5 405.9 L553.7 401.9 L557.8 400.1 L562.0 400.6 L566.2 403.2 L570.3 408.1 L574.5 415.0 L578.7 423.7 L582.8 433.9 L587.0 445.3 L591.2 457.5 L595.3 470.1 L599.5 482.7 L603.7 494.8 L607.8 506.1 L612.0 516.3 L616.2 525.1 L620.3 532.3 L624.5 537.9 L628.7 542.0 L632.8 544.5 L637.0 545.6 L641.2 545.5 L645.3 544.4 L649.5 542.5 L653.7 540.1 L657.8 537.3 L662.0 534.3 L666.2 531.3 L670.3 528.3 L674.5 525.5 L678.7 522.9 L682.8 520.6 L687.0 518.5 L691.2 516.7 L695.3 515.2 L699.5 513.9 L703.7 512.9 L707.8 512.1 L712.0 511.5" fill="none" stroke="url(#fade)" stroke-width="21.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <ellipse cx="437.0" cy="402.0" rx="125.0" ry="75.0" transform="rotate(-24 437.0 402.0)" fill="url(#shine)"/>
+  <circle cx="512" cy="512" r="250" fill="url(#edge)"/>
+  </g>
+  <circle cx="512" cy="512" r="248.0" fill="none" stroke="#fff" stroke-opacity="0.32" stroke-width="4.0"/>
+  </g>
+</svg>
   <text x="470" y="270" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="84" font-weight="700" fill="#ffffff" letter-spacing="-2">DictateAI</text>
-  <text x="472" y="345" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="38" fill="#ff6f61">Speak. It types. On your Mac.</text>
+  <text x="472" y="345" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="38" fill="#a99bff">Speak. It types. On your Mac.</text>
   <text x="472" y="410" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="26" fill="#8d919c">Private · Works offline · Free and open source</text>
 </svg>
