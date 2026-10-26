@@ -67,7 +67,7 @@ Set `UTTER_DEBUG=1` to log dictated text; by default logs show only its length.
 
 ## Website
 
-The landing page is `site/`: one static page, plus two small Vercel functions that look up the newest release on GitHub. `/download` sends visitors to its `.dmg`, and the page's buttons show its version and size. To host it on Vercel, import the repository and set **Root Directory** to `site` (framework preset: Other, no build command). Elsewhere, the page still works and its buttons open the Releases page. An optional `GITHUB_TOKEN` environment variable raises GitHub's limit of 60 lookups an hour, which the 10-minute cache rarely reaches.
+The landing page, [utter.blinkwiser.com](https://utter.blinkwiser.com), is `site/`: one static page, plus two small Vercel functions that look up the newest release on GitHub. `/download` sends visitors to its `.dmg`, and the page's buttons show its version and size. To host it on Vercel, import the repository and set **Root Directory** to `site` (framework preset: Other, no build command). Elsewhere, the page still works and its buttons open the Releases page. An optional `GITHUB_TOKEN` environment variable raises GitHub's limit of 60 lookups an hour, which the 10-minute cache rarely reaches.
 
 ## History
 
