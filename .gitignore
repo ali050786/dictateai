@@ -33,3 +33,6 @@ package-lock.json
 
 # Bundled engines (built by scripts/build-engines.sh)
 engines/
+
+# Vercel CLI link for the site (site/.vercel)
+.vercel/
