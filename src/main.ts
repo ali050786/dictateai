@@ -20,7 +20,8 @@ import {
   stopPushToTalk,
   setPttKey,
 } from './text-injection';
-import { transcribe, getLanguage, startServer, stopServer, isServerRunning, isWhisperKitInstalled, setOnStatusChange, getModelDownload, whenServerReady, configureSpeech, effectiveSpeechModel, speechModelFor, isSpeechModelOnDisk, prepareSpeechModel, getPreparingSpeechModel, getSpeechModel, SPEECH_MODELS, SpeechChoice, isServerStarting, didServerFail, isSpeechModelBroken, setOnSpeechModelReady } from './whisper-engine';
+import { transcribe, getLanguage, startServer, stopServer, isServerRunning, isSpeechEngineInstalled, setOnStatusChange, getModelDownload, whenServerReady, configureSpeech, effectiveSpeechModel, speechModelFor, isSpeechModelOnDisk, prepareSpeechModel, getPreparingSpeechModel, getSpeechModel, isServerStarting, didServerFail, isSpeechModelBroken, setOnSpeechModelReady } from './speech-engine';
+import { SPEECH_MODELS, SpeechChoice } from './speech-models';
 import { basicCleanup } from './basic-cleanup';
 import { exec } from 'child_process';
 import * as path from 'path';
@@ -31,7 +32,7 @@ import { formatBytes, freeDiskBytes } from './engines';
 import { getFocusedElementInfo } from './text-injection';
 import { noticeAfterCleanup, noticeMicrophoneBlocked, noticeCleanupReady } from './notices';
 import { addHistory, listHistory, clearHistory } from './history';
-import { applyReplacements, detectCorrections, addCorrection, getAllCorrections, removeCorrection } from './dictionary';
+import { applyReplacements, detectCorrections, addCorrection, getAllCorrections, removeCorrection, getHotwords } from './dictionary';
 import started from 'electron-squirrel-startup';
 import { redact } from './log';
 import { getFocusTarget } from './text-injection';
@@ -511,6 +512,9 @@ function joinChunks(chunks: Float32Array[]): Float32Array {
 function startPreviewTimer(): void {
   stopPreviewTimer();
   const session = dictation.session;
+  // Phonon transcribes in about 0.15s, so the words can follow the voice
+  // (audio arrives every 0.5s); Whisper takes up to 2s, so it's asked less.
+  const interval = SPEECH_MODELS[getSpeechModel()].engine === 'phonon' ? 600 : 2000;
   dictation.previewTimer = setInterval(async () => {
     if (!isRecording() || dictation.chunks.length === 0 || dictation.previewInFlight) return;
 
@@ -519,7 +523,7 @@ function startPreviewTimer(): void {
 
     dictation.previewInFlight = true;
     try {
-      const preview = await transcribe(combined);
+      const preview = await transcribe(combined, getHotwords());
       if (isRecording() && session === dictation.session && preview && !/^\s*[\[(].*[\])]\s*$/i.test(preview)) {
         if (overlayWindow && !overlayWindow.isDestroyed()) {
           overlayWindow.webContents.send('dictation:preview', preview);
@@ -530,7 +534,7 @@ function startPreviewTimer(): void {
     } finally {
       dictation.previewInFlight = false;
     }
-  }, 2000);
+  }, interval);
 }
 
 function stopPreviewTimer(): void {
@@ -570,7 +574,8 @@ async function processAudio(session: number, chunks: Float32Array[]): Promise<vo
     return;
   }
 
-  // Pad short recordings with silence so WhisperKit gets enough context
+  // Pad short recordings with silence so the speech model gets enough
+  // context (WhisperKit heard nothing in under ~1.5s)
   const MIN_DURATION = 1.5;
   let audioToTranscribe = combined;
   if (durationSec < MIN_DURATION) {
@@ -578,7 +583,7 @@ async function processAudio(session: number, chunks: Float32Array[]): Promise<vo
     const padded = new Float32Array(padSamples);
     padded.set(combined, 0);
     audioToTranscribe = padded;
-    console.log(`[DictateAI] Padded ${durationSec.toFixed(1)}s → ${MIN_DURATION}s for WhisperKit`);
+    console.log(`[DictateAI] Padded ${durationSec.toFixed(1)}s → ${MIN_DURATION}s`);
   }
 
   console.log(
@@ -608,7 +613,7 @@ async function processAudio(session: number, chunks: Float32Array[]): Promise<vo
 
   try {
     const sttStart = Date.now();
-    const rawText = await transcribe(audioToTranscribe);
+    const rawText = await transcribe(audioToTranscribe, getHotwords());
     console.log(`[DictateAI] Transcription took ${Date.now() - sttStart}ms`);
     if (!rawText || /^\s*[\[(].*[\])]\s*$/i.test(rawText) || rawText.trim().length < 2) {
       console.log(`[DictateAI] No usable speech detected: ${redact(rawText)}`);
@@ -879,8 +884,7 @@ function setupIPC(): void {
   // downloadCleanup: false when the user said "Not now" to the cleanup model
   // the new language needs; it then waits until they ask for it.
   ipcMain.handle('config:setLanguage', async (_event, lang: string, downloadCleanup = true) => {
-    applyLanguage(lang, downloadCleanup);
-    return true;
+    return applyLanguage(lang, downloadCleanup);
   });
   ipcMain.handle('config:cleanupPlan', (_event, lang: string) => cleanupPlan(lang));
   ipcMain.handle('config:downloadCleanup', () => {
@@ -962,7 +966,7 @@ function setupIPC(): void {
     accessibility: isAccessibilityTrusted(),
     microphone: systemPreferences.getMediaAccessStatus('microphone'),
     speech: {
-      installed: isWhisperKitInstalled(),
+      installed: isSpeechEngineInstalled(),
       running: isServerRunning(),
       failed: speechFailed,
       download: getModelDownload(),
@@ -1098,7 +1102,7 @@ function showTranscriptFeedback(state: string): void {
 app.dock?.hide();
 
 // A second copy would fight the first for the push-to-talk key and the
-// WhisperKit/MLX ports. Launching again just opens the existing hub.
+// speech and MLX ports. Launching again just opens the existing hub.
 const isPrimaryInstance = app.requestSingleInstanceLock();
 if (!isPrimaryInstance) {
   app.quit();
@@ -1184,7 +1188,7 @@ app.whenReady().then(async () => {
   );
   if (!hasAccess) waitForAccessibility();
 
-  if (!isWhisperKitInstalled()) {
+  if (!isSpeechEngineInstalled()) {
     console.error('[DictateAI] Speech engine not found. Run scripts/build-engines.sh, or: brew install whisperkit-cli');
   } else {
     if (overlayWindow && !overlayWindow.isDestroyed()) {
@@ -1207,9 +1211,9 @@ function startSpeech(): void {
   startServer().then((ok) => {
     speechFailed = !ok;
     if (ok) {
-      console.log('[DictateAI] WhisperKit server ready.');
+      console.log('[DictateAI] Speech server ready.');
     } else {
-      console.error('[DictateAI] WhisperKit server failed to start.');
+      console.error('[DictateAI] Speech server failed to start.');
     }
     sendToPages('stt:status-changed');
   });
@@ -1220,11 +1224,22 @@ function speechChoice(): SpeechChoice {
 }
 
 // Points the speech server at the model for the current choice and
-// language. A model that isn't on disk yet is only used once downloaded
-// (Settings asks first), except on first run when there is none at all.
+// language. A model that isn't on disk yet is only used once downloaded,
+// except on first run when there is none at all. Phonon's models (about
+// 160 MB) download on their own meanwhile; Whisper's wait for Settings.
 function applySpeech(): void {
   const lang = loadConfig().language ?? 'auto';
-  configureSpeech(lang, effectiveSpeechModel(speechChoice(), lang));
+  const wanted = speechModelFor(speechChoice(), lang);
+  const model = effectiveSpeechModel(speechChoice(), lang);
+  configureSpeech(lang, model);
+  if (model !== wanted && SPEECH_MODELS[wanted].engine === 'phonon' && !getPreparingSpeechModel() && hasRoomFor(SPEECH_MODELS[wanted].bytes)) {
+    void prepareSpeechModel(wanted).then(() => sendToPages('stt:status-changed'));
+  }
+}
+
+function hasRoomFor(bytes: number): boolean {
+  const freeBytes = freeDiskBytes(path.join(os.homedir(), '.dictateai'));
+  return freeBytes == null || freeBytes >= bytes + 1e9;
 }
 
 function speechStatus() {
@@ -1235,7 +1250,7 @@ function speechStatus() {
   const bytes = SPEECH_MODELS[wanted].bytes;
   const freeBytes = freeDiskBytes(path.join(os.homedir(), '.dictateai'));
   return {
-    installed: isWhisperKitInstalled(),
+    installed: isSpeechEngineInstalled(wanted),
     running: isServerRunning(),
     starting: isServerStarting(),
     failed: didServerFail(),
@@ -1251,18 +1266,26 @@ function speechStatus() {
   };
 }
 
-function applyLanguage(lang: string, downloadCleanup: boolean): void {
+// Returns whether the speech server restarts for the new language.
+function applyLanguage(lang: string, downloadCleanup: boolean): boolean {
   const plan = cleanupPlan(lang);
   saveConfig({
     language: lang,
     cleanupDownloadDeclined: !downloadCleanup && !plan.downloaded ? plan.model : undefined,
   });
+  const wasRunning = isServerRunning();
   applySpeech();
   syncLocalLlm();
+  // Phonon-2.5 hears all of its languages, so moving between them restarts nothing.
+  if (wasRunning && isServerRunning()) {
+    sendToPages('stt:status-changed');
+    return false;
+  }
   sendToPages('stt:restarting');
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     overlayWindow.webContents.send('dictation:state', 'restarting');
   }
+  return true;
 }
 
 // The cleanup model a language would use, and what fetching it costs. The

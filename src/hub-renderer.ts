@@ -39,6 +39,8 @@ interface CleanupPlan {
   declined: boolean;
 }
 
+type SpeechModelKey = 'phonon2' | 'phonon25' | 'fast' | 'accurate';
+
 interface SpeechStatus {
   installed: boolean;
   running: boolean;
@@ -47,9 +49,9 @@ interface SpeechStatus {
   download: ModelDownload | null;
   choice: 'auto' | 'fast' | 'accurate';
   language: string;
-  wanted: { key: 'fast' | 'accurate'; name: string; size: string; onDisk: boolean; broken: boolean };
-  active: { key: 'fast' | 'accurate'; name: string };
-  preparing: 'fast' | 'accurate' | null;
+  wanted: { key: SpeechModelKey; name: string; size: string; onDisk: boolean; broken: boolean };
+  active: { key: SpeechModelKey; name: string };
+  preparing: SpeechModelKey | null;
   free: string | null;
   enoughSpace: boolean;
   sizes: { fast: string; accurate: string };
@@ -397,8 +399,8 @@ async function loadSttStatus(): Promise<void> {
   };
   speechSelect.value = stt.choice;
   for (const option of speechSelect.options) {
-    if (option.value === 'fast') option.textContent = `Faster · ${stt.sizes.fast}`;
-    if (option.value === 'accurate') option.textContent = `More accurate · ${stt.sizes.accurate}`;
+    if (option.value === 'fast') option.textContent = `Whisper, faster · ${stt.sizes.fast}`;
+    if (option.value === 'accurate') option.textContent = `Whisper, more accurate · ${stt.sizes.accurate}`;
   }
   sttStatus.style.color = '';
   sttProgress.hidden = true;
@@ -412,6 +414,8 @@ async function loadSttStatus(): Promise<void> {
     const lang = stt.language === 'auto' ? 'Other languages' : languageName(stt.language);
     const why = stt.wanted.broken
       ? `${stt.wanted.name} didn't load; its download looks incomplete. Download it again`
+      : stt.wanted.key === 'phonon2' || stt.wanted.key === 'phonon25'
+      ? `${stt.language === 'auto' ? 'Dictation' : lang} is transcribed faster and more accurately with ${stt.wanted.name}`
       : stt.wanted.key === 'accurate'
       ? `${stt.choice === 'auto' ? `${lang} ${stt.language === 'auto' ? 'are' : 'is'} transcribed` : 'Dictation is transcribed'} much more accurately with ${stt.wanted.name}`
       : `${stt.wanted.name} is faster for English`;
@@ -531,12 +535,16 @@ languageSelect.addEventListener('change', async () => {
   // the size, instead of starting a multi-GB download silently.
   const [plan, llm] = await Promise.all([window.hub.config.cleanupPlan(lang), window.hub.config.llmStatus()]);
   const askFirst = llmToggle.checked && llm.provider === 'local' && !plan.downloaded;
-  await window.hub.config.setLanguage(lang, !askFirst);
+  const restarting = await window.hub.config.setLanguage(lang, !askFirst);
   showLanguageConfirm(askFirst ? { lang, plan } : null);
+  if (!restarting) {
+    loadSttStatus();
+    return;
+  }
   languageSelect.disabled = true;
   const sttStatus = document.getElementById('stt-status')!;
   const sttBadge = document.getElementById('stt-badge')!;
-  sttStatus.textContent = 'WhisperKit — restarting for new language…';
+  sttStatus.textContent = 'Speech model — restarting for new language…';
   sttBadge.textContent = 'Restarting';
   sttBadge.className = 'badge badge-yellow';
 });
@@ -544,7 +552,7 @@ languageSelect.addEventListener('change', async () => {
 window.hub.onSttRestarting(() => {
   const sttStatus = document.getElementById('stt-status')!;
   const sttBadge = document.getElementById('stt-badge')!;
-  sttStatus.textContent = 'WhisperKit — restarting…';
+  sttStatus.textContent = 'Speech model — restarting…';
   sttBadge.textContent = 'Restarting';
   sttBadge.className = 'badge badge-yellow';
   languageSelect.disabled = true;
