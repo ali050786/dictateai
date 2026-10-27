@@ -186,12 +186,15 @@ nav .links a:hover { text-decoration: underline; text-underline-offset: 6px; }
 /* Privacy */
 .privacy-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
 .steps-card { background: var(--card-2); border-radius: 26px; padding: 26px; }
-.steps-card .where { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; margin-bottom: 14px; }
+.steps-card .where { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; margin-bottom: 22px; padding-bottom: 16px; border-bottom: 1px solid #262626; }
 .steps-card .where i { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
-.step { display: grid; grid-template-columns: 36px 1fr; gap: 14px; padding: 14px 0; border-top: 1px solid #262626; }
-.step b { width: 36px; height: 36px; border-radius: 50%; background: var(--blue); display: grid; place-items: center; font-size: 15px; }
-.step h4 { font-size: 16px; font-weight: 800; letter-spacing: -.02em; }
-.step p { font-size: 14px; color: var(--muted); }
+.node { display: grid; grid-template-columns: 48px 1fr; gap: 16px; align-items: center; }
+.node .ic { width: 48px; height: 48px; border-radius: 14px; background: var(--blue); display: grid; place-items: center; }
+.node .ic svg { width: 22px; height: 22px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.node h4 { font-size: 16px; font-weight: 800; letter-spacing: -.02em; }
+.node p { font-size: 14px; color: var(--muted); }
+.link { width: 48px; height: 30px; display: grid; place-items: center; color: #4a4a4a; }
+.link svg { width: 14px; height: 30px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .big-stats { display: flex; gap: 40px; margin-top: 40px; }
 .big-stats b { display: block; white-space: nowrap; font-size: 48px; font-weight: 800; letter-spacing: -.05em; line-height: 1; }
 .big-stats span { display: block; font-size: 14px; color: var(--on-blue-muted); margin-top: 8px; max-width: 160px; }
@@ -201,7 +204,95 @@ nav .links a:hover { text-decoration: underline; text-underline-offset: 6px; }
 .langs small { display: block; margin-top: 16px; color: var(--muted); font-size: 13px; }
 
 /* Install */
-.num { width: 40px; height: 40px; border-radius: 50%; background: var(--blue); display: grid; place-items: center; font-weight: 800; }
+.install-flow { display: grid; }
+.istep { display: grid; grid-template-columns: 1fr 1.55fr; gap: 56px; align-items: center; }
+.istep:nth-child(4n+3) { grid-template-columns: 1.55fr 1fr; }
+.istep:nth-child(4n+3) .itext { order: 2; }
+.itext h3 { font-size: clamp(26px, 3vw, 34px); letter-spacing: -.03em; line-height: 1.1; }
+.itext p { margin-top: 14px; font-size: 17px; color: var(--muted); max-width: 420px; }
+.itext .path { font-size: 14px; }
+.shot { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 12px; }
+/* Install screens, drawn in HTML: everything is sized in em off the frame's width. */
+.shot { container-type: inline-size; }
+.ui { position: relative; aspect-ratio: 16 / 10; border-radius: 12px; overflow: hidden; background: linear-gradient(160deg, #dbe3f4, #eef1f7); color: #1d1d1f; font: 500 2.05cqw/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", Manrope, sans-serif; letter-spacing: 0; }
+.ui * { box-sizing: border-box; }
+.ui .win { position: absolute; background: #fff; border-radius: .9em; overflow: hidden; box-shadow: 0 0 0 1px rgba(0,0,0,.1), 0 1.2em 3em rgba(25,35,70,.22); }
+.ui .tl { display: flex; gap: .45em; }
+.ui .tl i { width: .85em; height: .85em; border-radius: 50%; background: #ff5f57; }
+.ui .tl i:nth-child(2) { background: #febc2e; } .ui .tl i:nth-child(3) { background: #28c840; }
+.ui .tbar { position: relative; height: 2.5em; display: flex; align-items: center; padding: 0 .9em; border-bottom: 1px solid #ececef; }
+.ui .tbar .t { position: absolute; inset: 0; display: grid; place-items: center; font-weight: 600; font-size: .95em; }
+.ui .ring { box-shadow: 0 0 0 .22em var(--orange); animation: ring 2.4s ease-in-out infinite; }
+@keyframes ring { 50% { box-shadow: 0 0 0 .45em rgba(226,68,2,.25); } }
+
+/* 1. Disk image window */
+.ui .dmg { left: 13%; right: 13%; top: 12%; bottom: 12%; }
+.ui .dmg .body { position: absolute; inset: 2.5em 0 0; background: #f6f7f9; }
+.ui .item { position: absolute; top: 50%; transform: translate(-50%, -55%); text-align: center; font-size: 1.05em; }
+.ui .item img, .ui .item svg { width: 6.2em; height: 6.2em; display: block; margin: 0 auto .5em; }
+.ui .item.app { left: 26%; } .ui .item.apps { left: 74%; }
+.ui .dmg .dash { position: absolute; left: 38%; right: 38%; top: 44%; height: 1.2em; color: #9aa0ad; }
+.ui .dmg .dash svg { width: 100%; height: 100%; }
+.ui .ghost { position: absolute; top: 44%; left: 26%; width: 6.2em; transform: translate(-50%, -50%); opacity: 0; animation: drag 3.6s ease-in-out infinite; }
+.ui .ghost img { width: 100%; opacity: .7; display: block; }
+.ui .ghost svg { position: absolute; width: 1.7em; right: 1.2em; bottom: .3em; }
+@keyframes drag { 0%, 12% { left: 26%; opacity: 0; } 22% { opacity: 1; } 70% { left: 74%; opacity: 1; } 82%, 100% { left: 74%; opacity: 0; } }
+
+/* 2 and 3. System Settings */
+.ui .set { left: 5%; right: 5%; top: 7%; bottom: 7%; display: grid; grid-template-columns: 31% 1fr; }
+.ui .side { background: #f1f1f4; border-right: 1px solid #e3e3e8; padding: .9em .7em; }
+.ui .search { margin: 1em 0 .7em; height: 1.9em; border-radius: .5em; background: #e2e2e7; color: #8e8e93; font-size: .9em; display: flex; align-items: center; padding: 0 .7em; }
+.ui .si { display: flex; align-items: center; gap: .55em; padding: .32em .5em; border-radius: .5em; font-size: .92em; white-space: nowrap; }
+.ui .si b { flex-shrink: 0; width: 1.35em; height: 1.35em; border-radius: .35em; background: #8e8e93; }
+.ui .si.on { background: #0a6cff; color: #fff; }
+.ui .si.on b { box-shadow: 0 0 0 1.5px rgba(255,255,255,.75); }
+.ui .main { padding: 1.2em 1.5em; position: relative; }
+.ui .main h5 { font-size: 1.3em; font-weight: 700; margin-bottom: .9em; display: flex; align-items: center; gap: .5em; }
+.ui .main h5 .back { width: 1.6em; height: 1.6em; border-radius: .4em; background: #ececf0; display: grid; place-items: center; color: #6e6e73; font-size: .8em; }
+.ui .lbl { font-size: .9em; font-weight: 700; margin: 0 0 .45em .2em; }
+.ui .grp { background: #f6f6f8; border: 1px solid #ececf0; border-radius: .7em; }
+.ui .row { display: flex; align-items: center; gap: .8em; padding: .75em .9em; font-size: .95em; }
+.ui .row + .row { border-top: 1px solid #ececf0; }
+.ui .row .sp { margin-left: auto; }
+.ui .sel { font-size: .9em; color: #6e6e73; background: #fff; border: 1px solid #dcdce2; border-radius: .4em; padding: .15em .6em; white-space: nowrap; }
+.ui .mbtn { flex-shrink: 0; background: #fff; border: 1px solid #d4d4da; border-radius: .45em; padding: .3em .8em; font-weight: 600; font-size: .92em; white-space: nowrap; }
+.ui .hint { font-size: .9em; color: #6e6e73; margin-bottom: .8em; }
+.ui .row img { width: 1.9em; height: 1.9em; }
+.ui .tg { margin-left: auto; position: relative; width: 2.7em; height: 1.55em; border-radius: 1em; background: #d1d1d6; animation: tgbg 4s ease-in-out infinite; }
+.ui .tg::after { content: ''; position: absolute; top: .15em; left: .15em; width: 1.25em; height: 1.25em; border-radius: 50%; background: #fff; box-shadow: 0 .1em .25em rgba(0,0,0,.25); animation: knob 4s ease-in-out infinite; }
+@keyframes tgbg { 0%, 25% { background: #d1d1d6; } 35%, 100% { background: #0a84ff; } }
+@keyframes knob { 0%, 25% { transform: none; } 35%, 100% { transform: translateX(1.15em); } }
+.ui .pm { font-size: .9em; color: #6e6e73; padding: .5em .9em; border-top: 1px solid #ececf0; letter-spacing: .4em; }
+
+/* Alerts */
+.ui .alert { position: absolute; background: #f2f2f5; border-radius: 1em; padding: 1.2em 1.1em 1em; text-align: center; box-shadow: 0 0 0 1px rgba(0,0,0,.1), 0 1.4em 3.4em rgba(25,35,70,.3); }
+.ui .alert img { width: 3.6em; height: 3.6em; margin: 0 auto .6em; display: block; }
+.ui .alert h6 { font-size: 1em; font-weight: 700; margin-bottom: .4em; }
+.ui .alert p { font-size: .82em; color: #3a3a3c; margin-bottom: .9em; }
+.ui .alert .btns { display: grid; gap: .45em; }
+.ui .alert .btns span { display: block; border-radius: .55em; padding: .4em; font-size: .9em; font-weight: 600; background: #dcdce1; }
+.ui .alert .btns .def { background: #0a84ff; color: #fff; }
+.ui .gk { left: 3%; bottom: 5%; width: 33%; }
+.ui .mic { left: 50%; top: 7%; width: 40%; transform: translateX(-50%); }
+.ui .mic .btns { grid-template-columns: 1fr 1fr; }
+
+/* 4. Keyboard and the orb */
+.ui .kb { position: absolute; left: 50%; bottom: 7%; transform: translateX(-50%); display: flex; gap: .4em; padding: .5em; border-radius: .9em; background: #c8cbd3; }
+.ui .k { height: 3.6em; min-width: 3.6em; border-radius: .5em; background: #fbfbfc; box-shadow: 0 .18em 0 #a3a6ae; display: flex; flex-direction: column; justify-content: space-between; padding: .35em .5em; font-size: .85em; color: #3a3a3c; }
+.ui .k.wide { width: 13em; } .ui .k.cmd { width: 6em; }
+.ui .k.opt { width: 5.6em; background: var(--blue); color: #fff; box-shadow: 0 .18em 0 #00249a; animation: press 3s ease-in-out infinite; }
+.ui .k .r { text-align: right; }
+@keyframes press { 0%, 15%, 85%, 100% { transform: none; box-shadow: 0 .18em 0 #00249a; } 22%, 78% { transform: translateY(.15em); box-shadow: 0 .03em 0 #00249a; } }
+.ui .orbcap { position: absolute; left: 50%; bottom: 30%; transform: translateX(-50%); display: flex; align-items: center; gap: .6em; padding: .35em 1em .35em .35em; border-radius: 2em; background: #111; color: #fff; font-weight: 700; font-size: .95em; animation: listen 3s ease-in-out infinite; }
+.ui .orbcap svg { width: 2.2em; height: 2.2em; }
+@keyframes listen { 0%, 18%, 82%, 100% { opacity: 0; transform: translateX(-50%) scale(.8); } 25%, 75% { opacity: 1; transform: translateX(-50%) scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .ui *, .ui *::after { animation: none !important; }
+  .ui .ghost { opacity: 0; } .ui .tg { background: #0a84ff; } .ui .tg::after { transform: translateX(1.15em); }
+}
+.iarrow { display: grid; place-items: center; height: 96px; color: var(--blue); }
+.iarrow svg { width: 22px; height: 72px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.req { margin-top: 72px; }
 .path { display: inline-block; margin-top: 12px; font-size: 13px; font-weight: 600; padding: 6px 10px; border-radius: 8px; background: #262626; }
 .req { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-top: 16px; }
 .req ul { list-style: none; margin-top: 16px; display: grid; gap: 10px; }
@@ -251,7 +342,11 @@ footer .credits a { color: var(--muted); text-decoration: underline; }
   .panel { margin: 10px; border-radius: 22px; }
   nav .links { display: none; }
   nav .btn-white { margin-left: auto; }
-  .g3, .g4, .pairs, .privacy-grid, .langs, .req { grid-template-columns: 1fr; }
+  .g3, .g4, .pairs, .privacy-grid, .langs, .req, .istep { grid-template-columns: 1fr; }
+  .istep { gap: 24px; }
+  .istep:nth-child(4n+3) { grid-template-columns: 1fr; }
+  .istep:nth-child(4n+3) .itext { order: 0; }
+  .iarrow { height: 72px; }
   .stats, .big-stats { flex-wrap: wrap; gap: 24px; }
   section { padding: 80px 0; }
   .menubar .menu { display: none; }
@@ -431,10 +526,13 @@ footer .credits a { color: var(--muted); text-decoration: underline; }
       </div>
       <div class="steps-card">
         <div class="where"><i></i>All on your Mac</div>
-        <div class="step"><b>1</b><div><h4>You speak</h4><p>The microphone is on only while you hold the key, or after a double-tap.</p></div></div>
-        <div class="step"><b>2</b><div><h4>Phonon or Whisper writes it down</h4><p>Phonon for English and 24 European languages, Whisper for the rest.</p></div></div>
-        <div class="step"><b>3</b><div><h4>Cleanup tidies it</h4><p>Basic cleanup, or Qwen 2.5 if you turn AI cleanup on.</p></div></div>
-        <div class="step"><b>4</b><div><h4>The text appears</h4><p>At your cursor in Mail, Slack, Notes, your browser or your code editor.</p></div></div>
+        <div class="node"><span class="ic"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span><div><h4>You speak</h4><p>The microphone is on only while you hold the key, or after a double-tap.</p></div></div>
+        <div class="link" aria-hidden="true"><svg viewBox="0 0 14 30"><path d="M7 2v24M2 21l5 5 5-5"/></svg></div>
+        <div class="node"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 11v2"/></svg></span><div><h4>Phonon or Whisper writes it down</h4><p>Phonon for English and 24 European languages, Whisper for the rest.</p></div></div>
+        <div class="link" aria-hidden="true"><svg viewBox="0 0 14 30"><path d="M7 2v24M2 21l5 5 5-5"/></svg></div>
+        <div class="node"><span class="ic"><svg viewBox="0 0 24 24"><path d="M11 3l1.8 4.7 4.7 1.8-4.7 1.8L11 16l-1.8-4.7L4.5 9.5l4.7-1.8z"/><path d="M18.5 14.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg></span><div><h4>Cleanup tidies it</h4><p>Basic cleanup, or Qwen 2.5 if you turn AI cleanup on.</p></div></div>
+        <div class="link" aria-hidden="true"><svg viewBox="0 0 14 30"><path d="M7 2v24M2 21l5 5 5-5"/></svg></div>
+        <div class="node"><span class="ic"><svg viewBox="0 0 24 24"><path d="M9 4h6M12 4v16M9 20h6"/></svg></span><div><h4>The text appears</h4><p>At your cursor in Mail, Slack, Notes, your browser or your code editor.</p></div></div>
       </div>
     </div>
   </section>
@@ -468,11 +566,56 @@ footer .credits a { color: var(--muted); text-decoration: underline; }
       <h2>Install it in four steps.</h2>
       <p class="lede">You can be dictating about a minute after you open it.</p>
     </div>
-    <div class="grid g4">
-      <div class="card"><div class="num">1</div><h3>Download and drag</h3><p>Open the disk image and drag Utter into Applications.</p></div>
-      <div class="card"><div class="num">2</div><h3>Allow it to open, once</h3><p>macOS says it can't verify the app. Click Done, then go to</p><span class="path">System Settings → Privacy &amp; Security → Open Anyway</span></div>
-      <div class="card"><div class="num">3</div><h3>Allow Accessibility</h3><p>The key and the typing need it. Utter starts listening as soon as you allow it.</p></div>
-      <div class="card"><div class="num">4</div><h3>Hold Right ⌥ and talk</h3><p>Allow the microphone. The speech model, about 160 MB, downloads the first time.</p></div>
+    <div class="install-flow">
+      <div class="istep">
+        <div class="itext"><h3>Download and drag</h3><p>Open the disk image and drag Utter into Applications.</p></div>
+        <figure class="shot"><div class="ui" role="img" aria-label="The Utter disk image window: drag the Utter icon onto the Applications folder.">
+          <div class="win dmg"><div class="tbar"><span class="tl"><i></i><i></i><i></i></span><span class="t">Utter</span></div><div class="body">
+            <div class="item app"><img src="favicon.svg" alt="">Utter</div>
+            <div class="dash"><svg viewBox="0 0 100 12" preserveAspectRatio="none"><path d="M2 6h90M86 1l7 5-7 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/></svg></div>
+            <div class="item apps"><svg viewBox="0 0 64 54"><path d="M4 9a4 4 0 0 1 4-4h15l5 5h28a4 4 0 0 1 4 4v4H4z" fill="#3d97f0"/><rect x="2" y="14" width="60" height="37" rx="4.5" fill="#62b3ff"/><path d="M25 43l7-17 7 17M27.6 37h8.8" fill="none" stroke="#2c86e6" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Applications</div>
+            <div class="ghost"><img src="favicon.svg" alt=""><svg viewBox="0 0 20 24"><path d="M2 2l15 11-7 1.2L13.5 22l-3 1.3-3.6-7.8L2 20z" fill="#111" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+          </div></div>
+        </div></figure>
+      </div>
+      <div class="iarrow" aria-hidden="true"><svg viewBox="0 0 22 72"><path d="M11 3v64M3 59l8 8 8-8"/></svg></div>
+      <div class="istep">
+        <div class="itext"><h3>Allow it to open, once</h3><p>macOS says it can't verify the app. Click Done, then go to</p><span class="path">System Settings → Privacy &amp; Security → Open Anyway</span></div>
+        <figure class="shot"><div class="ui" role="img" aria-label="macOS says Utter was not opened. Click Done, then in System Settings, Privacy and Security, click Open Anyway.">
+          <div class="win set"><div class="side"><span class="tl"><i></i><i></i><i></i></span><div class="search">Search</div><div class="si"><b style="background:#8e8e93"></b>General</div><div class="si"><b style="background:#1c1c1e"></b>Appearance</div><div class="si"><b style="background:#0a84ff"></b>Accessibility</div><div class="si"><b style="background:#8e8e93"></b>Control Center</div><div class="si"><b style="background:#bf5af2"></b>Siri</div><div class="si on"><b style="background:#0a84ff"></b>Privacy &amp; Security</div><div class="si"><b style="background:#1c1c1e"></b>Desktop &amp; Dock</div><div class="si"><b style="background:#0a84ff"></b>Displays</div></div><div class="main">
+            <h5>Privacy &amp; Security</h5>
+            <div class="lbl">Security</div>
+            <div class="grp">
+              <div class="row">Allow applications from<span class="sp sel">App Store &amp; Known Developers</span></div>
+              <div class="row">“Utter” was blocked to protect your Mac.<span class="sp mbtn ring">Open Anyway</span></div>
+            </div>
+          </div></div>
+          <div class="alert gk"><img src="favicon.svg" alt=""><h6>“Utter” Not Opened</h6><p>Apple could not verify “Utter” is free of malware that may harm your Mac or compromise your privacy.</p><div class="btns"><span class="def">Done</span><span>Move to Trash</span></div></div>
+        </div></figure>
+      </div>
+      <div class="iarrow" aria-hidden="true"><svg viewBox="0 0 22 72"><path d="M11 3v64M3 59l8 8 8-8"/></svg></div>
+      <div class="istep">
+        <div class="itext"><h3>Allow Accessibility</h3><p>The key and the typing need it. Utter starts listening as soon as you allow it.</p></div>
+        <figure class="shot"><div class="ui" role="img" aria-label="System Settings, Privacy and Security, Accessibility, with Utter switched on.">
+          <div class="win set"><div class="side"><span class="tl"><i></i><i></i><i></i></span><div class="search">Search</div><div class="si"><b style="background:#8e8e93"></b>General</div><div class="si"><b style="background:#1c1c1e"></b>Appearance</div><div class="si"><b style="background:#0a84ff"></b>Accessibility</div><div class="si"><b style="background:#8e8e93"></b>Control Center</div><div class="si"><b style="background:#bf5af2"></b>Siri</div><div class="si on"><b style="background:#0a84ff"></b>Privacy &amp; Security</div><div class="si"><b style="background:#1c1c1e"></b>Desktop &amp; Dock</div><div class="si"><b style="background:#0a84ff"></b>Displays</div></div><div class="main">
+            <h5><span class="back">‹</span>Accessibility</h5>
+            <div class="hint">Allow the applications below to control your computer.</div>
+            <div class="grp">
+              <div class="row ring" style="border-radius:.7em"><img src="favicon.svg" alt="">Utter<span class="tg"></span></div>
+              <div class="pm">+ −</div>
+            </div>
+          </div></div>
+        </div></figure>
+      </div>
+      <div class="iarrow" aria-hidden="true"><svg viewBox="0 0 22 72"><path d="M11 3v64M3 59l8 8 8-8"/></svg></div>
+      <div class="istep">
+        <div class="itext"><h3>Hold Right ⌥ and talk</h3><p>Allow the microphone. The speech model, about 160 MB, downloads the first time.</p></div>
+        <figure class="shot"><div class="ui" role="img" aria-label="macOS asks to let Utter use the microphone. Click Allow, then hold Right Option and talk.">
+          <div class="alert mic"><img src="favicon.svg" alt=""><h6>“Utter” would like to access the microphone.</h6><p>Utter listens only while you hold your dictation key, and turns your speech into text on this Mac.</p><div class="btns"><span>Don’t Allow</span><span class="def ring">Allow</span></div></div>
+          <div class="orbcap"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="#000"/><path d="M9 20c3 0 3-6 6-6s3 13 6 13 3-10 6-10 2 3 4 3" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>Listening</div>
+          <div class="kb"><span class="k wide"><span></span><span class="r">space</span></span><span class="k cmd"><span class="r">⌘</span><span class="r">command</span></span><span class="k opt"><span class="r">⌥</span><span class="r">option</span></span><span class="k">◀</span><span class="k" style="justify-content:space-around;text-align:center">▲<br>▼</span><span class="k">▶</span></div>
+        </div></figure>
+      </div>
     </div>
     <div class="req">
       <div class="card"><h3>What you need</h3><ul>
