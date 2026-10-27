@@ -21,6 +21,10 @@
             <div class="perm-action" id="perm-accessibility">
               <button type="button" class="btn-secondary btn-sm" id="btn-accessibility">Open Settings</button>
               <span class="perm-ok" hidden>✓ Allowed</span>
+              <span class="perm-denied" id="accessibility-denied" hidden>
+                <span class="perm-denied-text">Not allowed</span>
+                <button type="button" class="link-button" id="btn-retry-accessibility">Try again</button>
+              </span>
             </div>
           </div>
           <div class="perm-row">
@@ -31,6 +35,10 @@
             <div class="perm-action" id="perm-microphone">
               <button type="button" class="btn-secondary btn-sm" id="btn-microphone">Allow</button>
               <span class="perm-ok" hidden>✓ Allowed</span>
+              <span class="perm-denied" id="microphone-denied" hidden>
+                <span class="perm-denied-text">Not allowed</span>
+                <button type="button" class="link-button" id="btn-retry-microphone">Try again</button>
+              </span>
             </div>
           </div>
         </div>
@@ -102,9 +110,23 @@
         <p class="small">You can keep dictating while it downloads. Change this anytime in Settings.</p>
       </section>
 
+      <!-- Step 4: All set -->
+      <section class="step" id="step-done" aria-labelledby="done-title">
+        <div class="done-content">
+          <div class="done-check" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>
+          </div>
+          <h1 id="done-title">You're all set</h1>
+          <p class="done-subtitle">Hold <span id="done-shortcut">Right Option</span> and start talking. Utter types what you say.</p>
+        </div>
+      </section>
+
       <footer>
-        <div class="dots" aria-hidden="true">
-          <span class="dot active"></span><span class="dot"></span><span class="dot"></span>
+        <div class="step-indicator" aria-live="polite">
+          <div class="step-dots">
+            <span class="dot active"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          </div>
+          <span class="step-label" id="step-label">1 of 3 — Permissions</span>
         </div>
         <div class="footer-actions">
           <button type="button" class="link-button" id="btn-skip">Skip for now</button>

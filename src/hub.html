@@ -77,6 +77,13 @@
               <h3>Recent Dictations</h3>
               <button type="button" class="link-button" id="btn-clear-history">Clear</button>
             </div>
+            <aside class="confirm-bar" id="confirm-clear" hidden>
+              <span>Clear all dictation history? This can't be undone.</span>
+              <div class="confirm-bar-actions">
+                <button type="button" class="btn-secondary btn-sm" id="btn-clear-cancel">Cancel</button>
+                <button type="button" class="btn-danger btn-sm" id="btn-clear-confirm">Clear history</button>
+              </div>
+            </aside>
             <div id="dictation-history" class="list-container">
               <div class="empty-state">
                 <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3">
@@ -123,10 +130,12 @@
               <div class="form-group">
                 <label for="dict-from">Utter hears</label>
                 <input type="text" id="dict-from" placeholder="e.g. bee mad" />
+                <span class="field-error" id="err-from" hidden></span>
               </div>
               <div class="form-group">
                 <label for="dict-to">Replace with</label>
                 <input type="text" id="dict-to" placeholder="e.g. BMAD" />
+                <span class="field-error" id="err-to" hidden></span>
               </div>
               <div class="modal-actions">
                 <button id="btn-cancel" class="btn-secondary">Cancel</button>
@@ -143,6 +152,13 @@
             <button id="btn-reset-shortcuts" class="btn-secondary btn-sm">Reset to default</button>
           </div>
           <div class="page-body">
+            <aside class="confirm-bar" id="confirm-reset" hidden>
+              <span>Reset all shortcuts to defaults?</span>
+              <div class="confirm-bar-actions">
+                <button type="button" class="btn-secondary btn-sm" id="btn-reset-cancel">Cancel</button>
+                <button type="button" class="btn-danger btn-sm" id="btn-reset-confirm">Reset</button>
+              </div>
+            </aside>
             <div class="hero-card">
               <h2>Your voice, your way.</h2>
               <p>Choose how you trigger dictation. Hold a key for quick phrases, or toggle hands-free for longer thoughts.</p>
@@ -245,8 +261,14 @@
             <h1>Settings</h1>
           </div>
           <div class="page-body">
-            <div class="settings-section">
-              <h3>General</h3>
+            <!-- General: open by default -->
+            <div class="settings-section" data-collapse="general">
+              <div class="collapse-trigger" role="button" tabindex="0" aria-expanded="true" aria-controls="collapse-general">
+                <h3>General</h3>
+                <svg class="collapse-chevron" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div class="collapse-body" id="collapse-general" aria-hidden="false">
+                <div class="collapse-inner">
               <div class="setting-row">
                 <div class="setting-info">
                   <span class="setting-label">Push-to-Talk Key</span>
@@ -308,10 +330,18 @@
                   <span class="toggle-slider"></span>
                 </label>
               </div>
+                </div>
+              </div>
             </div>
 
-            <div class="settings-section">
-              <h3>Language</h3>
+            <!-- Language: collapsed by default -->
+            <div class="settings-section" data-collapse="language">
+              <div class="collapse-trigger" role="button" tabindex="0" aria-expanded="false" aria-controls="collapse-language">
+                <h3>Language</h3>
+                <svg class="collapse-chevron" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div class="collapse-body" id="collapse-language" aria-hidden="true">
+                <div class="collapse-inner">
               <div class="setting-row">
                 <div class="setting-info">
                   <span class="setting-label">Dictation Language</span>
@@ -353,10 +383,18 @@
                   <button type="button" class="btn-primary btn-sm" id="btn-lang-download">Download</button>
                 </div>
               </aside>
+                </div>
+              </div>
             </div>
 
-            <div class="settings-section">
-              <h3>AI Model</h3>
+            <!-- AI Model: collapsed by default, with nested Advanced -->
+            <div class="settings-section" data-collapse="ai-model">
+              <div class="collapse-trigger" role="button" tabindex="0" aria-expanded="false" aria-controls="collapse-ai-model">
+                <h3>AI Model</h3>
+                <svg class="collapse-chevron" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div class="collapse-body" id="collapse-ai-model" aria-hidden="true">
+                <div class="collapse-inner">
               <div class="setting-row">
                 <div class="setting-info">
                   <span class="setting-label">Speech model <span class="badge badge-green" id="stt-badge">Local</span></span>
@@ -403,6 +441,14 @@
                   <span class="toggle-slider"></span>
                 </label>
               </div>
+
+              <!-- Nested Advanced section -->
+              <div class="collapse-advanced-trigger" role="button" tabindex="0" aria-expanded="false" aria-controls="collapse-ai-advanced">
+                <svg class="collapse-advanced-chevron" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span>Advanced</span>
+              </div>
+              <div class="collapse-advanced-body" id="collapse-ai-advanced" aria-hidden="true">
+                <div class="collapse-inner">
               <div class="setting-row">
                 <div class="setting-info">
                   <span class="setting-label">Cleanup runs</span>
@@ -439,24 +485,44 @@
                   <button id="btn-change-key" class="btn-secondary btn-sm">Change</button>
                 </div>
               </div>
+                </div>
+              </div>
+                </div>
+              </div>
             </div>
 
-            <div class="settings-section">
-              <h3>Accessibility</h3>
+            <!-- Accessibility: collapsed by default -->
+            <div class="settings-section" data-collapse="accessibility">
+              <div class="collapse-trigger" role="button" tabindex="0" aria-expanded="false" aria-controls="collapse-accessibility">
+                <h3>Accessibility</h3>
+                <svg class="collapse-chevron" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div class="collapse-body" id="collapse-accessibility" aria-hidden="true">
+                <div class="collapse-inner">
               <div class="setting-row">
                 <div class="setting-info">
                   <span class="setting-label">Accessibility Permission</span>
                   <span class="setting-desc" id="accessibility-status">Checking...</span>
                 </div>
               </div>
+                </div>
+              </div>
             </div>
 
-            <div class="settings-section">
-              <h3>About</h3>
+            <!-- About: collapsed by default -->
+            <div class="settings-section" data-collapse="about">
+              <div class="collapse-trigger" role="button" tabindex="0" aria-expanded="false" aria-controls="collapse-about">
+                <h3>About</h3>
+                <svg class="collapse-chevron" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div class="collapse-body" id="collapse-about" aria-hidden="true">
+                <div class="collapse-inner">
               <div class="setting-row">
                 <div class="setting-info">
                   <span class="setting-label">Utter</span>
                   <span class="setting-desc">v0.1.0 — Open source voice dictation</span>
+                </div>
+              </div>
                 </div>
               </div>
             </div>

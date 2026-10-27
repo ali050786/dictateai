@@ -136,25 +136,26 @@ body[data-position$='right'] .caption {
   display: none;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 32px;
+  height: 32px;
   margin: 0 4px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 50%;
   background: #111;
   color: rgba(255, 255, 255, 0.8);
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1;
   cursor: pointer;
-  padding: 0;
+  padding: 6px;
   flex-shrink: 0;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, transform 0.15s ease;
 }
 
 .close-btn:hover {
   background: #e24402;
   border-color: #e24402;
   color: #fff;
+  transform: scale(1.1);
 }
 
 .pill.recording.handsfree .close-btn {

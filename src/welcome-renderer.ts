@@ -44,8 +44,10 @@ declare global {
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
-const steps = ['step-permissions', 'step-ready', 'step-cleanup'].map((id) => $(id));
+const steps = ['step-permissions', 'step-ready', 'step-cleanup', 'step-done'].map((id) => $(id));
 const dots = document.querySelectorAll<HTMLElement>('.dot');
+const stepLabel = $('step-label');
+const stepNames = ['Permissions', 'Setup', 'AI Cleanup', 'Done'];
 const btnNext = $<HTMLButtonElement>('btn-next');
 const btnBack = $<HTMLButtonElement>('btn-back');
 const btnSkip = $<HTMLButtonElement>('btn-skip');
@@ -60,11 +62,19 @@ let plan: CleanupPlan | null = null;
 function showStep(next: number): void {
   step = next;
   steps.forEach((el, i) => el.classList.toggle('active', i === step));
-  dots.forEach((el, i) => el.classList.toggle('active', i === step));
+  dots.forEach((el, i) => {
+    el.classList.toggle('active', i === step);
+    el.classList.toggle('done', i < step);
+  });
+  stepLabel.textContent = step === 3
+    ? 'Done'
+    : `${step + 1} of 3 — ${stepNames[step]}`;
   btnSkip.hidden = step !== 0;
-  btnBack.hidden = step === 0;
+  btnBack.hidden = step === 0 || step === 3;
   btnNotNow.hidden = step !== 2;
+  btnNext.hidden = step === 3;
   if (step === 2) loadPlan();
+  if (step === 3) $('done-shortcut').textContent = status?.shortcut ?? 'Right Option';
   render();
   // Keyboard users land on the step's first control.
   const first = steps[step].querySelector<HTMLElement>('button:not([hidden]), select, textarea:not([hidden])');
@@ -76,16 +86,27 @@ function showStep(next: number): void {
 // --- Step 1: permissions ---
 function renderPermissions(s: WelcomeStatus): boolean {
   const micOk = s.microphone === 'granted';
+  const micDenied = s.microphone === 'denied';
+
   $('btn-accessibility').hidden = s.accessibility;
   $('perm-accessibility').querySelector<HTMLElement>('.perm-ok')!.hidden = !s.accessibility;
-  $('btn-microphone').hidden = micOk;
-  $('btn-microphone').textContent = s.microphone === 'denied' ? 'Open Settings' : 'Allow';
+  $('accessibility-denied').hidden = s.accessibility;
+
+  $('btn-microphone').hidden = micOk || micDenied;
+  $('btn-microphone').textContent = micDenied ? 'Open Settings' : 'Allow';
   $('perm-microphone').querySelector<HTMLElement>('.perm-ok')!.hidden = !micOk;
+  $('microphone-denied').hidden = !micDenied;
+
   return s.accessibility && micOk;
 }
 
 $('btn-accessibility').addEventListener('click', () => window.welcome.openAccessibility());
+$('btn-retry-accessibility').addEventListener('click', () => window.welcome.openAccessibility());
 $('btn-microphone').addEventListener('click', async () => {
+  await window.welcome.allowMicrophone();
+  refresh();
+});
+$('btn-retry-microphone').addEventListener('click', async () => {
   await window.welcome.allowMicrophone();
   refresh();
 });
@@ -240,24 +261,30 @@ function render(): void {
   }
 }
 
+let cleanupChoice = false;
 btnNext.addEventListener('click', () => {
   if (btnNext.disabled) return;
   if (step < 2) showStep(step + 1);
-  else window.welcome.finish(langSelect.value, !status?.llmEnabled);
+  else if (step === 2) { cleanupChoice = !status?.llmEnabled; showStep(3); }
 });
 btnBack.addEventListener('click', () => showStep(Math.max(0, step - 1)));
 btnSkip.addEventListener('click', () => showStep(1));
-btnNotNow.addEventListener('click', () => window.welcome.finish(langSelect.value, false));
+btnNotNow.addEventListener('click', () => { cleanupChoice = false; showStep(3); });
 
 // Return is the default button, except while typing in the Try-it box. It
 // doesn't start the cleanup download: the window opens in front on launch,
 // so stray keystrokes meant for another app could otherwise commit to GBs.
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter' || e.repeat || e.target === tryInput) return;
+  if (step === 3) { e.preventDefault(); window.welcome.finish(langSelect.value, cleanupChoice); return; }
   if (step === 2 && e.target !== btnNext) return;
   if (e.target instanceof HTMLButtonElement && e.target !== btnNext) return;
   e.preventDefault();
   btnNext.click();
+});
+
+$('step-done').addEventListener('click', () => {
+  window.welcome.finish(langSelect.value, cleanupChoice);
 });
 
 async function refresh(): Promise<void> {
@@ -270,7 +297,6 @@ window.welcome.onStatusChanged(refresh);
 async function init(): Promise<void> {
   status = await window.welcome.status();
   langSelect.value = initialLanguage(status);
-  // Reopened after setup: start where there's something left to do.
   const permissionsDone = renderPermissions(status);
   showStep(permissionsDone ? (status.speech.running ? 2 : 1) : 0);
   // Permissions change in System Settings and the download has no events, so

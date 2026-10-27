@@ -141,6 +141,42 @@ declare global {
   }
 }
 
+// --- Collapsible Settings Sections ---
+function initCollapsibles() {
+  document.querySelectorAll<HTMLElement>('.collapse-trigger').forEach(trigger => {
+    const toggle = () => {
+      const expanded = trigger.getAttribute('aria-expanded') === 'true';
+      const bodyId = trigger.getAttribute('aria-controls');
+      if (!bodyId) return;
+      const body = document.getElementById(bodyId);
+      if (!body) return;
+      trigger.setAttribute('aria-expanded', String(!expanded));
+      body.setAttribute('aria-hidden', String(expanded));
+    };
+    trigger.addEventListener('click', toggle);
+    trigger.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+    });
+  });
+
+  document.querySelectorAll<HTMLElement>('.collapse-advanced-trigger').forEach(trigger => {
+    const toggle = () => {
+      const expanded = trigger.getAttribute('aria-expanded') === 'true';
+      const bodyId = trigger.getAttribute('aria-controls');
+      if (!bodyId) return;
+      const body = document.getElementById(bodyId);
+      if (!body) return;
+      trigger.setAttribute('aria-expanded', String(!expanded));
+      body.setAttribute('aria-hidden', String(expanded));
+    };
+    trigger.addEventListener('click', toggle);
+    trigger.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+    });
+  });
+}
+initCollapsibles();
+
 // --- Navigation ---
 const navItems = document.querySelectorAll<HTMLButtonElement>('.nav-item[data-page]');
 const pages = document.querySelectorAll<HTMLElement>('.page');
@@ -228,6 +264,7 @@ function renderDictionary(entries: DictionaryEntry[]): void {
       modalTitle.textContent = 'Edit word';
       inputFrom.value = entry.from;
       inputTo.value = entry.to;
+      clearDictErrors();
       dictModal.classList.remove('hidden');
       inputTo.focus();
     });
@@ -246,9 +283,13 @@ btnAddWord.addEventListener('click', () => {
   modalTitle.textContent = 'Add new word';
   inputFrom.value = '';
   inputTo.value = '';
+  clearDictErrors();
   dictModal.classList.remove('hidden');
   inputFrom.focus();
 });
+
+inputFrom.addEventListener('input', () => { errFrom.hidden = true; inputFrom.classList.remove('input-error'); });
+inputTo.addEventListener('input', () => { errTo.hidden = true; inputTo.classList.remove('input-error'); });
 
 btnCancel.addEventListener('click', () => {
   dictModal.classList.add('hidden');
@@ -258,10 +299,44 @@ dictModal.querySelector('.modal-backdrop')!.addEventListener('click', () => {
   dictModal.classList.add('hidden');
 });
 
+const errFrom = document.getElementById('err-from')!;
+const errTo = document.getElementById('err-to')!;
+
+function clearDictErrors(): void {
+  errFrom.hidden = true;
+  errTo.hidden = true;
+  inputFrom.classList.remove('input-error');
+  inputTo.classList.remove('input-error');
+}
+
+function showFieldError(el: HTMLElement, input: HTMLInputElement, msg: string): void {
+  el.textContent = msg;
+  el.hidden = false;
+  input.classList.add('input-error');
+}
+
 btnSave.addEventListener('click', async () => {
+  clearDictErrors();
   const from = inputFrom.value.trim();
   const to = inputTo.value.trim();
-  if (!from || !to) return;
+  let valid = true;
+
+  if (!from) {
+    showFieldError(errFrom, inputFrom, 'Enter the word Utter hears.');
+    valid = false;
+  }
+  if (!to) {
+    showFieldError(errTo, inputTo, 'Enter the replacement spelling.');
+    valid = false;
+  }
+  if (!valid) return;
+
+  const entries = await window.hub.dictionary.list();
+  const duplicate = entries.find(e => e.from.toLowerCase() === from.toLowerCase() && e.from !== editingFrom);
+  if (duplicate) {
+    showFieldError(errFrom, inputFrom, `"${from}" is already in your dictionary.`);
+    return;
+  }
 
   if (editingFrom && editingFrom !== from) {
     await window.hub.dictionary.remove(editingFrom);
@@ -845,8 +920,15 @@ function renderHistory(entries: HistoryEntry[]): void {
   });
 }
 
-document.getElementById('btn-clear-history')!.addEventListener('click', async () => {
-  if (!confirm('Clear your dictation history from this Mac?')) return;
+const confirmClear = document.getElementById('confirm-clear')!;
+document.getElementById('btn-clear-history')!.addEventListener('click', () => {
+  confirmClear.hidden = false;
+});
+document.getElementById('btn-clear-cancel')!.addEventListener('click', () => {
+  confirmClear.hidden = true;
+});
+document.getElementById('btn-clear-confirm')!.addEventListener('click', async () => {
+  confirmClear.hidden = true;
   await window.hub.history.clear();
   dictationLog.length = 0;
   renderHistory([]);
@@ -1083,7 +1165,15 @@ btnSaveShortcut.addEventListener('click', async () => {
   editingShortcut = null;
 });
 
-document.getElementById('btn-reset-shortcuts')?.addEventListener('click', async () => {
+const confirmReset = document.getElementById('confirm-reset')!;
+document.getElementById('btn-reset-shortcuts')?.addEventListener('click', () => {
+  confirmReset.hidden = false;
+});
+document.getElementById('btn-reset-cancel')!.addEventListener('click', () => {
+  confirmReset.hidden = true;
+});
+document.getElementById('btn-reset-confirm')!.addEventListener('click', async () => {
+  confirmReset.hidden = true;
   await window.hub.config.setShortcut(DEFAULT_SHORTCUT);
   showShortcut(DEFAULT_KEY);
   await window.hub.transcriptShortcuts.reset();

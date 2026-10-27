@@ -120,14 +120,14 @@ nav .links a:hover { text-decoration: underline; text-underline-offset: 6px; }
 
 /* Bento: how the key works and what else the app does, in tiles of
    different sizes. Each tile has a small picture above its words. */
-.bento { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, minmax(200px, auto)) auto; gap: 16px;
+.bento { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 220px) auto; gap: 16px;
   grid-template-areas:
     "hold hold double triple"
     "hold hold apps apps"
     "names history limits paste"
     "anykey history mute mic"
     "oss oss oss oss"; }
-.tile { min-height: 190px; background: var(--card); border-radius: 24px; padding: 26px; display: flex; flex-direction: column; justify-content: space-between; gap: 18px; overflow: hidden; text-decoration: none; }
+.tile { background: var(--card); border-radius: 24px; padding: 26px; display: flex; flex-direction: column; justify-content: space-between; gap: 18px; overflow: hidden; text-decoration: none; }
 .tile h3 { font-size: 19px; margin: 0 0 6px; }
 .tile p { color: var(--muted); font-size: 14.5px; line-height: 1.5; }
 .t-hold { grid-area: hold; background: var(--blue); padding: 34px; }
@@ -185,10 +185,12 @@ nav .links a:hover { text-decoration: underline; text-underline-offset: 6px; }
 
 /* Privacy */
 .privacy-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
-.steps-card { background: var(--card-2); border-radius: 26px; padding: 26px; }
+.steps-card { background: var(--card-2); border-radius: 26px; padding: 26px; position: relative; }
+.steps-card::after { content: ''; position: absolute; left: 50px; top: 100px; bottom: 46px; width: 2px; background: var(--blue); opacity: 0.25; border-radius: 1px; pointer-events: none; }
+.steps-card .link { display: none; }
 .steps-card .where { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; margin-bottom: 22px; padding-bottom: 16px; border-bottom: 1px solid #262626; }
 .steps-card .where i { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
-.node { display: grid; grid-template-columns: 48px 1fr; gap: 16px; align-items: center; }
+.node { display: grid; grid-template-columns: 48px 1fr; gap: 16px; align-items: center; padding: 6px 0; }
 .node .ic { width: 48px; height: 48px; border-radius: 14px; background: var(--blue); display: grid; place-items: center; }
 .node .ic svg { width: 22px; height: 22px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .node h4 { font-size: 16px; font-weight: 800; letter-spacing: -.02em; }
@@ -304,10 +306,13 @@ nav .links a:hover { text-decoration: underline; text-underline-offset: 6px; }
 .faq { max-width: 860px; }
 details { border-top: 1px solid var(--line); }
 details:last-child { border-bottom: 1px solid var(--line); }
-summary { list-style: none; cursor: pointer; padding: 24px 48px 24px 0; font-size: 19px; font-weight: 700; letter-spacing: -.02em; position: relative; }
+summary { list-style: none; cursor: pointer; padding: 24px 48px 24px 0; font-size: 19px; font-weight: 700; letter-spacing: -.02em; position: relative; border-radius: 8px; transition: background 0.15s ease; }
+summary:hover { background: rgba(255, 255, 255, 0.04); }
 summary::-webkit-details-marker { display: none; }
-summary::after { content: '+'; position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; border-radius: 8px; background: #262626; display: grid; place-items: center; font-size: 20px; font-weight: 600; }
+summary::after { content: '+'; position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; border-radius: 8px; background: #262626; display: grid; place-items: center; font-size: 20px; font-weight: 600; transition: background 0.15s ease; }
+summary:hover::after { background: #333; }
 details[open] summary::after { content: '−'; background: var(--blue); }
+details[open] summary:hover::after { background: var(--blue); }
 details p { color: var(--muted); padding: 0 48px 24px 0; }
 
 /* Final panel */
