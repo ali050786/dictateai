@@ -49,6 +49,10 @@ kbd { font: 700 13px/1 Manrope, sans-serif; padding: 5px 8px; border-radius: 7px
 .btn .arrow { width: 40px; height: 40px; border-radius: 8px; background: #fff; color: var(--orange); display: grid; place-items: center; }
 .btn .arrow svg { width: 18px; height: 18px; }
 .btn-white { display: inline-flex; align-items: center; height: 42px; padding: 0 18px; border-radius: 9px; background: #fff; color: #111; font-weight: 700; font-size: 14px; text-decoration: none; }
+.btn-nav { display: inline-flex; align-items: center; gap: 10px; height: 42px; padding: 0 6px 0 16px; border-radius: 10px; background: var(--orange); color: #fff; font-weight: 700; font-size: 14px; text-decoration: none; transition: transform .15s; }
+.btn-nav:hover { transform: translateY(-1px); }
+.btn-nav .arrow { width: 30px; height: 30px; border-radius: 7px; background: rgba(255,255,255,.2); display: grid; place-items: center; }
+.btn-nav .arrow svg { width: 14px; height: 14px; }
 .meta { margin-top: 14px; font-size: 14px; color: var(--on-blue-muted); }
 
 /* Nav */
@@ -64,6 +68,7 @@ nav .links a:hover { text-decoration: underline; text-underline-offset: 6px; }
 .hero-grid { display: grid; grid-template-columns: 1fr 1.18fr; gap: 56px; align-items: center; padding: 36px 0 72px; }
 .hero h1 { font-size: clamp(46px, 5.8vw, 84px); letter-spacing: -.045em; line-height: .98; }
 .hero .lede { margin: 26px 0 32px; max-width: 470px; }
+.hero-mic { width: 20px; height: 20px; vertical-align: -3px; margin-right: 6px; color: var(--on-blue-muted); flex-shrink: 0; }
 .stats { display: flex; gap: 36px; margin-top: 48px; }
 .stats b { display: block; white-space: nowrap; font-size: 32px; font-weight: 800; letter-spacing: -.04em; line-height: 1.1; }
 .stats span { display: block; font-size: 13px; line-height: 1.35; color: var(--on-blue-muted); margin-top: 6px; }
@@ -180,6 +185,7 @@ nav .links a:hover { text-decoration: underline; text-underline-offset: 6px; }
 .pair .said { font-size: 18px; color: rgba(255,255,255,.72); margin-bottom: 22px; }
 .pair s { text-decoration-thickness: 2px; text-decoration-color: var(--orange); color: rgba(255,255,255,.45); }
 .pair .field { background: #fff; color: #15161a; border-radius: 12px; padding: 14px 16px; font-size: 18px; font-weight: 600; }
+.pair .field mark { background: rgba(0,69,249,.12); color: inherit; border-radius: 3px; padding: 1px 2px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
 .chip { padding: 9px 16px; border-radius: 999px; border: 1.5px solid #333; font-size: 14px; font-weight: 600; }
 
@@ -346,7 +352,7 @@ footer .credits a { color: var(--muted); text-decoration: underline; }
   .wrap { padding: 0 20px; }
   .panel { margin: 10px; border-radius: 22px; }
   nav .links { display: none; }
-  nav .btn-white { margin-left: auto; }
+  nav .btn-nav { margin-left: auto; }
   .g3, .g4, .pairs, .privacy-grid, .langs, .req, .istep { grid-template-columns: 1fr; }
   .istep { gap: 24px; }
   .istep:nth-child(4n+3) { grid-template-columns: 1fr; }
@@ -379,12 +385,12 @@ footer .credits a { color: var(--muted); text-decoration: underline; }
     <nav>
       <a class="brand" href="#top"><img src="favicon.svg" alt="">Utter</a>
       <div class="links"><a href="#how">How it works</a><a href="#privacy">Privacy</a><a href="#languages">Languages</a><a href="#faq">FAQ</a></div>
-      <a class="btn-white" data-download href="https://github.com/ali050786/dictateai/releases/latest">Download</a>
+      <a class="btn-nav" data-download href="https://github.com/ali050786/dictateai/releases/latest">Download<span class="arrow"><svg><use href="#i-arrow"/></svg></span></a>
     </nav>
     <div class="hero-grid">
       <div>
         <h1>Hold a key and talk. Your Mac types it.</h1>
-        <p class="lede">Utter types what you say into any app on your Mac. It removes the ums, adds the punctuation, and does it all on your Mac, so your audio never leaves.</p>
+        <p class="lede"><svg class="hero-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M8 21h8M12 17v4"/></svg>Utter types what you say into any app on your Mac. It removes the ums, adds the punctuation, and does it all on your Mac, so your audio never leaves.</p>
         <a class="btn" data-download href="https://github.com/ali050786/dictateai/releases/latest">Download for Mac<span class="arrow"><svg><use href="#i-arrow"/></svg></span></a>
         <p class="meta" data-version>Free and open source · Apple Silicon</p>
         <div class="stats">
@@ -498,13 +504,13 @@ footer .credits a { color: var(--muted); text-decoration: underline; }
         <div class="label">You say</div>
         <p class="said"><s>um so</s> can we move the call to <s>Thursday no wait</s> Friday</p>
         <div class="label">Your app gets</div>
-        <div class="field">Can we move the call to Friday?</div>
+        <div class="field">Can we move the call to <mark>Friday</mark>?</div>
       </div>
       <div class="pair">
         <div class="label">You say</div>
         <p class="said">okay <s>so the the</s> new pricing page <s>uh</s> looks great lets ship it</p>
         <div class="label">Your app gets</div>
-        <div class="field">Okay, the new pricing page looks great. Let's ship it.</div>
+        <div class="field"><mark>Okay,</mark> the new pricing page looks great. <mark>Let's</mark> ship it.</div>
       </div>
     </div>
     <div class="chips">
@@ -883,7 +889,6 @@ fetch('/api/latest').then((r) => (r.ok ? r.json() : Promise.reject())).then((dmg
 
 let toastTimer;
 document.querySelectorAll('[data-download]').forEach((a) => a.addEventListener('click', () => {
-  if (!a.href.endsWith('.dmg')) return;
   $('toast').classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => $('toast').classList.remove('show'), 12000);
